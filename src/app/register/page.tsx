@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { FormEvent, useState } from "react";
+import {
+  getCampInviteMessage,
+  isCampInviteSuccess,
+  redeemCampInvite,
+} from "@/lib/camp-invite";
 import { validateRegistrationFields } from "@/lib/password-auth";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -46,11 +51,17 @@ export default function RegisterPage() {
       if (signUpError) throw signUpError;
 
       if (data.session) {
-        window.location.assign("/home");
+        const inviteResult = await redeemCampInvite(supabase, invitationCode);
+        if (isCampInviteSuccess(inviteResult.resultCode)) {
+          window.location.assign("/home");
+          return;
+        }
+
+        setError(`账号已创建，但未能加入训练营：${getCampInviteMessage(inviteResult.resultCode)}`);
         return;
       }
 
-      setMessage("账号已创建。当前项目仍启用了邮箱确认，请先打开确认邮件后再登录。");
+      setMessage("账号已创建。请完成邮箱确认并登录，然后在加入训练营页面输入邀请码。");
     } catch {
       setError("注册失败。邮箱可能已注册，或密码不符合要求。");
     } finally {
@@ -90,7 +101,7 @@ export default function RegisterPage() {
               value={invitationCode}
             />
           </label>
-          <p className="notice">当前为公测临时邀请码，之后会改为数据库中的正式邀请码。</p>
+          <p className="notice">邀请码由训练营管理员提供，系统会在注册后安全验证。</p>
           {message ? <p className="success-notice" role="status">{message}</p> : null}
           {error ? <p className="notice" role="alert">{error}</p> : null}
           <button className="button full" disabled={!configured || submitting} type="submit">
@@ -99,6 +110,7 @@ export default function RegisterPage() {
         </form>
 
         <p style={{ textAlign: "center", marginTop: 18 }}>已有账号？ <Link href="/login">返回登录</Link></p>
+        <p style={{ textAlign: "center", marginTop: 10 }}><Link href="/join-camp">已注册？加入训练营</Link></p>
         {!configured ? <p className="notice" role="alert">尚未配置 Supabase。</p> : null}
       </section>
     </main>

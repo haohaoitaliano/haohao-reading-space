@@ -30,17 +30,13 @@ test("registration requires matching passwords", () => {
   );
 });
 
-test("registration requires the temporary camp invitation code", () => {
+test("registration requires a camp invitation code without validating a hard-coded value", () => {
   assert.equal(
     validateRegistrationFields("好好", "reader@example.com", "secret12", "secret12", ""),
     "请输入训练营邀请码",
   );
   assert.equal(
-    validateRegistrationFields("好好", "reader@example.com", "secret12", "secret12", "WRONG"),
-    "邀请码不正确，请重新输入",
-  );
-  assert.equal(
-    validateRegistrationFields("好好", "reader@example.com", "secret12", "secret12", "LETTURA01"),
+    validateRegistrationFields("好好", "reader@example.com", "secret12", "secret12", "ANY-DATABASE-CODE"),
     null,
   );
 });

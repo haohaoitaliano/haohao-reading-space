@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { getAuthenticatedRouteRedirect, type AuthProfile } from "@/lib/auth-policy";
+import {
+  getAuthenticatedRouteRedirect,
+  getCampMembershipRedirect,
+  requiresCampMembership,
+  type AuthProfile,
+} from "@/lib/auth-policy";
 import { getSupabaseConfig, isSupabaseConfigured } from "./config";
 
 const publicPaths = new Set(["/", "/login", "/register", "/auth/callback", "/auth/error", "/forbidden"]);
@@ -63,6 +68,24 @@ export async function updateSupabaseSession(request: NextRequest) {
 
   const roleRedirect = getAuthenticatedRouteRedirect(pathname, profile);
   if (roleRedirect) return NextResponse.redirect(copyUrl(request, roleRedirect));
+
+  if (
+    profile.role === "student"
+    && (requiresCampMembership(pathname) || pathname === "/join-camp")
+  ) {
+    const { data: membership } = await supabase
+      .from("camp_members")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
+
+    const membershipRedirect = getCampMembershipRedirect(pathname, profile, Boolean(membership));
+    if (membershipRedirect) {
+      return NextResponse.redirect(copyUrl(request, membershipRedirect));
+    }
+  }
 
   return response;
 }

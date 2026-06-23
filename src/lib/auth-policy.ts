@@ -13,6 +13,34 @@ export function getPostLoginPath(role: AppRole) {
   return role === "admin" ? "/teacher" : "/home";
 }
 
+const campProtectedPrefixes = [
+  "/home",
+  "/courses",
+  "/circle",
+  "/my-work",
+  "/my-submissions",
+  "/progress",
+  "/weekly",
+  "/ai-feedback",
+];
+
+export function requiresCampMembership(pathname: string) {
+  return campProtectedPrefixes.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+export function getCampMembershipRedirect(
+  pathname: string,
+  profile: Pick<AuthProfile, "role" | "status">,
+  hasActiveMembership: boolean,
+) {
+  if (profile.role !== "student" || profile.status !== "active") return null;
+  if (pathname === "/join-camp" && hasActiveMembership) return "/home";
+  if (requiresCampMembership(pathname) && !hasActiveMembership) return "/join-camp";
+  return null;
+}
+
 export function canAccessTeacherRoutes(profile: Pick<AuthProfile, "role" | "status"> | null) {
   return profile?.role === "admin" && profile.status === "active";
 }

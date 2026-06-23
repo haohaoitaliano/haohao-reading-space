@@ -5,11 +5,31 @@ import {
   getAuthenticatedRouteRedirect,
   getPostLoginPath,
   getProfileDisplayName,
+  requiresCampMembership,
+  getCampMembershipRedirect,
 } from "./auth-policy.ts";
 
 test("sends students home and admins to the teacher dashboard", () => {
   assert.equal(getPostLoginPath("student"), "/home");
   assert.equal(getPostLoginPath("admin"), "/teacher");
+});
+
+test("student content routes require an active camp membership", () => {
+  for (const path of ["/home", "/courses", "/courses/giorno-4", "/circle", "/my-work", "/my-submissions"]) {
+    assert.equal(requiresCampMembership(path), true);
+  }
+  assert.equal(requiresCampMembership("/join-camp"), false);
+  assert.equal(requiresCampMembership("/profile"), false);
+});
+
+test("students without a camp are redirected while admins are unaffected", () => {
+  const student = { role: "student", status: "active" };
+  const admin = { role: "admin", status: "active" };
+
+  assert.equal(getCampMembershipRedirect("/home", student, false), "/join-camp");
+  assert.equal(getCampMembershipRedirect("/home", student, true), null);
+  assert.equal(getCampMembershipRedirect("/teacher", admin, false), null);
+  assert.equal(getCampMembershipRedirect("/join-camp", student, true), "/home");
 });
 
 test("only an active admin can access teacher routes", () => {
