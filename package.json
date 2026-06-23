@@ -7,7 +7,7 @@
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/lib/*.test.mjs src/lib/supabase/*.test.mjs supabase/migrations/*.test.mjs"
+    "test": "node --experimental-strip-types --test src/lib/*.test.mjs src/lib/supabase/*.test.mjs supabase/migrations/*.test.mjs supabase/seed/*.test.mjs"
   },
   "keywords": [],
   "author": "",

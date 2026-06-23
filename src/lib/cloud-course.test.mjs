@@ -1,0 +1,42 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  getCourseRouteId,
+  isCourseUnlocked,
+  parseCourseDay,
+  validateCourseEditorInput,
+} from "./cloud-course.ts";
+
+test("maps course days to stable giorno routes", () => {
+  assert.equal(getCourseRouteId(4), "giorno-4");
+  assert.equal(parseCourseDay("giorno-4"), 4);
+  assert.equal(parseCourseDay("4"), 4);
+  assert.equal(parseCourseDay("giorno-zero"), null);
+});
+
+test("treats null and past unlock times as unlocked", () => {
+  const now = new Date("2026-06-23T12:00:00Z");
+  assert.equal(isCourseUnlocked(null, now), true);
+  assert.equal(isCourseUnlocked("2026-06-23T11:59:59Z", now), true);
+  assert.equal(isCourseUnlocked("2026-06-24T00:00:00Z", now), false);
+});
+
+test("validates required admin course fields and vocabulary positions", () => {
+  const valid = {
+    dayNumber: 4,
+    italianTitle: "Il profumo del pane",
+    chineseTitle: "面包的香气",
+    description: "练习描述生活中的气味和画面。",
+    readingText: "Davanti al forno...",
+    reflectionPromptZh: "感想",
+    reflectionPromptIt: "Riflessione",
+    unlockAt: null,
+    status: "published",
+    vocabulary: [{ position: 1, word: "forno", meaningZh: "烤炉" }],
+  };
+
+  assert.equal(validateCourseEditorInput(valid), null);
+  assert.equal(validateCourseEditorInput({ ...valid, dayNumber: 0 }), "课程天数必须大于 0");
+  assert.equal(validateCourseEditorInput({ ...valid, italianTitle: "" }), "请输入意大利语标题");
+  assert.equal(validateCourseEditorInput({ ...valid, readingText: "" }), "请输入阅读材料");
+});

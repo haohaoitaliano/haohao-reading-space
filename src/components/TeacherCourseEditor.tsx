@@ -2,67 +2,80 @@
 
 import { FileAudio, Plus, RotateCcw, Save, Trash2, Upload } from "lucide-react";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import type { CourseActionResult } from "@/app/teacher/course-actions";
 import { formatFileSize, isSupportedAudioFile } from "@/lib/audio-file";
 import {
+  getCourseRouteId,
+  validateCourseEditorInput,
+  type CourseEditorInput,
+} from "@/lib/cloud-course";
+import type { CloudCourseDetail } from "@/lib/cloud-course-data";
+import {
   createCourseAudioAsset,
-  loadLocalCourse,
-  saveLocalCourse,
-  type LocalCourseData,
-  type LocalVocabularyItem,
+  loadLocalCourseAudio,
+  saveLocalCourseAudio,
+  type CourseAudioAsset,
 } from "@/lib/course-local-store";
 
-export function TeacherCourseEditor({ defaultCourse }: { defaultCourse: LocalCourseData }) {
-  const [course, setCourse] = useState(defaultCourse);
-  const previewUrl = useMemo(
-    () => (course.audio ? URL.createObjectURL(course.audio.blob) : ""),
-    [course.audio],
-  );
-  const [loading, setLoading] = useState(true);
+type SaveAction = (input: CourseEditorInput) => Promise<CourseActionResult>;
+
+function toEditorInput(course: CloudCourseDetail): CourseEditorInput {
+  return {
+    dayNumber: course.dayNumber,
+    italianTitle: course.italianTitle,
+    chineseTitle: course.chineseTitle,
+    description: course.description,
+    readingText: course.readingText,
+    reflectionPromptZh: course.reflectionPromptZh,
+    reflectionPromptIt: course.reflectionPromptIt,
+    unlockAt: course.unlockAt,
+    status: course.status,
+    vocabulary: course.vocabulary.map((item) => ({ ...item })),
+  };
+}
+
+function datetimeLocalValue(value: string | null) {
+  return value ? new Date(value).toISOString().slice(0, 16) : "";
+}
+
+export function TeacherCourseEditor({ course: initialCourse, saveAction }: {
+  course: CloudCourseDetail;
+  saveAction: SaveAction;
+}) {
+  const [course, setCourse] = useState(() => toEditorInput(initialCourse));
+  const [audio, setAudio] = useState<CourseAudioAsset | null>(null);
+  const [loadingAudio, setLoadingAudio] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const localCourseId = getCourseRouteId(course.dayNumber);
+  const previewUrl = useMemo(() => audio ? URL.createObjectURL(audio.blob) : "", [audio]);
 
   useEffect(() => {
     let cancelled = false;
+    loadLocalCourseAudio(getCourseRouteId(initialCourse.dayNumber))
+      .then((savedAudio) => { if (!cancelled) setAudio(savedAudio); })
+      .catch(() => { if (!cancelled) setError("本地示范音频读取失败。"); })
+      .finally(() => { if (!cancelled) setLoadingAudio(false); });
+    return () => { cancelled = true; };
+  }, [initialCourse.dayNumber]);
 
-    loadLocalCourse(defaultCourse)
-      .then((savedCourse) => {
-        if (!cancelled && savedCourse) setCourse(savedCourse);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setError("无法读取本地课程数据。当前浏览器可能不支持 IndexedDB，已显示默认模拟内容。");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [defaultCourse]);
-
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
-
-  function updateField<K extends keyof LocalCourseData>(field: K, value: LocalCourseData[K]) {
+  function updateField<K extends keyof CourseEditorInput>(field: K, value: CourseEditorInput[K]) {
     setCourse((current) => ({ ...current, [field]: value }));
     setMessage("");
   }
 
-  function updateVocabulary(index: number, field: keyof LocalVocabularyItem, value: string) {
-    const vocabulary = course.vocabulary.map((item, itemIndex) =>
+  function updateVocabulary(index: number, field: "position" | "word" | "meaningZh", value: string | number) {
+    updateField("vocabulary", course.vocabulary.map((item, itemIndex) =>
       itemIndex === index ? { ...item, [field]: value } : item,
-    );
-    updateField("vocabulary", vocabulary);
+    ));
   }
 
   function addVocabulary() {
-    updateField("vocabulary", [...course.vocabulary, { word: "", meaningZh: "" }]);
+    const nextPosition = Math.max(0, ...course.vocabulary.map((item) => item.position)) + 1;
+    updateField("vocabulary", [...course.vocabulary, { position: nextPosition, word: "", meaningZh: "" }]);
   }
 
   function removeVocabulary(index: number) {
@@ -72,29 +85,39 @@ export function TeacherCourseEditor({ defaultCourse }: { defaultCourse: LocalCou
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
-
     if (!file) return;
     if (!isSupportedAudioFile(file.name)) {
       setError("请选择 MP3、M4A 或 WAV 音频文件");
       return;
     }
-
-    updateField("audio", createCourseAudioAsset(file));
+    setAudio(createCourseAudioAsset(file));
     setError("");
   }
 
   async function saveChanges() {
+    const validationError = validateCourseEditorInput(course);
+    if (validationError) { setError(validationError); return; }
     setSaving(true);
-    setMessage("");
     setError("");
+    setMessage("");
+
+    const result = await saveAction(course);
+    if (!result.success) {
+      setError(result.message);
+      setSaving(false);
+      return;
+    }
 
     try {
-      const record = { ...course, updatedAt: Date.now() };
-      await saveLocalCourse(record);
-      setCourse(record);
-      setMessage("模拟修改已保存，学生端刷新后会显示最新课程内容。");
+      await saveLocalCourseAudio(localCourseId, audio);
+      setMessage(result.message);
+      if (!initialCourse.id && result.courseId) {
+        window.location.assign(`/teacher/courses/${result.courseId}/edit`);
+        return;
+      }
     } catch {
-      setError("保存失败。当前浏览器可能不支持 IndexedDB，或本地存储空间不可用。");
+      setMessage(result.message);
+      setError("课程文字已保存，但本地示范音频保存失败。");
     } finally {
       setSaving(false);
     }
@@ -102,131 +125,81 @@ export function TeacherCourseEditor({ defaultCourse }: { defaultCourse: LocalCou
 
   return (
     <div className="stack">
-      {loading ? <div className="item-card"><p style={{ margin: 0 }}>正在读取本地课程数据...</p></div> : null}
-      {error ? <p className="notice" role="alert" style={{ margin: 0 }}>{error}</p> : null}
-      {message ? <p className="notice" role="status" style={{ margin: 0 }}>{message}</p> : null}
+      {error ? <p className="notice" role="alert">{error}</p> : null}
+      {message ? <p className="success-notice" role="status">{message}</p> : null}
 
       <section className="quiet-card">
-        <p className="kicker">课程文字内容</p>
-        <label className="field">
-          意大利语标题
+        <p className="kicker">云端课程内容</p>
+        <label className="field">课程天数
+          <input min={1} onChange={(event) => updateField("dayNumber", Number(event.target.value))} type="number" value={course.dayNumber} />
+        </label>
+        <label className="field">意大利语标题
           <input onChange={(event) => updateField("italianTitle", event.target.value)} value={course.italianTitle} />
         </label>
-        <label className="field">
-          中文标题
+        <label className="field">中文标题
           <input onChange={(event) => updateField("chineseTitle", event.target.value)} value={course.chineseTitle} />
         </label>
-        <label className="field">
-          今日解锁说明
+        <label className="field">课程状态
+          <select onChange={(event) => updateField("status", event.target.value as CourseEditorInput["status"])} value={course.status}>
+            <option value="draft">草稿</option><option value="published">已发布</option><option value="archived">已归档</option>
+          </select>
+        </label>
+        <label className="field">解锁时间
+          <input onChange={(event) => updateField("unlockAt", event.target.value ? new Date(event.target.value).toISOString() : null)} type="datetime-local" value={datetimeLocalValue(course.unlockAt)} />
+        </label>
+        <label className="field">今日解锁说明
           <textarea onChange={(event) => updateField("description", event.target.value)} rows={3} value={course.description} />
         </label>
-        <label className="field">
-          阅读材料
+        <label className="field">阅读材料
           <textarea onChange={(event) => updateField("readingText", event.target.value)} rows={7} value={course.readingText} />
         </label>
-        <label className="field">
-          阅读后的感想中文引导语
+        <label className="field">阅读后的感想中文引导语
           <textarea onChange={(event) => updateField("reflectionPromptZh", event.target.value)} rows={4} value={course.reflectionPromptZh} />
         </label>
-        <label className="field" style={{ marginBottom: 0 }}>
-          阅读后的感想意大利语引导语
+        <label className="field">阅读后的感想意大利语引导语
           <textarea onChange={(event) => updateField("reflectionPromptIt", event.target.value)} rows={4} value={course.reflectionPromptIt} />
         </label>
       </section>
 
       <section className="quiet-card stack">
-        <div className="row">
-          <div>
-            <p className="kicker">Vocabolario</p>
-            <h2 style={{ marginBottom: 0 }}>重点词汇</h2>
-          </div>
-          <button className="button secondary" onClick={addVocabulary} type="button">
-            <Plus size={18} /> 添加词汇
-          </button>
+        <div className="row"><div><p className="kicker">Vocabolario</p><h2>重点词汇</h2></div>
+          <button className="button secondary" onClick={addVocabulary} type="button"><Plus size={18} /> 添加</button>
         </div>
-
         {course.vocabulary.map((item, index) => (
-          <div className="item-card" key={`${index}-${course.vocabulary.length}`}>
-            <label className="field">
-              单词
-              <input
-                aria-label={`单词 ${index + 1}`}
-                onChange={(event) => updateVocabulary(index, "word", event.target.value)}
-                value={item.word}
-              />
+          <div className="item-card" key={item.id ?? `new-${index}`}>
+            <label className="field">位置
+              <input min={1} onChange={(event) => updateVocabulary(index, "position", Number(event.target.value))} type="number" value={item.position} />
             </label>
-            <label className="field">
-              中文释义
-              <input
-                aria-label={`中文释义 ${index + 1}`}
-                onChange={(event) => updateVocabulary(index, "meaningZh", event.target.value)}
-                value={item.meaningZh}
-              />
+            <label className="field">单词
+              <input onChange={(event) => updateVocabulary(index, "word", event.target.value)} value={item.word} />
             </label>
-            <button
-              aria-label={`删除词汇 ${index + 1}`}
-              className="button ghost full"
-              onClick={() => removeVocabulary(index)}
-              type="button"
-            >
-              <Trash2 size={18} /> 删除这个词
-            </button>
+            <label className="field">中文释义
+              <input onChange={(event) => updateVocabulary(index, "meaningZh", event.target.value)} value={item.meaningZh} />
+            </label>
+            <button className="button ghost full" onClick={() => removeVocabulary(index)} type="button"><Trash2 size={18} /> 删除这个词</button>
           </div>
         ))}
       </section>
 
       <section className="quiet-card stack">
-        <div className="row start">
-          <div>
-            <p className="kicker">示范素材</p>
-            <h2>上传示范音频</h2>
-            <p style={{ margin: 0 }}>支持 MP3、M4A、WAV，与课程文字内容一起保存。</p>
-          </div>
-          <FileAudio color="var(--sky)" />
-        </div>
-
+        <div className="row start"><div><p className="kicker">本地示范素材</p><h2>示范音频</h2></div><FileAudio color="var(--sky)" /></div>
         <label className="button secondary full upload-picker">
-          {course.audio ? <RotateCcw size={18} /> : <Upload size={18} />}
-          {course.audio ? "重新选择音频" : "选择音频文件"}
-          <input
-            accept=".mp3,.m4a,.wav,audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav"
-            onChange={handleFileChange}
-            type="file"
-          />
+          {audio ? <RotateCcw size={18} /> : <Upload size={18} />}{audio ? "重新选择音频" : "选择音频文件"}
+          <input accept=".mp3,.m4a,.wav,audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav" onChange={handleFileChange} type="file" />
         </label>
-
-        {course.audio && previewUrl ? (
+        {audio && previewUrl ? (
           <div className="audio-box">
-            <div className="row start">
-              <div style={{ minWidth: 0 }}>
-                <strong className="file-name">{course.audio.name}</strong>
-                <p style={{ margin: "4px 0 0", fontSize: 13 }}>{formatFileSize(course.audio.size)}</p>
-              </div>
-              <button
-                aria-label="删除选中的音频"
-                className="button ghost"
-                onClick={() => updateField("audio", null)}
-                type="button"
-              >
-                <Trash2 size={18} />
-              </button>
+            <div className="row start"><div><strong className="file-name">{audio.name}</strong><p>{formatFileSize(audio.size)}</p></div>
+              <button aria-label="删除选中的音频" className="button ghost" onClick={() => setAudio(null)} type="button"><Trash2 size={18} /></button>
             </div>
-            <audio controls preload="metadata" src={previewUrl} style={{ width: "100%" }}>
-              当前浏览器不支持音频播放。
-            </audio>
+            <audio controls preload="metadata" src={previewUrl} style={{ width: "100%" }} />
           </div>
-        ) : (
-          <div className="item-card"><p style={{ margin: 0 }}>暂无示范音频。</p></div>
-        )}
+        ) : <div className="item-card"><p style={{ margin: 0 }}>{loadingAudio ? "正在读取音频..." : "暂无示范音频。"}</p></div>}
       </section>
 
-      <p className="notice" style={{ margin: 0 }}>
-        当前为本地原型，课程内容和音频仅保存在此浏览器和此设备中。
-      </p>
-
-      <button className="button full" disabled={saving || loading} onClick={saveChanges} type="button">
-        <Save size={18} />
-        {saving ? "正在保存..." : "保存模拟修改"}
+      <p className="notice">课程文字保存到 Supabase；音频仍只保存在当前浏览器和设备中。</p>
+      <button className="button full" disabled={saving || loadingAudio} onClick={saveChanges} type="button">
+        <Save size={18} /> {saving ? "正在保存..." : "保存课程"}
       </button>
     </div>
   );

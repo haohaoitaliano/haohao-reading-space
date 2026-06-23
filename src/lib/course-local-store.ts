@@ -137,3 +137,57 @@ export async function saveLocalCourse(course: LocalCourseData) {
     database.close();
   }
 }
+
+export async function loadLocalCourseAudio(courseId: string) {
+  const database = await openLocalDatabase();
+
+  try {
+    const savedCourse = await readRecord<Partial<LocalCourseData>>(
+      database,
+      COURSE_STORE_NAME,
+      courseId,
+    );
+    if (savedCourse?.audio) return savedCourse.audio;
+
+    if (!database.objectStoreNames.contains(LEGACY_AUDIO_STORE_NAME)) return null;
+    const legacyAudio = await readRecord<LegacyAudioRecord>(
+      database,
+      LEGACY_AUDIO_STORE_NAME,
+      courseId,
+    );
+    return legacyAudio
+      ? {
+          name: legacyAudio.name,
+          type: legacyAudio.type,
+          size: legacyAudio.size,
+          blob: legacyAudio.blob,
+          updatedAt: legacyAudio.updatedAt,
+        }
+      : null;
+  } finally {
+    database.close();
+  }
+}
+
+export async function saveLocalCourseAudio(courseId: string, audio: CourseAudioAsset | null) {
+  const database = await openLocalDatabase();
+
+  try {
+    const existing = await readRecord<Record<string, unknown>>(
+      database,
+      COURSE_STORE_NAME,
+      courseId,
+    );
+    const transaction = database.transaction(COURSE_STORE_NAME, "readwrite");
+    const completion = transactionComplete(transaction);
+    await requestResult(transaction.objectStore(COURSE_STORE_NAME).put({
+      ...(existing ?? {}),
+      courseId,
+      audio,
+    }));
+    await completion;
+    await deleteLegacyAudio(database, courseId);
+  } finally {
+    database.close();
+  }
+}

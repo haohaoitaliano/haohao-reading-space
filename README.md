@@ -39,9 +39,10 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-public-publishable-key
 ```text
 supabase/migrations/202606220001_auth_profiles.sql
 supabase/migrations/202606230001_camps_and_invites.sql
+supabase/migrations/202606230002_cloud_courses.sql
 ```
 
-第一个 migration 创建身份资料和角色权限；第二个创建训练营、哈希邀请码、成员关系、RLS 和安全兑换函数。不要修改或重复执行已经应用的旧 migration。
+三个 migration 依次创建身份与角色、训练营与邀请码、云端课程与课程内容 RLS。不要修改或重复执行已经应用的旧 migration。
 
 ## 创建公测训练营和邀请码
 
@@ -52,6 +53,24 @@ supabase/seed/202606230001_reading_beta_7d.sql
 ```
 
 该 seed 创建或更新 `reading-beta-7d` 训练营，并生成 30 天有效、最多使用 20 次的测试邀请码 `LETTURA01`。SQL 只把邀请码用于计算 SHA-256 哈希，`camp_invites` 不保存明文。正式邀请码应由管理员生成随机高熵字符串，并只保存哈希与脱敏提示。
+
+创建 7 节公测课程时执行：
+
+```text
+supabase/seed/202606230002_reading_beta_courses.sql
+```
+
+课程 seed 只插入尚不存在的 `camp_id + day_number`，可重复执行；已有课程、正文和词汇不会被覆盖。Giorno 1-4 初始为已解锁，Giorno 5-7 使用未来解锁时间。
+
+验证课程数量与状态：
+
+```sql
+select c.day_number, c.italian_title, c.status, c.unlock_at
+from public.courses c
+join public.camps camp on camp.id = c.camp_id
+where camp.slug = 'reading-beta-7d'
+order by c.day_number;
+```
 
 ### 测试邀请码兑换
 
@@ -136,6 +155,9 @@ order by p.created_at desc;
 1. 按上面的 SQL 将测试账号设为 `admin`。
 2. 重新登录后应进入 `/teacher`。
 3. admin 可读取和管理全部 profile。
+4. 在老师后台新建或编辑课程，保存后刷新学生页面确认云端文字同步。
+5. 将课程设为 `draft`，student 不应在课程列表或直接 URL 中读取该课程。
+6. 将 `unlock_at` 改为未来时间，student 只能看到标题和解锁时间，不能读取正文与词汇。
 
 ### 登出
 
@@ -144,8 +166,10 @@ order by p.created_at desc;
 
 ## 本地数据说明
 
-- 训练营、邀请码和成员关系使用 Supabase Database；邀请码兑换由数据库函数原子处理。
-- 课程文字、老师示范音频和学生录音仍使用 IndexedDB。
+- 训练营、邀请码、成员关系、课程文字、解锁信息和词汇使用 Supabase Database。
+- 云端课程是学生页和老师课程管理的正式数据源，不会自动回退到模拟课程。
+- IndexedDB 课程代码暂时保留用于原型对照，但新的课程文字修改不再写入 IndexedDB。
+- 老师示范音频和学生录音仍使用 IndexedDB，不会上传到 Supabase Storage。
 - 新的本地录音会关联 Supabase `user_id` 和 `profiles.display_name`。
 - 本阶段不接入课程数据库、Supabase Storage 或 OpenAI API。
 - AI 反馈仍为模拟内容，暂不开发老师点评。

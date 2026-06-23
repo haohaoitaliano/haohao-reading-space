@@ -1,6 +1,6 @@
 "use client";
 
-import { Headphones, Lightbulb, MessageSquareText } from "lucide-react";
+import { Lightbulb, MessageSquareText } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppFrame } from "@/components/AppFrame";
@@ -11,14 +11,15 @@ import { BrowserRecorder } from "@/components/BrowserRecorder";
 import { Header } from "@/components/Header";
 import { LocalSubmissionCard } from "@/components/LocalSubmissionCard";
 import { formatFileSize } from "@/lib/audio-file";
-import { loadLocalCourse, type LocalCourseData } from "@/lib/course-local-store";
+import type { CloudCourseDetail } from "@/lib/cloud-course-data";
+import { loadLocalCourseAudio, type CourseAudioAsset } from "@/lib/course-local-store";
 import type { Assignment } from "@/lib/mock-data";
 import { useLocalSubmissions } from "@/lib/use-local-submissions";
 
-function SavedCourseAudio({ course }: { course: LocalCourseData }) {
+function SavedCourseAudio({ audio }: { audio: CourseAudioAsset }) {
   const previewUrl = useMemo(
-    () => (course.audio ? URL.createObjectURL(course.audio.blob) : ""),
-    [course.audio],
+    () => URL.createObjectURL(audio.blob),
+    [audio],
   );
 
   useEffect(() => {
@@ -27,24 +28,10 @@ function SavedCourseAudio({ course }: { course: LocalCourseData }) {
     };
   }, [previewUrl]);
 
-  if (!course.audio || !previewUrl) {
-    return (
-      <section className="audio-box">
-        <div className="row" style={{ justifyContent: "flex-start" }}>
-          <Headphones color="var(--sky)" />
-          <div>
-            <strong>暂无示范音频</strong>
-            <p style={{ margin: "4px 0 0", fontSize: 13 }}>老师尚未保存本课示范音频。</p>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section className="audio-box" aria-label="老师示范音频">
-      <strong className="file-name">老师示范 · {course.audio.name}</strong>
-      <p style={{ margin: 0, fontSize: 13 }}>{formatFileSize(course.audio.size)}</p>
+      <strong className="file-name">老师示范 · {audio.name}</strong>
+      <p style={{ margin: 0, fontSize: 13 }}>{formatFileSize(audio.size)}</p>
       <audio controls preload="metadata" src={previewUrl} style={{ width: "100%" }}>
         当前浏览器不支持音频播放。
       </audio>
@@ -54,26 +41,23 @@ function SavedCourseAudio({ course }: { course: LocalCourseData }) {
 
 type StudentCourseDetailProps = {
   assignments: Assignment[];
-  defaultCourse: LocalCourseData;
-  mockAudioDuration: string;
-  mockAudioTitle: string;
+  course: CloudCourseDetail;
+  localCourseId: string;
 };
 
 export function StudentCourseDetail({
   assignments,
-  defaultCourse,
-  mockAudioDuration,
-  mockAudioTitle,
+  course,
+  localCourseId,
 }: StudentCourseDetailProps) {
-  const [course, setCourse] = useState(defaultCourse);
-  const [hasStoredCourse, setHasStoredCourse] = useState(false);
+  const [audio, setAudio] = useState<CourseAudioAsset | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const profile = useAuthProfile();
   const { submissions, error: submissionsError } = useLocalSubmissions();
   const classmatesLocalSubmissions = submissions.filter(
     (submission) =>
-      submission.courseId === course.courseId &&
+      submission.courseId === localCourseId &&
       submission.visibility === "public" &&
       submission.studentId !== profile?.id,
   );
@@ -81,16 +65,13 @@ export function StudentCourseDetail({
   useEffect(() => {
     let cancelled = false;
 
-    loadLocalCourse(defaultCourse)
-      .then((savedCourse) => {
-        if (!cancelled && savedCourse) {
-          setCourse(savedCourse);
-          setHasStoredCourse(true);
-        }
+    loadLocalCourseAudio(localCourseId)
+      .then((savedAudio) => {
+        if (!cancelled) setAudio(savedAudio);
       })
       .catch(() => {
         if (!cancelled) {
-          setError("本地课程内容读取失败，当前显示默认模拟内容。");
+          setError("本地示范音频读取失败。");
         }
       })
       .finally(() => {
@@ -100,7 +81,7 @@ export function StudentCourseDetail({
     return () => {
       cancelled = true;
     };
-  }, [defaultCourse]);
+  }, [localCourseId]);
 
   return (
     <AppFrame active="courses">
@@ -114,12 +95,12 @@ export function StudentCourseDetail({
         </section>
 
         <div className="stack">
-          {loading ? <section className="audio-box"><p style={{ margin: 0 }}>正在读取本地课程...</p></section> : null}
-          {!loading && hasStoredCourse ? (
-            <SavedCourseAudio course={course} />
+          {loading ? <section className="audio-box"><p style={{ margin: 0 }}>正在读取本地示范音频...</p></section> : null}
+          {!loading && audio ? (
+            <SavedCourseAudio audio={audio} />
           ) : null}
-          {!loading && !hasStoredCourse ? (
-            <AudioPlayerMock title={mockAudioTitle} duration={mockAudioDuration} />
+          {!loading && !audio ? (
+            <AudioPlayerMock title={`好好老师示范 · Giorno ${course.dayNumber}`} duration="暂无云端音频" />
           ) : null}
           {error ? <p className="notice" role="alert" style={{ margin: 0 }}>{error}</p> : null}
 
@@ -162,7 +143,7 @@ export function StudentCourseDetail({
             <p className="notice" style={{ margin: 0 }}>录音时，可以在跟读原文后读出你写下的感想。</p>
           </section>
 
-          <BrowserRecorder courseId={course.courseId} />
+          <BrowserRecorder courseId={localCourseId} />
 
           <section>
             <div className="row">
@@ -180,11 +161,9 @@ export function StudentCourseDetail({
             {submissionsError ? <p className="notice" role="alert">{submissionsError}</p> : null}
           </section>
 
-          {hasStoredCourse ? (
-            <p className="notice" style={{ margin: 0 }}>
-              当前为本地原型，课程内容和音频仅保存在此浏览器和此设备中。
-            </p>
-          ) : null}
+          <p className="notice" style={{ margin: 0 }}>
+            课程文字来自云端；示范音频和学生录音仍保存在当前浏览器与设备中。
+          </p>
         </div>
       </section>
     </AppFrame>
