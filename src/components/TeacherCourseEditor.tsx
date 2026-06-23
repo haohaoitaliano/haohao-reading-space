@@ -3,19 +3,13 @@
 import { FileAudio, Plus, RotateCcw, Save, Trash2, Upload } from "lucide-react";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import type { CourseActionResult } from "@/app/teacher/course-actions";
-import { formatFileSize, isSupportedAudioFile } from "@/lib/audio-file";
+import { formatFileSize } from "@/lib/audio-file";
 import {
-  getCourseRouteId,
   validateCourseEditorInput,
   type CourseEditorInput,
 } from "@/lib/cloud-course";
-import type { CloudCourseDetail } from "@/lib/cloud-course-data";
-import {
-  createCourseAudioAsset,
-  loadLocalCourseAudio,
-  saveLocalCourseAudio,
-  type CourseAudioAsset,
-} from "@/lib/course-local-store";
+import { validateCourseAudioFile } from "@/lib/course-audio";
+import type { CloudCourseAudio, CloudCourseDetail } from "@/lib/cloud-course-data";
 
 type SaveAction = (input: CourseEditorInput) => Promise<CourseActionResult>;
 
@@ -43,22 +37,16 @@ export function TeacherCourseEditor({ course: initialCourse, saveAction }: {
   saveAction: SaveAction;
 }) {
   const [course, setCourse] = useState(() => toEditorInput(initialCourse));
-  const [audio, setAudio] = useState<CourseAudioAsset | null>(null);
-  const [loadingAudio, setLoadingAudio] = useState(true);
+  const [audio, setAudio] = useState<CloudCourseAudio | null>(initialCourse.audio);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [deletingAudio, setDeletingAudio] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const localCourseId = getCourseRouteId(course.dayNumber);
-  const previewUrl = useMemo(() => audio ? URL.createObjectURL(audio.blob) : "", [audio]);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadLocalCourseAudio(getCourseRouteId(initialCourse.dayNumber))
-      .then((savedAudio) => { if (!cancelled) setAudio(savedAudio); })
-      .catch(() => { if (!cancelled) setError("本地示范音频读取失败。"); })
-      .finally(() => { if (!cancelled) setLoadingAudio(false); });
-    return () => { cancelled = true; };
-  }, [initialCourse.dayNumber]);
+  const previewUrl = useMemo(() => selectedFile ? URL.createObjectURL(selectedFile) : "", [selectedFile]);
 
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
@@ -86,12 +74,75 @@ export function TeacherCourseEditor({ course: initialCourse, saveAction }: {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!isSupportedAudioFile(file.name)) {
-      setError("请选择 MP3、M4A 或 WAV 音频文件");
+    const validationError = validateCourseAudioFile(file);
+    if (validationError) {
+      setError(validationError);
       return;
     }
-    setAudio(createCourseAudioAsset(file));
+    setSelectedFile(file);
+    setSelectedDuration(null);
+    setUploadProgress(0);
     setError("");
+    const objectUrl = URL.createObjectURL(file);
+    const media = new Audio(objectUrl);
+    media.addEventListener("loadedmetadata", () => {
+      setSelectedDuration(Number.isFinite(media.duration) ? media.duration : null);
+      URL.revokeObjectURL(objectUrl);
+    }, { once: true });
+    media.addEventListener("error", () => URL.revokeObjectURL(objectUrl), { once: true });
+  }
+
+  async function uploadAudio() {
+    if (!selectedFile || !initialCourse.id) return;
+    setUploading(true);
+    setUploadProgress(0);
+    setError("");
+    setMessage("");
+
+    const result = await new Promise<{ success: boolean; message: string; audio?: CloudCourseAudio }>((resolve) => {
+      const request = new XMLHttpRequest();
+      request.open("POST", `/api/teacher/courses/${initialCourse.id}/audio`);
+      request.upload.onprogress = (event) => {
+        if (event.lengthComputable) setUploadProgress(Math.round((event.loaded / event.total) * 100));
+      };
+      request.onload = () => {
+        try { resolve(JSON.parse(request.responseText)); }
+        catch { resolve({ success: false, message: "音频上传失败，请稍后重试。" }); }
+      };
+      request.onerror = () => resolve({ success: false, message: "网络错误，音频上传失败。" });
+      const formData = new FormData();
+      formData.set("audio", selectedFile);
+      if (selectedDuration !== null) formData.set("durationSeconds", String(selectedDuration));
+      request.send(formData);
+    });
+
+    if (result.success && result.audio) {
+      setAudio(result.audio);
+      setSelectedFile(null);
+      setUploadProgress(100);
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
+    setUploading(false);
+  }
+
+  async function deleteAudio() {
+    if (!initialCourse.id || !audio) return;
+    setDeletingAudio(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch(`/api/teacher/courses/${initialCourse.id}/audio`, { method: "DELETE" });
+      const result = await response.json() as { success: boolean; message: string };
+      if (!response.ok || !result.success) throw new Error();
+      setAudio(null);
+      setMessage(result.message);
+    } catch {
+      setError("音频删除失败，请稍后重试。");
+    } finally {
+      setDeletingAudio(false);
+    }
   }
 
   async function saveChanges() {
@@ -108,19 +159,12 @@ export function TeacherCourseEditor({ course: initialCourse, saveAction }: {
       return;
     }
 
-    try {
-      await saveLocalCourseAudio(localCourseId, audio);
-      setMessage(result.message);
-      if (!initialCourse.id && result.courseId) {
-        window.location.assign(`/teacher/courses/${result.courseId}/edit`);
-        return;
-      }
-    } catch {
-      setMessage(result.message);
-      setError("课程文字已保存，但本地示范音频保存失败。");
-    } finally {
-      setSaving(false);
+    setMessage(result.message);
+    if (!initialCourse.id && result.courseId) {
+      window.location.assign(`/teacher/courses/${result.courseId}/edit`);
+      return;
     }
+    setSaving(false);
   }
 
   return (
@@ -182,23 +226,36 @@ export function TeacherCourseEditor({ course: initialCourse, saveAction }: {
       </section>
 
       <section className="quiet-card stack">
-        <div className="row start"><div><p className="kicker">本地示范素材</p><h2>示范音频</h2></div><FileAudio color="var(--sky)" /></div>
+        <div className="row start"><div><p className="kicker">Private Storage</p><h2>云端示范音频</h2></div><FileAudio color="var(--sky)" /></div>
+        {!initialCourse.id ? <p className="notice">请先创建课程，再上传示范音频。</p> : null}
         <label className="button secondary full upload-picker">
-          {audio ? <RotateCcw size={18} /> : <Upload size={18} />}{audio ? "重新选择音频" : "选择音频文件"}
-          <input accept=".mp3,.m4a,.wav,audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav" onChange={handleFileChange} type="file" />
+          {audio ? <RotateCcw size={18} /> : <Upload size={18} />}{audio ? "选择替换音频" : "选择音频文件"}
+          <input accept=".mp3,.m4a,.wav,.webm,.ogg,audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,audio/webm,audio/ogg" disabled={!initialCourse.id || uploading} onChange={handleFileChange} type="file" />
         </label>
-        {audio && previewUrl ? (
+
+        {selectedFile && previewUrl ? (
           <div className="audio-box">
-            <div className="row start"><div><strong className="file-name">{audio.name}</strong><p>{formatFileSize(audio.size)}</p></div>
-              <button aria-label="删除选中的音频" className="button ghost" onClick={() => setAudio(null)} type="button"><Trash2 size={18} /></button>
+            <div className="row start"><div><strong className="file-name">待上传 · {selectedFile.name}</strong><p>{formatFileSize(selectedFile.size)}</p></div>
+              <button aria-label="取消选择音频" className="button ghost" onClick={() => setSelectedFile(null)} type="button"><Trash2 size={18} /></button>
             </div>
             <audio controls preload="metadata" src={previewUrl} style={{ width: "100%" }} />
+            {uploading ? <div className="progress-bar" aria-label="音频上传进度"><span style={{ "--value": `${uploadProgress}%` } as React.CSSProperties} /></div> : null}
+            <button className="button full" disabled={uploading} onClick={uploadAudio} type="button"><Upload size={18} /> {uploading ? `上传中 ${uploadProgress}%` : "上传到云端"}</button>
           </div>
-        ) : <div className="item-card"><p style={{ margin: 0 }}>{loadingAudio ? "正在读取音频..." : "暂无示范音频。"}</p></div>}
+        ) : null}
+
+        {audio ? (
+          <div className="audio-box">
+            <div className="row start"><div><strong className="file-name">已上传 · {audio.fileName}</strong><p>{formatFileSize(audio.sizeBytes)}</p></div>
+              <button aria-label="删除云端示范音频" className="button ghost" disabled={deletingAudio} onClick={deleteAudio} type="button"><Trash2 size={18} /></button>
+            </div>
+            <audio controls preload="metadata" src={audio.signedUrl} style={{ width: "100%" }} />
+          </div>
+        ) : <div className="item-card"><p style={{ margin: 0 }}>暂无云端示范音频。</p></div>}
       </section>
 
-      <p className="notice">课程文字保存到 Supabase；音频仍只保存在当前浏览器和设备中。</p>
-      <button className="button full" disabled={saving || loadingAudio} onClick={saveChanges} type="button">
+      <p className="notice">课程文字与示范音频保存到 Supabase；学生录音仍只保存在当前浏览器和设备中。</p>
+      <button className="button full" disabled={saving || uploading} onClick={saveChanges} type="button">
         <Save size={18} /> {saving ? "正在保存..." : "保存课程"}
       </button>
     </div>

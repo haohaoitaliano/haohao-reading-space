@@ -1,6 +1,6 @@
 # haohao-reading-space
 
-好好意语共读空间 7 天免费公测版。当前阶段接入 Supabase Auth 和 `student` / `admin` 角色权限；课程、示范音频和学生录音仍保存在浏览器 IndexedDB 中。
+好好意语共读空间 7 天免费公测版。当前阶段已接入 Supabase Auth、训练营、云端课程文字和私有示范音频；学生录音仍保存在浏览器 IndexedDB 中。
 
 ## 本地启动
 
@@ -40,9 +40,12 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-public-publishable-key
 supabase/migrations/202606220001_auth_profiles.sql
 supabase/migrations/202606230001_camps_and_invites.sql
 supabase/migrations/202606230002_cloud_courses.sql
+supabase/migrations/202606230003_cloud_course_audio.sql
 ```
 
-三个 migration 依次创建身份与角色、训练营与邀请码、云端课程与课程内容 RLS。不要修改或重复执行已经应用的旧 migration。
+四个 migration 依次创建身份与角色、训练营与邀请码、云端课程、私有课程音频与 Storage RLS。不要修改或重复执行已经应用的旧 migration。
+
+`202606230003_cloud_course_audio.sql` 会自动创建私有 `course-audio` bucket、20 MB 文件上限和允许的音频 MIME 类型，不需要在 Dashboard 手动创建 bucket。
 
 ## 创建公测训练营和邀请码
 
@@ -158,6 +161,16 @@ order by p.created_at desc;
 4. 在老师后台新建或编辑课程，保存后刷新学生页面确认云端文字同步。
 5. 将课程设为 `draft`，student 不应在课程列表或直接 URL 中读取该课程。
 6. 将 `unlock_at` 改为未来时间，student 只能看到标题和解锁时间，不能读取正文与词汇。
+7. 在课程编辑页选择 MP3、M4A、WAV、WebM 或 OGG，试听后上传；确认进度、替换和删除均正常。
+8. Storage 中的对象路径应为 `camp_id/course_id/...`，bucket 必须保持 private。
+
+### 云端示范音频
+
+1. admin 在已创建课程的编辑页选择不超过 20 MB 的音频并点击“上传到云端”。
+2. 上传成功后刷新老师页面，播放器应使用短时 signed URL。
+3. student 刷新已发布且已解锁课程，应能播放同一音频。
+4. student 访问未解锁课程时不应获得播放器；直接读取对应 `course_audio` 或 Storage 对象也应被 RLS 拒绝。
+5. admin 替换音频后旧对象会被清理；删除后学生页面显示“暂无示范音频”。
 
 ### 登出
 
@@ -166,12 +179,13 @@ order by p.created_at desc;
 
 ## 本地数据说明
 
-- 训练营、邀请码、成员关系、课程文字、解锁信息和词汇使用 Supabase Database。
+- 训练营、邀请码、成员关系、课程文字、解锁信息、词汇和示范音频元数据使用 Supabase Database。
 - 云端课程是学生页和老师课程管理的正式数据源，不会自动回退到模拟课程。
 - IndexedDB 课程代码暂时保留用于原型对照，但新的课程文字修改不再写入 IndexedDB。
-- 老师示范音频和学生录音仍使用 IndexedDB，不会上传到 Supabase Storage。
+- 老师示范音频存入私有 Supabase Storage，页面只使用 5 分钟 signed URL。
+- 学生录音和本地提交仍使用 IndexedDB，不会上传到 Supabase Storage。
 - 新的本地录音会关联 Supabase `user_id` 和 `profiles.display_name`。
-- 本阶段不接入课程数据库、Supabase Storage 或 OpenAI API。
+- 本阶段仍不接入学生录音 Storage 或 OpenAI API。
 - AI 反馈仍为模拟内容，暂不开发老师点评。
 
 ## 检查命令

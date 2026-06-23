@@ -1,6 +1,8 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { isCourseUnlocked, type CloudCourseStatus, type CloudVocabularyItem } from "./cloud-course";
+import { COURSE_AUDIO_BUCKET, COURSE_AUDIO_SIGNED_URL_SECONDS } from "./course-audio";
 import { createSupabaseServerClient } from "./supabase/server";
 
 export type CloudCamp = {
@@ -26,7 +28,42 @@ export type CloudCourseDetail = CloudCourseSummary & {
   reflectionPromptZh: string;
   reflectionPromptIt: string;
   vocabulary: CloudVocabularyItem[];
+  audio: CloudCourseAudio | null;
 };
+
+export type CloudCourseAudio = {
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  durationSeconds: number | null;
+  updatedAt: string;
+  signedUrl: string;
+};
+
+type CourseAudioRow = {
+  storage_path: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  duration_seconds: number | null;
+  updated_at: string;
+};
+
+async function createSignedCourseAudio(supabase: SupabaseClient, row: CourseAudioRow | null) {
+  if (!row) return null;
+  const { data, error } = await supabase.storage
+    .from(COURSE_AUDIO_BUCKET)
+    .createSignedUrl(row.storage_path, COURSE_AUDIO_SIGNED_URL_SECONDS);
+  if (error || !data?.signedUrl) return null;
+  return {
+    fileName: row.file_name,
+    mimeType: row.mime_type,
+    sizeBytes: row.size_bytes,
+    durationSeconds: row.duration_seconds,
+    updatedAt: row.updated_at,
+    signedUrl: data.signedUrl,
+  } satisfies CloudCourseAudio;
+}
 
 type CourseRow = {
   id: string;
@@ -115,7 +152,11 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
     return { state: "locked" as const, camp: campResult.camp, course: summary };
   }
 
-  const [{ data: content, error: contentError }, { data: vocabulary, error: vocabularyError }] =
+  const [
+    { data: content, error: contentError },
+    { data: vocabulary, error: vocabularyError },
+    { data: audioRow, error: audioError },
+  ] =
     await Promise.all([
       supabase
         .from("course_contents")
@@ -132,9 +173,14 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
         .select("id, position, word, meaning_zh")
         .eq("course_id", summary.id)
         .order("position", { ascending: true }),
+      supabase
+        .from("course_audio")
+        .select("storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at")
+        .eq("course_id", summary.id)
+        .maybeSingle<CourseAudioRow>(),
     ]);
 
-  if (contentError || vocabularyError || !content) {
+  if (contentError || vocabularyError || audioError || !content) {
     return { state: "database_error" as const, camp: campResult.camp, course: null };
   }
 
@@ -155,6 +201,7 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
       word: item.word,
       meaningZh: item.meaning_zh ?? "",
     })),
+    audio: await createSignedCourseAudio(supabase, audioRow),
   };
 
   return { state: "ok" as const, camp: campResult.camp, course: detail };
@@ -183,7 +230,7 @@ export async function getAdminCourse(courseId: string) {
 
   if (error || !row) return null;
   const summary = mapSummary(row);
-  const [{ data: content }, { data: vocabulary }] = await Promise.all([
+  const [{ data: content }, { data: vocabulary }, { data: audioRow }] = await Promise.all([
     supabase
       .from("course_contents")
       .select("description, reading_text, reflection_prompt_zh, reflection_prompt_it")
@@ -199,6 +246,11 @@ export async function getAdminCourse(courseId: string) {
       .select("id, position, word, meaning_zh")
       .eq("course_id", courseId)
       .order("position", { ascending: true }),
+    supabase
+      .from("course_audio")
+      .select("storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at")
+      .eq("course_id", courseId)
+      .maybeSingle<CourseAudioRow>(),
   ]);
 
   return {
@@ -218,6 +270,7 @@ export async function getAdminCourse(courseId: string) {
       word: item.word,
       meaningZh: item.meaning_zh ?? "",
     })),
+    audio: await createSignedCourseAudio(supabase, audioRow),
   } satisfies CloudCourseDetail;
 }
 

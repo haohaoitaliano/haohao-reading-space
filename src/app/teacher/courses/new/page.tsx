@@ -27,6 +27,7 @@ export default async function NewTeacherCoursePage() {
     status: "draft",
     isUnlocked: true,
     vocabulary: [],
+    audio: null,
   };
   const saveAction = createCloudCourse.bind(null, camp.id);
 
