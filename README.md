@@ -44,6 +44,7 @@ supabase/migrations/202606230003_cloud_course_audio.sql
 supabase/migrations/202606230004_fix_course_audio_storage_rls.sql
 supabase/migrations/202606240001_cloud_student_recordings.sql
 supabase/migrations/202606240002_automatic_course_unlock.sql
+supabase/migrations/202606240003_teacher_operations.sql
 ```
 
 这些 migration 依次创建身份与角色、训练营与邀请码、云端课程、私有课程音频及其 RLS 修复、私有学生录音与提交记录，以及按训练营时区计算的每日自动解锁。不要修改已经应用的旧 migration。
@@ -53,6 +54,8 @@ supabase/migrations/202606240002_automatic_course_unlock.sql
 `202606240001_cloud_student_recordings.sql` 会自动创建私有 `student-recordings` bucket、30 MB 文件上限、`student_submissions` 表和 Database/Storage RLS，也不需要在 Dashboard 手动创建 bucket。
 
 `202606240002_automatic_course_unlock.sql` 为训练营增加 IANA 时区、为课程增加自动/手动解锁模式，并让课程正文、词汇、示范音频和学生提交统一使用有效解锁时间。它不创建新的 Storage bucket。
+
+`202606240003_teacher_operations.sql` 新增每周会议表，以及管理员创建训练营、哈希邀请码和按训练营时区保存会议的安全函数。邀请码明文不会写入数据库。
 
 ## 创建公测训练营和邀请码
 
@@ -205,6 +208,13 @@ order by p.created_at desc;
 3. admin 可在单节课程编辑页切换为“手动指定本课时间”，该时间按训练营时区保存。
 4. student 刷新 `/courses`，未解锁课程应显示日期、时间和时区；直接输入课程 URL 仍只能看到锁定页。
 5. 到达有效时间后刷新，课程正文、词汇和示范音频应同时可读。`draft` 和 `archived` 不因时间到达而向 student 开放。
+
+### 老师运营入口
+
+- `/teacher/camps/new`：创建训练营，设置名称、slug、时区、开始时间、人数上限和状态。
+- `/teacher/invites`：创建邀请码并查看使用次数、有效期和启用状态；停用后不可再兑换。
+- `/teacher/progress`：按训练营查看 active student 的已提交与未提交课程。未提交只统计已发布且已解锁课程，多版本按课程去重。
+- `/teacher/meetings`：创建、编辑或删除每周会议。学生在 `/weekly` 读取自己 active 训练营的会议资料。
 
 ### 登出
 

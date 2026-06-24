@@ -1,28 +1,38 @@
-import { BookPlus, ChartBar, Headphones, MessageSquareText, Plus, Video } from "lucide-react";
+import { BookPlus, ChartBar, Headphones, KeyRound, MessageSquareText, Plus, UserPlus, Video } from "lucide-react";
 import Link from "next/link";
 import { CloudSubmissionCard } from "@/components/CloudSubmissionCard";
 import { Header } from "@/components/Header";
 import { LogoutButton } from "@/components/LogoutButton";
 import { TeacherCampScheduleEditor } from "@/components/TeacherCampScheduleEditor";
+import { TeacherCourseCampFilter } from "@/components/TeacherCourseCampFilter";
 import { requireAdmin } from "@/lib/auth";
+import { filterCoursesForCamp, selectCourseCamp } from "@/lib/cloud-course";
 import { getAdminCampOptions, getAdminCourseList } from "@/lib/cloud-course-data";
 import { formatUnlockDateTime } from "@/lib/course-schedule";
 import { getAdminCloudSubmissions } from "@/lib/cloud-submission-data";
-import { weeklyMeeting } from "@/lib/mock-data";
 
-export default async function TeacherPage() {
+export default async function TeacherPage({ searchParams }: {
+  searchParams: Promise<{ camp?: string }>;
+}) {
   const { profile } = await requireAdmin();
+  const query = await searchParams;
   const [courseResult, submissionResult, camps] = await Promise.all([
     getAdminCourseList(),
     getAdminCloudSubmissions(),
     getAdminCampOptions(),
   ]);
+  const selectedCamp = selectCourseCamp(camps, query.camp);
+  const visibleCourses = selectedCamp
+    ? filterCoursesForCamp(courseResult.courses, selectedCamp.id)
+    : [];
   const tools = [
-    { label: "管理课程", icon: BookPlus, text: `${courseResult.courses.length} 节云端课程`, href: "#cloud-courses" },
-    { label: "上传示范音频或视频", icon: Headphones, text: "在课程编辑页管理云端示范音频", href: courseResult.courses[0] ? `/teacher/courses/${courseResult.courses[0].id}/edit` : undefined },
+    { label: "新建训练营", icon: UserPlus, text: "设置时区、开始时间与人数上限", href: "/teacher/camps/new" },
+    { label: "邀请码管理", icon: KeyRound, text: "创建、查看使用次数和停用", href: "/teacher/invites" },
+    { label: "管理课程", icon: BookPlus, text: `${visibleCourses.length} 节云端课程`, href: "#cloud-courses" },
+    { label: "上传示范音频或视频", icon: Headphones, text: "在课程编辑页管理云端示范音频", href: visibleCourses[0] ? `/teacher/courses/${visibleCourses[0].id}/edit` : undefined },
     { label: "查看学生提交记录", icon: MessageSquareText, text: `${submissionResult.submissions.length} 条云端提交`, href: "#student-submissions" },
-    { label: "查看学习完成情况", icon: ChartBar, text: "查看完成天数、提交和补交状态", href: undefined },
-    { label: "管理每周线上会议", icon: Video, text: weeklyMeeting.title, href: undefined },
+    { label: "查看学习完成情况", icon: ChartBar, text: "查看已提交和未提交课程", href: "/teacher/progress" },
+    { label: "管理每周线上会议", icon: Video, text: "创建、编辑和删除会议", href: "/teacher/meetings" },
   ];
 
   return (
@@ -45,15 +55,17 @@ export default async function TeacherPage() {
 
         <section id="cloud-courses" style={{ marginTop: 20 }}>
           <div className="row"><div><p className="kicker">Cloud Courses</p><h2>课程管理</h2></div>
-            <Link className="button" href="/teacher/courses/new"><Plus size={18} /> 新建课程</Link>
+            <Link className="button" href={selectedCamp ? `/teacher/courses/new?camp=${selectedCamp.id}` : "/teacher/courses/new"}><Plus size={18} /> 新建课程</Link>
           </div>
+          {selectedCamp ? <TeacherCourseCampFilter camps={camps} selectedCampId={selectedCamp.id} /> : null}
           {courseResult.error ? <p className="notice" role="alert">课程数据库暂时不可用。</p> : null}
-          {!courseResult.error && !courseResult.courses.length ? <p className="notice">当前没有课程。</p> : null}
+          {!courseResult.error && selectedCamp && !visibleCourses.length ? <p className="notice">{selectedCamp.name} 当前没有课程。</p> : null}
+          {!courseResult.error && !selectedCamp ? <p className="notice">请先创建训练营。</p> : null}
           <div className="stack">
-            {courseResult.courses.map((course) => (
+            {visibleCourses.map((course) => (
               <Link href={`/teacher/courses/${course.id}/edit`} key={course.id}>
                 <article className="item-card">
-                  <div className="row start"><div><p className="kicker">Giorno {course.dayNumber}</p><h3>{course.italianTitle}</h3><p style={{ margin: 0 }}>{course.chineseTitle} · {formatUnlockDateTime(course.unlockAt, course.timezone)}</p></div>
+                  <div className="row start"><div><p className="kicker">{selectedCamp?.name} · Giorno {course.dayNumber}</p><h3>{course.italianTitle}</h3><p style={{ margin: 0 }}>{course.chineseTitle} · {formatUnlockDateTime(course.unlockAt, course.timezone)}</p></div>
                     <span className={`pill ${course.status === "published" ? "olive" : "muted"}`}>{course.status === "published" ? "已发布" : course.status === "draft" ? "草稿" : "已归档"}</span>
                   </div>
                 </article>

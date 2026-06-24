@@ -16,6 +16,7 @@ export type CloudCamp = {
   slug: string;
   startsAt: string | null;
   timezone: string;
+  status: "draft" | "active" | "archived";
 };
 
 export type CloudCourseSummary = {
@@ -132,7 +133,7 @@ export async function getActiveCampForUser(userId: string) {
   if (!camp) return { state: "no_membership" as const, camp: null };
   return {
     state: "ok" as const,
-    camp: { id: camp.id, name: camp.name, slug: camp.slug, startsAt: camp.starts_at, timezone: camp.timezone },
+    camp: { id: camp.id, name: camp.name, slug: camp.slug, startsAt: camp.starts_at, timezone: camp.timezone, status: "active" },
   };
 }
 
@@ -295,15 +296,17 @@ export async function getAdminCampOptions() {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("camps")
-    .select("id, name, slug, starts_at, timezone")
+    .select("id, name, slug, starts_at, timezone, status")
     .order("created_at", { ascending: true });
   return ((data ?? []) as Array<{
     id: string; name: string; slug: string; starts_at: string | null; timezone: string;
+    status: "draft" | "active" | "archived";
   }>).map((camp) => ({
     id: camp.id,
     name: camp.name,
     slug: camp.slug,
     startsAt: camp.starts_at,
     timezone: camp.timezone,
+    status: camp.status,
   }));
 }

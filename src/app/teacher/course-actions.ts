@@ -101,6 +101,16 @@ export async function createCloudCourse(
   const { data: camp } = await supabase.from("camps").select("id").eq("id", campId).maybeSingle();
   if (!camp) return { success: false, message: "训练营不存在或无权限。" };
 
+  const { data: duplicate } = await supabase
+    .from("courses")
+    .select("id")
+    .eq("camp_id", camp.id)
+    .eq("day_number", input.dayNumber)
+    .maybeSingle();
+  if (duplicate) {
+    return { success: false, message: `该训练营中已存在 Giorno ${input.dayNumber}。` };
+  }
+
   const { data: course, error: courseError } = await supabase
     .from("courses")
     .insert({

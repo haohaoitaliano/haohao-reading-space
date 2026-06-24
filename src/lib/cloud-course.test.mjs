@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getCourseRouteId,
+  filterCoursesForCamp,
   isCourseUnlocked,
   parseCourseDay,
+  selectCourseCamp,
   validateCourseEditorInput,
 } from "./cloud-course.ts";
 
@@ -12,6 +14,26 @@ test("maps course days to stable giorno routes", () => {
   assert.equal(parseCourseDay("giorno-4"), 4);
   assert.equal(parseCourseDay("4"), 4);
   assert.equal(parseCourseDay("giorno-zero"), null);
+});
+
+test("filters teacher courses by the selected camp without changing course data", () => {
+  const courses = [
+    { id: "beta-day-1", campId: "beta" },
+    { id: "b1-day-1", campId: "b1" },
+  ];
+  assert.deepEqual(filterCoursesForCamp(courses, "b1"), [courses[1]]);
+  assert.equal(courses[0].campId, "beta");
+});
+
+test("selects an explicit manageable camp or defaults to the first active camp", () => {
+  const camps = [
+    { id: "draft", status: "draft" },
+    { id: "active-1", status: "active" },
+    { id: "active-2", status: "active" },
+  ];
+  assert.equal(selectCourseCamp(camps, "active-2")?.id, "active-2");
+  assert.equal(selectCourseCamp(camps, "missing")?.id, "active-1");
+  assert.equal(selectCourseCamp(camps, null)?.id, "active-1");
 });
 
 test("only treats a finite past effective unlock time as unlocked", () => {

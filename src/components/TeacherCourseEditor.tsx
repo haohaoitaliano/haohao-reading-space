@@ -196,7 +196,9 @@ export function TeacherCourseEditor({ course: initialCourse, saveAction }: {
           </select>
         </label>
         {course.unlockMode === "auto" ? (
-          <p className="notice">自动解锁：{formatUnlockDateTime(initialCourse.automaticUnlockAt, initialCourse.timezone)}（{initialCourse.timezone}）</p>
+          <p className="notice">自动解锁：{initialCourse.id
+            ? formatUnlockDateTime(initialCourse.automaticUnlockAt, initialCourse.timezone)
+            : "保存后按所选训练营开始时间和 Giorno 计算"}（{initialCourse.timezone}）</p>
         ) : (
           <label className="field">手动解锁时间（{initialCourse.timezone}）
             <input onChange={(event) => updateField("unlockAtLocal", event.target.value || null)} type="datetime-local" value={course.unlockAtLocal ?? ""} />

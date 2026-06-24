@@ -31,6 +31,20 @@ export function parseCourseDay(value: string) {
   return match ? Number(match[1]) : null;
 }
 
+export function selectCourseCamp<T extends { id: string; status: string }>(
+  camps: T[],
+  requestedCampId: string | null | undefined,
+) {
+  return camps.find((camp) => camp.id === requestedCampId)
+    ?? camps.find((camp) => camp.status === "active")
+    ?? camps[0]
+    ?? null;
+}
+
+export function filterCoursesForCamp<T extends { campId: string }>(courses: T[], campId: string) {
+  return courses.filter((course) => course.campId === campId);
+}
+
 export function isCourseUnlocked(unlockAt: string | null, now = new Date()) {
   if (!unlockAt) return false;
   const unlockTime = new Date(unlockAt).getTime();
