@@ -2,15 +2,7 @@ import { Lock, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { getCourseRouteId } from "@/lib/cloud-course";
 import type { CloudCourseSummary } from "@/lib/cloud-course-data";
-
-function formatUnlockAt(value: string | null) {
-  if (!value) return "已开放";
-  return new Intl.DateTimeFormat("zh-CN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Europe/Rome",
-  }).format(new Date(value));
-}
+import { formatUnlockDateTime } from "@/lib/course-schedule";
 
 export function CourseCard({ course }: { course: CloudCourseSummary }) {
   const content = (
@@ -32,7 +24,7 @@ export function CourseCard({ course }: { course: CloudCourseSummary }) {
           </div>
           <p style={{ marginBottom: 4 }}>{course.chineseTitle}</p>
           {!course.isUnlocked ? (
-            <p style={{ margin: 0, fontSize: 13 }}>解锁时间：{formatUnlockAt(course.unlockAt)}</p>
+            <p style={{ margin: 0, fontSize: 13 }}>解锁时间：{formatUnlockDateTime(course.unlockAt, course.timezone)}</p>
           ) : null}
         </div>
       </div>

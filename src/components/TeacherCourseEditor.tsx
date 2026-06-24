@@ -1,6 +1,7 @@
 "use client";
 
 import { FileAudio, Plus, RotateCcw, Save, Trash2, Upload } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import type { CourseActionResult } from "@/app/teacher/course-actions";
 import { formatFileSize } from "@/lib/audio-file";
@@ -10,6 +11,7 @@ import {
 } from "@/lib/cloud-course";
 import { validateCourseAudioFile } from "@/lib/course-audio";
 import type { CloudCourseAudio, CloudCourseDetail } from "@/lib/cloud-course-data";
+import { formatDateTimeLocalInZone, formatUnlockDateTime } from "@/lib/course-schedule";
 
 type SaveAction = (input: CourseEditorInput) => Promise<CourseActionResult>;
 
@@ -22,20 +24,18 @@ function toEditorInput(course: CloudCourseDetail): CourseEditorInput {
     readingText: course.readingText,
     reflectionPromptZh: course.reflectionPromptZh,
     reflectionPromptIt: course.reflectionPromptIt,
-    unlockAt: course.unlockAt,
+    unlockMode: course.unlockMode,
+    unlockAtLocal: formatDateTimeLocalInZone(course.unlockOverrideAt, course.timezone),
     status: course.status,
     vocabulary: course.vocabulary.map((item) => ({ ...item })),
   };
-}
-
-function datetimeLocalValue(value: string | null) {
-  return value ? new Date(value).toISOString().slice(0, 16) : "";
 }
 
 export function TeacherCourseEditor({ course: initialCourse, saveAction }: {
   course: CloudCourseDetail;
   saveAction: SaveAction;
 }) {
+  const router = useRouter();
   const [course, setCourse] = useState(() => toEditorInput(initialCourse));
   const [audio, setAudio] = useState<CloudCourseAudio | null>(initialCourse.audio);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -164,6 +164,7 @@ export function TeacherCourseEditor({ course: initialCourse, saveAction }: {
       window.location.assign(`/teacher/courses/${result.courseId}/edit`);
       return;
     }
+    router.refresh();
     setSaving(false);
   }
 
@@ -188,9 +189,19 @@ export function TeacherCourseEditor({ course: initialCourse, saveAction }: {
             <option value="draft">草稿</option><option value="published">已发布</option><option value="archived">已归档</option>
           </select>
         </label>
-        <label className="field">解锁时间
-          <input onChange={(event) => updateField("unlockAt", event.target.value ? new Date(event.target.value).toISOString() : null)} type="datetime-local" value={datetimeLocalValue(course.unlockAt)} />
+        <label className="field">解锁方式
+          <select onChange={(event) => updateField("unlockMode", event.target.value as CourseEditorInput["unlockMode"])} value={course.unlockMode}>
+            <option value="auto">按训练营日期自动解锁</option>
+            <option value="manual">手动指定本课时间</option>
+          </select>
         </label>
+        {course.unlockMode === "auto" ? (
+          <p className="notice">自动解锁：{formatUnlockDateTime(initialCourse.automaticUnlockAt, initialCourse.timezone)}（{initialCourse.timezone}）</p>
+        ) : (
+          <label className="field">手动解锁时间（{initialCourse.timezone}）
+            <input onChange={(event) => updateField("unlockAtLocal", event.target.value || null)} type="datetime-local" value={course.unlockAtLocal ?? ""} />
+          </label>
+        )}
         <label className="field">今日解锁说明
           <textarea onChange={(event) => updateField("description", event.target.value)} rows={3} value={course.description} />
         </label>

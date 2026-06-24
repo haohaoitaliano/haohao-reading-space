@@ -1,7 +1,12 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isCourseUnlocked, type CloudCourseStatus, type CloudVocabularyItem } from "./cloud-course";
+import {
+  isCourseUnlocked,
+  type CloudCourseStatus,
+  type CloudCourseUnlockMode,
+  type CloudVocabularyItem,
+} from "./cloud-course";
 import { COURSE_AUDIO_BUCKET, COURSE_AUDIO_SIGNED_URL_SECONDS } from "./course-audio";
 import { createSupabaseServerClient } from "./supabase/server";
 
@@ -9,6 +14,8 @@ export type CloudCamp = {
   id: string;
   name: string;
   slug: string;
+  startsAt: string | null;
+  timezone: string;
 };
 
 export type CloudCourseSummary = {
@@ -18,6 +25,10 @@ export type CloudCourseSummary = {
   italianTitle: string;
   chineseTitle: string;
   unlockAt: string | null;
+  unlockOverrideAt: string | null;
+  automaticUnlockAt: string | null;
+  unlockMode: CloudCourseUnlockMode;
+  timezone: string;
   status: CloudCourseStatus;
   isUnlocked: boolean;
 };
@@ -65,26 +76,35 @@ async function createSignedCourseAudio(supabase: SupabaseClient, row: CourseAudi
   } satisfies CloudCourseAudio;
 }
 
-type CourseRow = {
+type CourseScheduleRow = {
   id: string;
   camp_id: string;
   day_number: number;
   italian_title: string;
   chinese_title: string | null;
   unlock_at: string | null;
+  unlock_mode: CloudCourseUnlockMode;
+  automatic_unlock_at: string | null;
+  effective_unlock_at: string | null;
+  camp_timezone: string;
+  camp_starts_at: string | null;
   status: CloudCourseStatus;
 };
 
-function mapSummary(row: CourseRow): CloudCourseSummary {
+function mapSummary(row: CourseScheduleRow): CloudCourseSummary {
   return {
     id: row.id,
     campId: row.camp_id,
     dayNumber: row.day_number,
     italianTitle: row.italian_title,
     chineseTitle: row.chinese_title ?? "",
-    unlockAt: row.unlock_at,
+    unlockAt: row.effective_unlock_at,
+    unlockOverrideAt: row.unlock_at,
+    automaticUnlockAt: row.automatic_unlock_at,
+    unlockMode: row.unlock_mode,
+    timezone: row.camp_timezone,
     status: row.status,
-    isUnlocked: isCourseUnlocked(row.unlock_at),
+    isUnlocked: isCourseUnlocked(row.effective_unlock_at),
   };
 }
 
@@ -103,14 +123,17 @@ export async function getActiveCampForUser(userId: string) {
 
   const { data: camp, error: campError } = await supabase
     .from("camps")
-    .select("id, name, slug")
+    .select("id, name, slug, starts_at, timezone")
     .eq("id", membership.camp_id)
     .eq("status", "active")
-    .maybeSingle<CloudCamp>();
+    .maybeSingle<{ id: string; name: string; slug: string; starts_at: string | null; timezone: string }>();
 
   if (campError) return { state: "database_error" as const, camp: null };
   if (!camp) return { state: "no_membership" as const, camp: null };
-  return { state: "ok" as const, camp };
+  return {
+    state: "ok" as const,
+    camp: { id: camp.id, name: camp.name, slug: camp.slug, startsAt: camp.starts_at, timezone: camp.timezone },
+  };
 }
 
 export async function getStudentCourseList(userId: string) {
@@ -119,16 +142,14 @@ export async function getStudentCourseList(userId: string) {
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
-    .from("courses")
-    .select("id, camp_id, day_number, italian_title, chinese_title, unlock_at, status")
-    .eq("camp_id", campResult.camp.id)
+    .rpc("get_course_schedule", { target_camp_id: campResult.camp.id })
     .order("day_number", { ascending: true });
 
   if (error) return { state: "database_error" as const, camp: campResult.camp, courses: [] };
   return {
     state: data?.length ? "ok" as const : "empty" as const,
     camp: campResult.camp,
-    courses: (data as CourseRow[] | null)?.map(mapSummary) ?? [],
+    courses: (data as CourseScheduleRow[] | null)?.map(mapSummary) ?? [],
   };
 }
 
@@ -138,11 +159,9 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
 
   const supabase = await createSupabaseServerClient();
   const { data: courseRow, error: courseError } = await supabase
-    .from("courses")
-    .select("id, camp_id, day_number, italian_title, chinese_title, unlock_at, status")
-    .eq("camp_id", campResult.camp.id)
+    .rpc("get_course_schedule", { target_camp_id: campResult.camp.id })
     .eq("day_number", dayNumber)
-    .maybeSingle<CourseRow>();
+    .maybeSingle<CourseScheduleRow>();
 
   if (courseError) return { state: "database_error" as const, camp: campResult.camp, course: null };
   if (!courseRow) return { state: "not_found" as const, camp: campResult.camp, course: null };
@@ -210,23 +229,21 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
 export async function getAdminCourseList() {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
-    .from("courses")
-    .select("id, camp_id, day_number, italian_title, chinese_title, unlock_at, status")
+    .rpc("get_course_schedule", { target_camp_id: null })
     .order("day_number", { ascending: true });
 
   return {
     error: Boolean(error),
-    courses: (data as CourseRow[] | null)?.map(mapSummary) ?? [],
+    courses: (data as CourseScheduleRow[] | null)?.map(mapSummary) ?? [],
   };
 }
 
 export async function getAdminCourse(courseId: string) {
   const supabase = await createSupabaseServerClient();
   const { data: row, error } = await supabase
-    .from("courses")
-    .select("id, camp_id, day_number, italian_title, chinese_title, unlock_at, status")
+    .rpc("get_course_schedule", { target_camp_id: null })
     .eq("id", courseId)
-    .maybeSingle<CourseRow>();
+    .maybeSingle<CourseScheduleRow>();
 
   if (error || !row) return null;
   const summary = mapSummary(row);
@@ -278,7 +295,15 @@ export async function getAdminCampOptions() {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("camps")
-    .select("id, name, slug")
+    .select("id, name, slug, starts_at, timezone")
     .order("created_at", { ascending: true });
-  return (data ?? []) as CloudCamp[];
+  return ((data ?? []) as Array<{
+    id: string; name: string; slug: string; starts_at: string | null; timezone: string;
+  }>).map((camp) => ({
+    id: camp.id,
+    name: camp.name,
+    slug: camp.slug,
+    startsAt: camp.starts_at,
+    timezone: camp.timezone,
+  }));
 }

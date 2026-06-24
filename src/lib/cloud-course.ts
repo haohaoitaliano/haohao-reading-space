@@ -1,4 +1,5 @@
 export type CloudCourseStatus = "draft" | "published" | "archived";
+export type CloudCourseUnlockMode = "auto" | "manual";
 
 export type CloudVocabularyItem = {
   id?: string;
@@ -15,7 +16,8 @@ export type CourseEditorInput = {
   readingText: string;
   reflectionPromptZh: string;
   reflectionPromptIt: string;
-  unlockAt: string | null;
+  unlockMode: CloudCourseUnlockMode;
+  unlockAtLocal: string | null;
   status: CloudCourseStatus;
   vocabulary: CloudVocabularyItem[];
 };
@@ -30,7 +32,7 @@ export function parseCourseDay(value: string) {
 }
 
 export function isCourseUnlocked(unlockAt: string | null, now = new Date()) {
-  if (!unlockAt) return true;
+  if (!unlockAt) return false;
   const unlockTime = new Date(unlockAt).getTime();
   return Number.isFinite(unlockTime) && unlockTime <= now.getTime();
 }
@@ -43,6 +45,12 @@ export function validateCourseEditorInput(input: CourseEditorInput) {
   if (!input.readingText.trim()) return "请输入阅读材料";
   if (!(["draft", "published", "archived"] as string[]).includes(input.status)) {
     return "课程状态不正确";
+  }
+  if (!(["auto", "manual"] as string[]).includes(input.unlockMode)) {
+    return "解锁方式不正确";
+  }
+  if (input.unlockMode === "manual" && !input.unlockAtLocal) {
+    return "请选择手动解锁时间";
   }
 
   const positions = new Set<number>();

@@ -6,17 +6,9 @@ import { StudentCourseDetail } from "@/components/StudentCourseDetail";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { parseCourseDay } from "@/lib/cloud-course";
 import { getStudentCourseByDay } from "@/lib/cloud-course-data";
+import { formatUnlockDateTime } from "@/lib/course-schedule";
 
 type CoursePageProps = { params: Promise<{ id: string }> };
-
-function formatUnlockAt(value: string | null) {
-  if (!value) return "已开放";
-  return new Intl.DateTimeFormat("zh-CN", {
-    dateStyle: "long",
-    timeStyle: "short",
-    timeZone: "Europe/Rome",
-  }).format(new Date(value));
-}
 
 export default async function CoursePage({ params }: CoursePageProps) {
   const { profile } = await requireAuthenticatedUser();
@@ -37,7 +29,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
             <h1>{result.course.italianTitle}</h1>
             <p>{result.course.chineseTitle}</p>
           </section>
-          <p className="notice">解锁时间：{formatUnlockAt(result.course.unlockAt)}。正文、感想引导和词汇将在解锁后显示。</p>
+          <p className="notice">解锁时间：{formatUnlockDateTime(result.course.unlockAt, result.course.timezone)}（{result.course.timezone}）。正文、感想引导和词汇将在解锁后显示。</p>
         </section>
       </AppFrame>
     );

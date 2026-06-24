@@ -43,13 +43,16 @@ supabase/migrations/202606230002_cloud_courses.sql
 supabase/migrations/202606230003_cloud_course_audio.sql
 supabase/migrations/202606230004_fix_course_audio_storage_rls.sql
 supabase/migrations/202606240001_cloud_student_recordings.sql
+supabase/migrations/202606240002_automatic_course_unlock.sql
 ```
 
-这些 migration 依次创建身份与角色、训练营与邀请码、云端课程、私有课程音频及其 RLS 修复、私有学生录音与提交记录。不要修改已经应用的旧 migration。
+这些 migration 依次创建身份与角色、训练营与邀请码、云端课程、私有课程音频及其 RLS 修复、私有学生录音与提交记录，以及按训练营时区计算的每日自动解锁。不要修改已经应用的旧 migration。
 
 `202606230003_cloud_course_audio.sql` 会自动创建私有 `course-audio` bucket、20 MB 文件上限和允许的音频 MIME 类型，不需要在 Dashboard 手动创建 bucket。
 
 `202606240001_cloud_student_recordings.sql` 会自动创建私有 `student-recordings` bucket、30 MB 文件上限、`student_submissions` 表和 Database/Storage RLS，也不需要在 Dashboard 手动创建 bucket。
+
+`202606240002_automatic_course_unlock.sql` 为训练营增加 IANA 时区、为课程增加自动/手动解锁模式，并让课程正文、词汇、示范音频和学生提交统一使用有效解锁时间。它不创建新的 Storage bucket。
 
 ## 创建公测训练营和邀请码
 
@@ -67,12 +70,14 @@ supabase/seed/202606230001_reading_beta_7d.sql
 supabase/seed/202606230002_reading_beta_courses.sql
 ```
 
-课程 seed 只插入尚不存在的 `camp_id + day_number`，可重复执行；已有课程、正文和词汇不会被覆盖。Giorno 1-4 初始为已解锁，Giorno 5-7 使用未来解锁时间。
+课程 seed 只插入尚不存在的 `camp_id + day_number`，可重复执行；已有课程、正文和词汇不会被覆盖。执行自动解锁 migration 后，课程默认为 `auto`：Giorno 1 使用训练营开始时间，之后按训练营当地日历每天顺延；老师可为单节课切换为手动时间。
 
 验证课程数量与状态：
 
 ```sql
-select c.day_number, c.italian_title, c.status, c.unlock_at
+select c.day_number, c.italian_title, c.status, c.unlock_mode,
+       private.course_effective_unlock_at(c.id) as effective_unlock_at,
+       camp.timezone
 from public.courses c
 join public.camps camp on camp.id = c.camp_id
 where camp.slug = 'reading-beta-7d'
@@ -164,7 +169,7 @@ order by p.created_at desc;
 3. admin 可读取和管理全部 profile。
 4. 在老师后台新建或编辑课程，保存后刷新学生页面确认云端文字同步。
 5. 将课程设为 `draft`，student 不应在课程列表或直接 URL 中读取该课程。
-6. 将 `unlock_at` 改为未来时间，student 只能看到标题和解锁时间，不能读取正文与词汇。
+6. 调整训练营开始时间，或将单节课切换为手动解锁并设为未来时间；student 只能看到标题和准确的训练营当地解锁时间，不能读取正文与词汇。
 7. 在课程编辑页选择 MP3、M4A、WAV、WebM 或 OGG，试听后上传；确认进度、替换和删除均正常。
 8. Storage 中的对象路径应为 `camp_id/course_id/...`，bucket 必须保持 private。
 
@@ -192,6 +197,14 @@ order by p.created_at desc;
 - 页面不会把邮箱、`user_id`、Storage 路径或 Supabase signed URL 序列化到客户端。播放器请求同源受保护接口，由服务端按当前会话和 RLS 生成短时播放凭证并转发音频。
 - 播放凭证失效或加载失败时，页面会显示刷新提示；刷新页面后会重新生成播放凭证。
 - 本阶段不包含点赞、评论、排行榜或老师点评。
+
+### 每日自动解锁
+
+1. admin 在 `/teacher` 的“训练营自动解锁”区域设置训练营时区和 Giorno 1 当地开始时间。
+2. 课程默认按 `day_number - 1` 个当地日历日自动顺延；夏令时切换不会改变页面显示的当地钟点。
+3. admin 可在单节课程编辑页切换为“手动指定本课时间”，该时间按训练营时区保存。
+4. student 刷新 `/courses`，未解锁课程应显示日期、时间和时区；直接输入课程 URL 仍只能看到锁定页。
+5. 到达有效时间后刷新，课程正文、词汇和示范音频应同时可读。`draft` 和 `archived` 不因时间到达而向 student 开放。
 
 ### 登出
 

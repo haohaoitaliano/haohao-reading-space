@@ -56,7 +56,6 @@ export async function updateCloudCourse(
       day_number: input.dayNumber,
       italian_title: input.italianTitle.trim(),
       chinese_title: input.chineseTitle.trim() || null,
-      unlock_at: input.unlockAt,
       status: input.status,
       updated_by: profile.id,
       updated_at: new Date().toISOString(),
@@ -74,6 +73,13 @@ export async function updateCloudCourse(
     updated_at: new Date().toISOString(),
   });
   if (contentError || !(await replaceVocabulary(courseId, input.vocabulary))) return databaseFailure();
+
+  const { error: scheduleError } = await supabase.rpc("set_course_unlock_schedule", {
+    target_course_id: courseId,
+    target_mode: input.unlockMode,
+    local_unlock_at: input.unlockMode === "manual" ? input.unlockAtLocal : null,
+  });
+  if (scheduleError) return databaseFailure();
 
   revalidatePath("/home");
   revalidatePath("/courses");
@@ -102,7 +108,6 @@ export async function createCloudCourse(
       day_number: input.dayNumber,
       italian_title: input.italianTitle.trim(),
       chinese_title: input.chineseTitle.trim() || null,
-      unlock_at: input.unlockAt,
       status: input.status,
       created_by: profile.id,
       updated_by: profile.id,
@@ -120,7 +125,13 @@ export async function createCloudCourse(
     updated_by: profile.id,
   });
 
-  if (contentError || !(await replaceVocabulary(course.id, input.vocabulary))) {
+  const { error: scheduleError } = await supabase.rpc("set_course_unlock_schedule", {
+    target_course_id: course.id,
+    target_mode: input.unlockMode,
+    local_unlock_at: input.unlockMode === "manual" ? input.unlockAtLocal : null,
+  });
+
+  if (contentError || scheduleError || !(await replaceVocabulary(course.id, input.vocabulary))) {
     await supabase.from("courses").delete().eq("id", course.id);
     return databaseFailure();
   }

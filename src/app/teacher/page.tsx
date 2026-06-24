@@ -3,22 +3,19 @@ import Link from "next/link";
 import { CloudSubmissionCard } from "@/components/CloudSubmissionCard";
 import { Header } from "@/components/Header";
 import { LogoutButton } from "@/components/LogoutButton";
+import { TeacherCampScheduleEditor } from "@/components/TeacherCampScheduleEditor";
 import { requireAdmin } from "@/lib/auth";
-import { getAdminCourseList } from "@/lib/cloud-course-data";
+import { getAdminCampOptions, getAdminCourseList } from "@/lib/cloud-course-data";
+import { formatUnlockDateTime } from "@/lib/course-schedule";
 import { getAdminCloudSubmissions } from "@/lib/cloud-submission-data";
 import { weeklyMeeting } from "@/lib/mock-data";
 
-function formatUnlockAt(value: string | null) {
-  return value
-    ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Rome" }).format(new Date(value))
-    : "立即解锁";
-}
-
 export default async function TeacherPage() {
   const { profile } = await requireAdmin();
-  const [courseResult, submissionResult] = await Promise.all([
+  const [courseResult, submissionResult, camps] = await Promise.all([
     getAdminCourseList(),
     getAdminCloudSubmissions(),
+    getAdminCampOptions(),
   ]);
   const tools = [
     { label: "管理课程", icon: BookPlus, text: `${courseResult.courses.length} 节云端课程`, href: "#cloud-courses" },
@@ -56,13 +53,19 @@ export default async function TeacherPage() {
             {courseResult.courses.map((course) => (
               <Link href={`/teacher/courses/${course.id}/edit`} key={course.id}>
                 <article className="item-card">
-                  <div className="row start"><div><p className="kicker">Giorno {course.dayNumber}</p><h3>{course.italianTitle}</h3><p style={{ margin: 0 }}>{course.chineseTitle} · {formatUnlockAt(course.unlockAt)}</p></div>
+                  <div className="row start"><div><p className="kicker">Giorno {course.dayNumber}</p><h3>{course.italianTitle}</h3><p style={{ margin: 0 }}>{course.chineseTitle} · {formatUnlockDateTime(course.unlockAt, course.timezone)}</p></div>
                     <span className={`pill ${course.status === "published" ? "olive" : "muted"}`}>{course.status === "published" ? "已发布" : course.status === "draft" ? "草稿" : "已归档"}</span>
                   </div>
                 </article>
               </Link>
             ))}
           </div>
+        </section>
+
+        <section className="quiet-card stack" style={{ marginTop: 20 }}>
+          <div><p className="kicker">Daily Unlock</p><h2>训练营自动解锁</h2></div>
+          <p>Giorno 1 使用训练营开始时间，之后每节按训练营当地日历顺延一天。</p>
+          {camps.map((camp) => <TeacherCampScheduleEditor camp={camp} key={camp.id} />)}
         </section>
 
         <section className="quiet-card stack" id="student-submissions" style={{ marginTop: 20 }}>

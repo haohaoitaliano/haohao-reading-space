@@ -14,9 +14,9 @@ test("maps course days to stable giorno routes", () => {
   assert.equal(parseCourseDay("giorno-zero"), null);
 });
 
-test("treats null and past unlock times as unlocked", () => {
+test("only treats a finite past effective unlock time as unlocked", () => {
   const now = new Date("2026-06-23T12:00:00Z");
-  assert.equal(isCourseUnlocked(null, now), true);
+  assert.equal(isCourseUnlocked(null, now), false);
   assert.equal(isCourseUnlocked("2026-06-23T11:59:59Z", now), true);
   assert.equal(isCourseUnlocked("2026-06-24T00:00:00Z", now), false);
 });
@@ -30,7 +30,8 @@ test("validates required admin course fields and vocabulary positions", () => {
     readingText: "Davanti al forno...",
     reflectionPromptZh: "感想",
     reflectionPromptIt: "Riflessione",
-    unlockAt: null,
+    unlockMode: "auto",
+    unlockAtLocal: null,
     status: "published",
     vocabulary: [{ position: 1, word: "forno", meaningZh: "烤炉" }],
   };
