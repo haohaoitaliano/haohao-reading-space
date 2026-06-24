@@ -10,7 +10,6 @@ import {
   getMicrophoneErrorMessage,
   RECORDING_UNSUPPORTED_MESSAGE,
 } from "@/lib/recording-utils";
-import { saveLocalSubmission } from "@/lib/submission-store";
 
 type RecorderState = "idle" | "requesting" | "recording" | "ready" | "submitting" | "submitted" | "error" | "submit_error";
 
@@ -25,10 +24,17 @@ const stateLabels: Record<RecorderState, string> = {
   submit_error: "提交失败",
 };
 
+function extensionForMimeType(mimeType: string) {
+  if (mimeType.includes("mp4")) return "m4a";
+  if (mimeType.includes("ogg")) return "ogg";
+  if (mimeType.includes("wav")) return "wav";
+  if (mimeType.includes("mpeg")) return "mp3";
+  return "webm";
+}
+
 export function BrowserRecorder({ courseId }: { courseId: string }) {
   const router = useRouter();
   const profile = useAuthProfile();
-  const nickname = profile?.display_name ?? "同学";
   const [state, setState] = useState<RecorderState>("idle");
   const [visibility, setVisibility] = useState<"public" | "teacher_only">("public");
   const [duration, setDuration] = useState(0);
@@ -168,24 +174,37 @@ export function BrowserRecorder({ courseId }: { courseId: string }) {
     setState("submitting");
     setMessage("");
     try {
-      const submission = await saveLocalSubmission({
-        courseId,
-        studentId: profile.id,
-        studentNickname: nickname,
-        audioBlob,
-        mimeType,
-        duration,
-        visibility,
+      const formData = new FormData();
+      formData.set("audio", new File(
+        [audioBlob],
+        `recording.${extensionForMimeType(mimeType)}`,
+        { type: mimeType },
+      ));
+      formData.set("durationSeconds", String(duration));
+      formData.set("visibility", visibility);
+      const response = await fetch(`/api/student/courses/${courseId}/submissions`, {
+        method: "POST",
+        body: formData,
       });
-      window.dispatchEvent(new Event("haohao:submissions-changed"));
+      const result = await response.json() as {
+        success: boolean;
+        message?: string;
+        submissionId?: string;
+        version?: number;
+      };
+      if (!response.ok || !result.success || !result.submissionId) {
+        throw new Error(result.message || "submit_failed");
+      }
       setState("submitted");
-      setMessage(`录音提交成功 · 第 ${submission.version} 版`);
+      setMessage(`录音提交成功 · 第 ${result.version} 版`);
       redirectTimerRef.current = setTimeout(() => {
-        router.push(`/ai-feedback?submissionId=${encodeURIComponent(submission.submissionId)}`);
+        router.push(`/ai-feedback?submissionId=${encodeURIComponent(result.submissionId ?? "")}`);
       }, 900);
-    } catch {
+    } catch (error) {
       setState("submit_error");
-      setMessage("录音提交失败，本地存储可能不可用或空间不足，请稍后重试。");
+      setMessage(error instanceof Error && error.message !== "submit_failed"
+        ? error.message
+        : "录音提交失败，请检查网络后重试。");
     }
   };
 
@@ -274,7 +293,7 @@ export function BrowserRecorder({ courseId }: { courseId: string }) {
 
       <button className="button full" disabled={!profile || !hasRecording || state === "submitting" || state === "submitted"} onClick={submitRecording} type="button">
         <Send size={18} />
-        {state === "submitting" ? "正在保存..." : "提交录音"}
+          {state === "submitting" ? "正在上传..." : "提交录音"}
       </button>
       {message ? <p className={state === "submitted" ? "success-notice" : "notice"} role="status">{message}</p> : null}
     </section>

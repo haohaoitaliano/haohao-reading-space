@@ -1,6 +1,6 @@
 # haohao-reading-space
 
-好好意语共读空间 7 天免费公测版。当前阶段已接入 Supabase Auth、训练营、云端课程文字和私有示范音频；学生录音仍保存在浏览器 IndexedDB 中。
+好好意语共读空间 7 天免费公测版。当前阶段已接入 Supabase Auth、训练营、云端课程文字、私有示范音频和私有学生录音。
 
 ## 本地启动
 
@@ -41,11 +41,15 @@ supabase/migrations/202606220001_auth_profiles.sql
 supabase/migrations/202606230001_camps_and_invites.sql
 supabase/migrations/202606230002_cloud_courses.sql
 supabase/migrations/202606230003_cloud_course_audio.sql
+supabase/migrations/202606230004_fix_course_audio_storage_rls.sql
+supabase/migrations/202606240001_cloud_student_recordings.sql
 ```
 
-四个 migration 依次创建身份与角色、训练营与邀请码、云端课程、私有课程音频与 Storage RLS。不要修改或重复执行已经应用的旧 migration。
+这些 migration 依次创建身份与角色、训练营与邀请码、云端课程、私有课程音频及其 RLS 修复、私有学生录音与提交记录。不要修改已经应用的旧 migration。
 
 `202606230003_cloud_course_audio.sql` 会自动创建私有 `course-audio` bucket、20 MB 文件上限和允许的音频 MIME 类型，不需要在 Dashboard 手动创建 bucket。
+
+`202606240001_cloud_student_recordings.sql` 会自动创建私有 `student-recordings` bucket、30 MB 文件上限、`student_submissions` 表和 Database/Storage RLS，也不需要在 Dashboard 手动创建 bucket。
 
 ## 创建公测训练营和邀请码
 
@@ -172,6 +176,15 @@ order by p.created_at desc;
 4. student 访问未解锁课程时不应获得播放器；直接读取对应 `course_audio` 或 Storage 对象也应被 RLS 拒绝。
 5. admin 替换音频后旧对象会被清理；删除后学生页面显示“暂无示范音频”。
 
+### 云端学生录音
+
+1. student 打开一节已发布且已解锁课程，允许麦克风权限，录制并试听。
+2. 选择“对同学公开”或“仅老师可见”，提交后确认显示版本号，并在 `/my-work` 播放。
+3. 再次录制并提交同一课程，确认版本递增；在“我的作业”测试替换和删除自己的录音。
+4. 公开录音应出现在同一期其他 student 的 `/circle`，`teacher_only` 不应出现；其他 student 直接读取其元数据或 Storage 对象应被 RLS 拒绝。
+5. admin 打开 `/teacher`，应能查看并通过短时 signed URL 播放所有学生提交，但学生仍不能访问老师后台。
+6. Storage 对象路径应为 `camp_id/user_id/submission_id/...`，`student-recordings` bucket 必须保持 private。
+
 ### 登出
 
 1. 在个人资料或老师后台点击“退出登录”。
@@ -183,9 +196,10 @@ order by p.created_at desc;
 - 云端课程是学生页和老师课程管理的正式数据源，不会自动回退到模拟课程。
 - IndexedDB 课程代码暂时保留用于原型对照，但新的课程文字修改不再写入 IndexedDB。
 - 老师示范音频存入私有 Supabase Storage，页面只使用 5 分钟 signed URL。
-- 学生录音和本地提交仍使用 IndexedDB，不会上传到 Supabase Storage。
-- 新的本地录音会关联 Supabase `user_id` 和 `profiles.display_name`。
-- 本阶段仍不接入学生录音 Storage 或 OpenAI API。
+- 学生已提交录音存入私有 Supabase Storage，提交元数据存入 `student_submissions`，页面只使用 5 分钟 signed URL。
+- 浏览器录音停止后的未提交 Blob 只保存在内存中，刷新后可以丢失。
+- 旧 IndexedDB 课程、示范音频和学生提交模块仍保留用于原型对照与兼容，但不再是新课程或新提交的正式数据源，也不会自动上传历史记录。
+- 本阶段仍不接入 OpenAI API。
 - AI 反馈仍为模拟内容，暂不开发老师点评。
 
 ## 检查命令

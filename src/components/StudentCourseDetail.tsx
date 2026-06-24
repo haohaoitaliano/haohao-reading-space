@@ -3,15 +3,10 @@
 import { Lightbulb, MessageSquareText } from "lucide-react";
 import Link from "next/link";
 import { AppFrame } from "@/components/AppFrame";
-import { AssignmentCard } from "@/components/AssignmentCard";
-import { useAuthProfile } from "@/components/AuthProfileProvider";
 import { BrowserRecorder } from "@/components/BrowserRecorder";
 import { Header } from "@/components/Header";
-import { LocalSubmissionCard } from "@/components/LocalSubmissionCard";
 import { formatFileSize } from "@/lib/audio-file";
 import type { CloudCourseAudio, CloudCourseDetail } from "@/lib/cloud-course-data";
-import type { Assignment } from "@/lib/mock-data";
-import { useLocalSubmissions } from "@/lib/use-local-submissions";
 
 function CloudCourseAudioPlayer({ audio }: { audio: CloudCourseAudio }) {
   return (
@@ -26,25 +21,10 @@ function CloudCourseAudioPlayer({ audio }: { audio: CloudCourseAudio }) {
 }
 
 type StudentCourseDetailProps = {
-  assignments: Assignment[];
   course: CloudCourseDetail;
-  localCourseId: string;
 };
 
-export function StudentCourseDetail({
-  assignments,
-  course,
-  localCourseId,
-}: StudentCourseDetailProps) {
-  const profile = useAuthProfile();
-  const { submissions, error: submissionsError } = useLocalSubmissions();
-  const classmatesLocalSubmissions = submissions.filter(
-    (submission) =>
-      submission.courseId === localCourseId &&
-      submission.visibility === "public" &&
-      submission.studentId !== profile?.id,
-  );
-
+export function StudentCourseDetail({ course }: StudentCourseDetailProps) {
   return (
     <AppFrame active="courses">
       <section className="screen with-top">
@@ -100,26 +80,18 @@ export function StudentCourseDetail({
             <p className="notice" style={{ margin: 0 }}>录音时，可以在跟读原文后读出你写下的感想。</p>
           </section>
 
-          <BrowserRecorder courseId={localCourseId} />
+          <BrowserRecorder courseId={course.id} />
 
           <section>
             <div className="row">
               <h2>本课作业</h2>
               <Link className="pill sky" href="/circle">作业圈</Link>
             </div>
-            <div className="stack">
-              {assignments.map((assignment) => (
-                <AssignmentCard assignment={assignment} key={assignment.id} />
-              ))}
-              {classmatesLocalSubmissions.map((submission) => (
-                <LocalSubmissionCard key={submission.submissionId} submission={submission} />
-              ))}
-            </div>
-            {submissionsError ? <p className="notice" role="alert">{submissionsError}</p> : null}
+            <p className="notice">同学选择公开的云端录音会显示在作业圈中。</p>
           </section>
 
           <p className="notice" style={{ margin: 0 }}>
-            课程文字与示范音频来自云端；学生录音仍保存在当前浏览器与设备中。
+            课程、示范音频和已提交录音均来自云端；未提交的临时录音刷新后会丢失。
           </p>
         </div>
       </section>

@@ -4,9 +4,8 @@ import { AppFrame } from "@/components/AppFrame";
 import { Header } from "@/components/Header";
 import { StudentCourseDetail } from "@/components/StudentCourseDetail";
 import { requireAuthenticatedUser } from "@/lib/auth";
-import { getCourseRouteId, parseCourseDay } from "@/lib/cloud-course";
+import { parseCourseDay } from "@/lib/cloud-course";
 import { getStudentCourseByDay } from "@/lib/cloud-course-data";
-import { assignments } from "@/lib/mock-data";
 
 type CoursePageProps = { params: Promise<{ id: string }> };
 
@@ -61,7 +60,5 @@ export default async function CoursePage({ params }: CoursePageProps) {
     );
   }
 
-  const localCourseId = getCourseRouteId(result.course.dayNumber);
-  const courseAssignments = assignments.filter((assignment) => assignment.courseId === localCourseId);
-  return <StudentCourseDetail assignments={courseAssignments} course={result.course} localCourseId={localCourseId} />;
+  return <StudentCourseDetail course={result.course} />;
 }

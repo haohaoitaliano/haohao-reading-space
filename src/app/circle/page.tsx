@@ -1,17 +1,16 @@
-"use client";
-
 import { AppFrame } from "@/components/AppFrame";
-import { AssignmentCard } from "@/components/AssignmentCard";
+import { CloudSubmissionCard } from "@/components/CloudSubmissionCard";
 import { Header } from "@/components/Header";
-import { LocalSubmissionCard } from "@/components/LocalSubmissionCard";
-import { assignments } from "@/lib/mock-data";
-import { isSubmissionVisibleInCircle } from "@/lib/submission-store";
-import { useLocalSubmissions } from "@/lib/use-local-submissions";
+import { requireAuthenticatedUser } from "@/lib/auth";
+import { getActiveCampForUser } from "@/lib/cloud-course-data";
+import { getPublicCampSubmissions } from "@/lib/cloud-submission-data";
 
-export default function CirclePage() {
-  const publicAssignments = assignments.filter((assignment) => assignment.visibility === "public");
-  const { submissions, loading, error } = useLocalSubmissions();
-  const localPublicAssignments = submissions.filter(isSubmissionVisibleInCircle);
+export default async function CirclePage() {
+  const { profile } = await requireAuthenticatedUser();
+  const campResult = await getActiveCampForUser(profile.id);
+  const result = campResult.state === "ok"
+    ? await getPublicCampSubmissions(campResult.camp.id, profile.id)
+    : { submissions: [], error: true };
 
   return (
     <AppFrame active="circle">
@@ -20,17 +19,14 @@ export default function CirclePage() {
         <div className="hero">
           <p className="kicker">Compagni di lettura</p>
           <h1>听见同学，也听见自己的进步。</h1>
-          <p>公开录音可以被同班同学收听、点赞和评论；仅老师可见录音不会出现在作业圈。</p>
+          <p>这里只展示同一期训练营成员选择公开的云端录音。</p>
         </div>
         <div className="stack">
-          {publicAssignments.map((assignment) => (
-            <AssignmentCard assignment={assignment} key={assignment.id} />
+          {result.submissions.map((submission) => (
+            <CloudSubmissionCard key={submission.id} submission={submission} />
           ))}
-          {localPublicAssignments.map((submission) => (
-            <LocalSubmissionCard key={submission.submissionId} submission={submission} />
-          ))}
-          {loading ? <p className="notice">正在读取本地公开作业...</p> : null}
-          {error ? <p className="notice" role="alert">{error}</p> : null}
+          {!result.error && result.submissions.length === 0 ? <p className="notice">暂时没有同学公开录音。</p> : null}
+          {result.error ? <p className="notice" role="alert">作业圈暂时无法读取，请稍后重试。</p> : null}
         </div>
       </section>
     </AppFrame>
