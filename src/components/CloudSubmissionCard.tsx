@@ -27,6 +27,7 @@ export function CloudSubmissionCard({
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [audioError, setAudioError] = useState(false);
   const isPublic = submission.visibility === "public";
 
   async function replaceAudio(file: File | undefined) {
@@ -61,16 +62,31 @@ export function CloudSubmissionCard({
     <article className="item-card local-submission-card">
       <div className="row start">
         <div className="avatar">{submission.studentName.charAt(0) || "读"}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="submission-card-main">
           <strong>{submission.studentName}</strong>
-          <p style={{ margin: "2px 0 8px", fontSize: 13 }}>
-            Giorno {submission.dayNumber} · {formatSubmittedAt(submission.createdAt)} · 第 {submission.version} 版
+          <p className="submission-course" lang="it">
+            Giorno {submission.dayNumber} · {submission.courseTitle}
           </p>
-          {submission.signedUrl ? (
-            <audio controls preload="metadata" src={submission.signedUrl} style={{ width: "100%" }}>
-              当前浏览器不支持音频播放。
-            </audio>
-          ) : <p className="notice">播放地址暂时不可用，请刷新后重试。</p>}
+          <p className="submission-meta">
+            {formatSubmittedAt(submission.createdAt)} · 第 {submission.version} 版
+          </p>
+          <audio
+            controls
+            onError={() => setAudioError(true)}
+            onLoadedMetadata={() => setAudioError(false)}
+            preload="metadata"
+            src={submission.audioUrl}
+          >
+            当前浏览器不支持音频播放。
+          </audio>
+          {audioError ? (
+            <div className="notice submission-audio-error" role="alert">
+              <span>录音暂时无法播放，播放凭证可能已失效。</span>
+              <button className="button ghost" onClick={() => window.location.reload()} type="button">
+                <RefreshCw size={16} />刷新页面
+              </button>
+            </div>
+          ) : null}
           <div className="row" style={{ marginTop: 8 }}>
             <span className={`pill ${isPublic ? "sky" : "muted"}`}>
               {isPublic ? <Users size={13} /> : <LockKeyhole size={13} />}

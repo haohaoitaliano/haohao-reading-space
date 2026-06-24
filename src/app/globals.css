@@ -473,7 +473,41 @@ p {
 }
 
 .local-submission-card audio {
+  display: block;
+  width: 100%;
   min-height: 42px;
+}
+
+.submission-card-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.submission-course,
+.submission-meta {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.submission-course {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.submission-meta {
+  margin-bottom: 8px;
+  color: var(--muted);
+}
+
+.submission-audio-error {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.submission-audio-error .button {
+  width: 100%;
 }
 
 @keyframes recording-pulse {

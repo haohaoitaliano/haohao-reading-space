@@ -185,6 +185,14 @@ order by p.created_at desc;
 5. admin 打开 `/teacher`，应能查看并通过短时 signed URL 播放所有学生提交，但学生仍不能访问老师后台。
 6. Storage 对象路径应为 `camp_id/user_id/submission_id/...`，`student-recordings` bucket 必须保持 private。
 
+### 作业圈
+
+- `/circle` 只查询当前 student 的 active 训练营，并只展示其他成员选择 `public` 的未删除提交。
+- 列表按提交时间从新到旧排列，显示昵称、课程、版本、提交时间和播放器；`teacher_only` 与其他训练营记录由查询和 RLS 双重隔离。
+- 页面不会把邮箱、`user_id`、Storage 路径或 Supabase signed URL 序列化到客户端。播放器请求同源受保护接口，由服务端按当前会话和 RLS 生成短时播放凭证并转发音频。
+- 播放凭证失效或加载失败时，页面会显示刷新提示；刷新页面后会重新生成播放凭证。
+- 本阶段不包含点赞、评论、排行榜或老师点评。
+
 ### 登出
 
 1. 在个人资料或老师后台点击“退出登录”。
