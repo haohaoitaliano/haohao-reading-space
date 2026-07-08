@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AppFrame } from "@/components/AppFrame";
 import { Header } from "@/components/Header";
 import { AudioPlayerMock } from "@/components/AudioPlayerMock";
+import { ENABLE_AI_FEEDBACK } from "@/lib/features";
 import { getAssignment, getCourse, getStudent } from "@/lib/mock-data";
 
 type AssignmentPageProps = {
@@ -60,10 +61,12 @@ export default async function AssignmentPage({ params }: AssignmentPageProps) {
 
         <section className="quiet-card" style={{ marginTop: 14 }}>
           <p className="kicker">隐私说明</p>
-          <p style={{ marginBottom: 0 }}>同学可以收听公开录音和互动，但看不到该同学的 AI 详细反馈。</p>
-          <Link className="pill muted" href="/ai-feedback" style={{ marginTop: 10 }}>
-            查看本人 AI 反馈示例
-          </Link>
+          <p style={{ marginBottom: 0 }}>同学可以收听公开录音和互动，但看不到该同学的私人练习记录。</p>
+          {ENABLE_AI_FEEDBACK ? (
+            <Link className="pill muted" href="/ai-feedback" style={{ marginTop: 10 }}>
+              查看本人 AI 反馈示例
+            </Link>
+          ) : null}
         </section>
       </section>
     </AppFrame>

@@ -5,6 +5,7 @@ import { CloudSubmissionCard } from "@/components/CloudSubmissionCard";
 import { Header } from "@/components/Header";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { getOwnCloudSubmissions } from "@/lib/cloud-submission-data";
+import { ENABLE_AI_FEEDBACK } from "@/lib/features";
 
 export default async function MyWorkPage() {
   const { profile } = await requireAuthenticatedUser();
@@ -13,7 +14,7 @@ export default async function MyWorkPage() {
   return (
     <AppFrame active="progress">
       <section className="screen with-top">
-        <Header title="我的作业" subtitle={`${profile.display_name} · 云端录音与 AI 反馈`} />
+        <Header title="我的作业" subtitle={`${profile.display_name} · 云端录音`} />
         <div className="hero">
           <p className="kicker">I miei compiti</p>
           <h1>回看每一次提交和修改。</h1>
@@ -23,9 +24,11 @@ export default async function MyWorkPage() {
           {result.submissions.map((submission) => (
             <section className="stack" key={submission.id}>
               <CloudSubmissionCard manageable submission={submission} />
-              <Link className="button secondary full" href={`/ai-feedback?submissionId=${submission.id}`}>
-                <Eye size={18} />查看 AI 反馈
-              </Link>
+              {ENABLE_AI_FEEDBACK ? (
+                <Link className="button secondary full" href={`/ai-feedback?submissionId=${submission.id}`}>
+                  <Eye size={18} />查看 AI 反馈
+                </Link>
+              ) : null}
             </section>
           ))}
           {!result.error && result.submissions.length === 0 ? (

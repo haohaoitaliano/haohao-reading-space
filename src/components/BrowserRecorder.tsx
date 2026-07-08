@@ -10,6 +10,7 @@ import {
   getMicrophoneErrorMessage,
   RECORDING_UNSUPPORTED_MESSAGE,
 } from "@/lib/recording-utils";
+import { ENABLE_AI_FEEDBACK } from "@/lib/features";
 
 type RecorderState = "idle" | "requesting" | "recording" | "ready" | "submitting" | "submitted" | "error" | "submit_error";
 
@@ -197,9 +198,11 @@ export function BrowserRecorder({ courseId }: { courseId: string }) {
       }
       setState("submitted");
       setMessage(`录音提交成功 · 第 ${result.version} 版`);
-      redirectTimerRef.current = setTimeout(() => {
-        router.push(`/ai-feedback?submissionId=${encodeURIComponent(result.submissionId ?? "")}`);
-      }, 900);
+      if (ENABLE_AI_FEEDBACK) {
+        redirectTimerRef.current = setTimeout(() => {
+          router.push(`/ai-feedback?submissionId=${encodeURIComponent(result.submissionId ?? "")}`);
+        }, 900);
+      }
     } catch (error) {
       setState("submit_error");
       setMessage(error instanceof Error && error.message !== "submit_failed"
