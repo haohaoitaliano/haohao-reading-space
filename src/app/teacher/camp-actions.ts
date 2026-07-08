@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { normalizeCampTimeZone } from "@/lib/course-schedule";
+import { getCampUsageCounts } from "@/lib/teacher-operations-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type CampScheduleActionResult = { success: boolean; message: string };
@@ -68,4 +69,45 @@ export async function updateCampSchedule(input: {
   revalidatePath("/courses");
   revalidatePath("/progress");
   return { success: true, message: "训练营排期已保存。" };
+}
+
+function revalidateCampViews() {
+  revalidatePath("/teacher");
+  revalidatePath("/teacher/camps");
+  revalidatePath("/join-camp");
+  revalidatePath("/home");
+  revalidatePath("/courses");
+  revalidatePath("/circle");
+  revalidatePath("/weekly");
+}
+
+export async function updateCampStatus(input: {
+  campId: string;
+  status: "active" | "archived";
+}): Promise<CampScheduleActionResult> {
+  await requireAdmin();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("camps")
+    .update({ status: input.status })
+    .eq("id", input.campId);
+  if (error) return { success: false, message: "训练营状态更新失败，请稍后重试。" };
+  revalidateCampViews();
+  return { success: true, message: input.status === "active" ? "训练营已重新启用。" : "训练营已停用。" };
+}
+
+export async function permanentlyDeleteCamp(campId: string): Promise<CampScheduleActionResult> {
+  await requireAdmin();
+  const counts = await getCampUsageCounts(campId);
+  if (!counts) return { success: false, message: "无法确认训练营是否为空，请稍后重试。" };
+  const total = counts.courses + counts.members + counts.meetings + counts.invites + counts.submissions;
+  if (total > 0) {
+    return { success: false, message: "只有空训练营才能永久删除。请先确认没有课程、成员、会议、邀请码和提交记录。" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from("camps").delete().eq("id", campId);
+  if (error) return { success: false, message: "训练营删除失败，请确认它仍为空。" };
+  revalidateCampViews();
+  return { success: true, message: "训练营已永久删除。" };
 }

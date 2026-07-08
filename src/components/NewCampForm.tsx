@@ -18,7 +18,7 @@ export function NewCampForm() {
     setSaving(true);
     setError("");
     const result = await createCamp({ name, slug, timezone, startsAtLocal, maxStudents, status });
-    if (result.success) window.location.assign("/teacher");
+    if (result.success) window.location.assign("/teacher/camps");
     else setError(result.message);
     setSaving(false);
   }

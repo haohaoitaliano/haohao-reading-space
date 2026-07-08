@@ -4,6 +4,19 @@ import { getAdminCampOptions, getActiveCampForUser, type CloudCamp } from "./clo
 import { buildLearningProgress } from "./learning-progress";
 import { createSupabaseServerClient } from "./supabase/server";
 
+export type CampUsageCounts = {
+  courses: number;
+  members: number;
+  meetings: number;
+  invites: number;
+  submissions: number;
+};
+
+export type ManagedCamp = CloudCamp & {
+  maxStudents: number;
+  counts: CampUsageCounts;
+};
+
 export type CampInvite = {
   id: string;
   campId: string;
@@ -77,6 +90,83 @@ export async function getAdminInviteData() {
       isActive: row.is_active,
       createdAt: row.created_at,
     } satisfies CampInvite)),
+  };
+}
+
+function increment(map: Map<string, number>, campId: string) {
+  map.set(campId, (map.get(campId) ?? 0) + 1);
+}
+
+export async function getCampUsageCounts(campId: string): Promise<CampUsageCounts | null> {
+  const supabase = await createSupabaseServerClient();
+  const [courses, members, meetings, invites, submissions] = await Promise.all([
+    supabase.from("courses").select("id", { count: "exact", head: true }).eq("camp_id", campId),
+    supabase.from("camp_members").select("id", { count: "exact", head: true }).eq("camp_id", campId),
+    supabase.from("weekly_meetings").select("id", { count: "exact", head: true }).eq("camp_id", campId),
+    supabase.from("camp_invites").select("id", { count: "exact", head: true }).eq("camp_id", campId),
+    supabase.from("student_submissions").select("id", { count: "exact", head: true }).eq("camp_id", campId),
+  ]);
+  if (courses.error || members.error || meetings.error || invites.error || submissions.error) return null;
+  return {
+    courses: courses.count ?? 0,
+    members: members.count ?? 0,
+    meetings: meetings.count ?? 0,
+    invites: invites.count ?? 0,
+    submissions: submissions.count ?? 0,
+  };
+}
+
+export async function getAdminCampManagementData() {
+  const supabase = await createSupabaseServerClient();
+  const [campResult, coursesResult, membersResult, meetingsResult, invitesResult, submissionsResult] = await Promise.all([
+    supabase.from("camps").select("id, name, slug, starts_at, timezone, status, max_students").order("created_at", { ascending: true }),
+    supabase.from("courses").select("camp_id"),
+    supabase.from("camp_members").select("camp_id"),
+    supabase.from("weekly_meetings").select("camp_id"),
+    supabase.from("camp_invites").select("camp_id"),
+    supabase.from("student_submissions").select("camp_id"),
+  ]);
+  if (
+    campResult.error || coursesResult.error || membersResult.error || meetingsResult.error
+    || invitesResult.error || submissionsResult.error
+  ) {
+    return { error: true, camps: [] as ManagedCamp[] };
+  }
+
+  const maps = {
+    courses: new Map<string, number>(),
+    members: new Map<string, number>(),
+    meetings: new Map<string, number>(),
+    invites: new Map<string, number>(),
+    submissions: new Map<string, number>(),
+  };
+  for (const row of (coursesResult.data ?? []) as Array<{ camp_id: string }>) increment(maps.courses, row.camp_id);
+  for (const row of (membersResult.data ?? []) as Array<{ camp_id: string }>) increment(maps.members, row.camp_id);
+  for (const row of (meetingsResult.data ?? []) as Array<{ camp_id: string }>) increment(maps.meetings, row.camp_id);
+  for (const row of (invitesResult.data ?? []) as Array<{ camp_id: string }>) increment(maps.invites, row.camp_id);
+  for (const row of (submissionsResult.data ?? []) as Array<{ camp_id: string }>) increment(maps.submissions, row.camp_id);
+
+  return {
+    error: false,
+    camps: ((campResult.data ?? []) as Array<{
+      id: string; name: string; slug: string; starts_at: string | null; timezone: string;
+      status: "draft" | "active" | "archived"; max_students: number;
+    }>).map((camp) => ({
+      id: camp.id,
+      name: camp.name,
+      slug: camp.slug,
+      startsAt: camp.starts_at,
+      timezone: camp.timezone,
+      status: camp.status,
+      maxStudents: camp.max_students,
+      counts: {
+        courses: maps.courses.get(camp.id) ?? 0,
+        members: maps.members.get(camp.id) ?? 0,
+        meetings: maps.meetings.get(camp.id) ?? 0,
+        invites: maps.invites.get(camp.id) ?? 0,
+        submissions: maps.submissions.get(camp.id) ?? 0,
+      },
+    })),
   };
 }
 

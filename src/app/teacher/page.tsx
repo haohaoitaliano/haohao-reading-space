@@ -26,7 +26,7 @@ export default async function TeacherPage({ searchParams }: {
     ? filterCoursesForCamp(courseResult.courses, selectedCamp.id)
     : [];
   const tools = [
-    { label: "新建训练营", icon: UserPlus, text: "设置时区、开始时间与人数上限", href: "/teacher/camps/new" },
+    { label: "训练营管理", icon: UserPlus, text: "停用、启用或新建训练营", href: "/teacher/camps" },
     { label: "邀请码管理", icon: KeyRound, text: "创建、查看使用次数和停用", href: "/teacher/invites" },
     { label: "管理课程", icon: BookPlus, text: `${visibleCourses.length} 节云端课程`, href: "#cloud-courses" },
     { label: "上传示范音频或视频", icon: Headphones, text: "在课程编辑页管理云端示范音频", href: visibleCourses[0] ? `/teacher/courses/${visibleCourses[0].id}/edit` : undefined },
