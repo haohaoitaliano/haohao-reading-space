@@ -41,6 +41,7 @@ export type CloudCourseDetail = CloudCourseSummary & {
   reflectionPromptIt: string;
   vocabulary: CloudVocabularyItem[];
   audio: CloudCourseAudio | null;
+  submissionCount: number;
 };
 
 export type CloudCourseAudio = {
@@ -222,6 +223,7 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
       meaningZh: item.meaning_zh ?? "",
     })),
     audio: await createSignedCourseAudio(supabase, audioRow),
+    submissionCount: 0,
   };
 
   return { state: "ok" as const, camp: campResult.camp, course: detail };
@@ -248,7 +250,7 @@ export async function getAdminCourse(courseId: string) {
 
   if (error || !row) return null;
   const summary = mapSummary(row);
-  const [{ data: content }, { data: vocabulary }, { data: audioRow }] = await Promise.all([
+  const [{ data: content }, { data: vocabulary }, { data: audioRow }, submissionResult] = await Promise.all([
     supabase
       .from("course_contents")
       .select("description, reading_text, reflection_prompt_zh, reflection_prompt_it")
@@ -269,6 +271,10 @@ export async function getAdminCourse(courseId: string) {
       .select("storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at")
       .eq("course_id", courseId)
       .maybeSingle<CourseAudioRow>(),
+    supabase
+      .from("student_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("course_id", courseId),
   ]);
 
   return {
@@ -289,6 +295,7 @@ export async function getAdminCourse(courseId: string) {
       meaningZh: item.meaning_zh ?? "",
     })),
     audio: await createSignedCourseAudio(supabase, audioRow),
+    submissionCount: submissionResult.count ?? 0,
   } satisfies CloudCourseDetail;
 }
 

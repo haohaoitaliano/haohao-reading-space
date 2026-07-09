@@ -3,12 +3,22 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { validateCourseEditorInput, type CourseEditorInput } from "@/lib/cloud-course";
+import { COURSE_AUDIO_BUCKET } from "@/lib/course-audio";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type CourseActionResult = { success: boolean; message: string; courseId?: string };
 
 function databaseFailure(): CourseActionResult {
   return { success: false, message: "保存失败，请稍后重试。" };
+}
+
+function revalidateCourseViews(courseId?: string) {
+  revalidatePath("/home");
+  revalidatePath("/courses");
+  revalidatePath("/progress");
+  revalidatePath("/teacher");
+  revalidatePath("/teacher/camps");
+  if (courseId) revalidatePath(`/teacher/courses/${courseId}/edit`);
 }
 
 async function replaceVocabulary(
@@ -81,12 +91,65 @@ export async function updateCloudCourse(
   });
   if (scheduleError) return databaseFailure();
 
-  revalidatePath("/home");
-  revalidatePath("/courses");
-  revalidatePath("/progress");
-  revalidatePath("/teacher");
-  revalidatePath(`/teacher/courses/${courseId}/edit`);
+  revalidateCourseViews(courseId);
   return { success: true, message: "保存成功。", courseId };
+}
+
+async function updateCourseStatus(
+  courseId: string,
+  input: { status: "archived" | "published" },
+) {
+  await requireAdmin();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("courses")
+    .update({ status: input.status, updated_at: new Date().toISOString() })
+    .eq("id", courseId);
+  if (error) return databaseFailure();
+  revalidateCourseViews(courseId);
+  return {
+    success: true,
+    message: input.status === "archived" ? "课程已归档。" : "课程已重新启用。",
+    courseId,
+  } satisfies CourseActionResult;
+}
+
+export async function archiveCloudCourse(courseId: string): Promise<CourseActionResult> {
+  return updateCourseStatus(courseId, { status: "archived" });
+}
+
+export async function reactivateCloudCourse(courseId: string): Promise<CourseActionResult> {
+  return updateCourseStatus(courseId, { status: "published" });
+}
+
+export async function permanentlyDeleteCloudCourse(courseId: string): Promise<CourseActionResult> {
+  await requireAdmin();
+  const supabase = await createSupabaseServerClient();
+  const { count, error: countError } = await supabase
+    .from("student_submissions")
+    .select("id", { count: "exact", head: true })
+    .eq("course_id", courseId);
+  if (countError) return { success: false, message: "无法确认课程提交记录，请稍后重试。" };
+  if ((count ?? 0) > 0) {
+    return { success: false, message: "课程已有学生提交，不能永久删除；请使用归档。" };
+  }
+
+  const { data: audio } = await supabase
+    .from("course_audio")
+    .select("storage_path")
+    .eq("course_id", courseId)
+    .maybeSingle<{ storage_path: string }>();
+  if (audio?.storage_path) {
+    const { error: storageError } = await supabase.storage
+      .from(COURSE_AUDIO_BUCKET)
+      .remove([audio.storage_path]);
+    if (storageError) return { success: false, message: "示范音频文件删除失败，请稍后重试。" };
+  }
+
+  const { error: deleteError } = await supabase.from("courses").delete().eq("id", courseId);
+  if (deleteError) return { success: false, message: "课程删除失败；已有学生提交的课程只能归档。" };
+  revalidateCourseViews();
+  return { success: true, message: "课程已永久删除。" };
 }
 
 export async function createCloudCourse(
@@ -146,7 +209,6 @@ export async function createCloudCourse(
     return databaseFailure();
   }
 
-  revalidatePath("/teacher");
-  revalidatePath("/courses");
+  revalidateCourseViews(course.id);
   return { success: true, message: "课程创建成功。", courseId: course.id };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileAudio, Plus, RotateCcw, Save, Trash2, Upload } from "lucide-react";
+import { Archive, FileAudio, Plus, RotateCcw, Save, Trash2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import type { CourseActionResult } from "@/app/teacher/course-actions";
@@ -14,6 +14,7 @@ import type { CloudCourseAudio, CloudCourseDetail } from "@/lib/cloud-course-dat
 import { formatDateTimeLocalInZone, formatUnlockDateTime } from "@/lib/course-schedule";
 
 type SaveAction = (input: CourseEditorInput) => Promise<CourseActionResult>;
+type LifecycleAction = () => Promise<CourseActionResult>;
 
 function toEditorInput(course: CloudCourseDetail): CourseEditorInput {
   return {
@@ -31,9 +32,18 @@ function toEditorInput(course: CloudCourseDetail): CourseEditorInput {
   };
 }
 
-export function TeacherCourseEditor({ course: initialCourse, saveAction }: {
+export function TeacherCourseEditor({
+  archiveAction,
+  course: initialCourse,
+  deleteAction,
+  reactivateAction,
+  saveAction,
+}: {
   course: CloudCourseDetail;
   saveAction: SaveAction;
+  archiveAction?: LifecycleAction;
+  reactivateAction?: LifecycleAction;
+  deleteAction?: LifecycleAction;
 }) {
   const router = useRouter();
   const [course, setCourse] = useState(() => toEditorInput(initialCourse));
@@ -44,6 +54,7 @@ export function TeacherCourseEditor({ course: initialCourse, saveAction }: {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [deletingAudio, setDeletingAudio] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const previewUrl = useMemo(() => selectedFile ? URL.createObjectURL(selectedFile) : "", [selectedFile]);
@@ -168,6 +179,40 @@ export function TeacherCourseEditor({ course: initialCourse, saveAction }: {
     setSaving(false);
   }
 
+  async function runLifecycleAction(
+    action: LifecycleAction | undefined,
+    redirectAfterSuccess = false,
+    nextStatus?: CourseEditorInput["status"],
+  ) {
+    if (!action) return;
+    setLifecycleBusy(true);
+    setError("");
+    setMessage("");
+    const result = await action();
+    if (!result.success) {
+      setError(result.message);
+      setLifecycleBusy(false);
+      return;
+    }
+    setMessage(result.message);
+    if (nextStatus) setCourse((current) => ({ ...current, status: nextStatus }));
+    if (redirectAfterSuccess) {
+      window.location.assign("/teacher");
+      return;
+    }
+    router.refresh();
+    setLifecycleBusy(false);
+  }
+
+  function confirmPermanentDelete() {
+    if (!initialCourse.id || !deleteAction) return;
+    const confirmed = window.confirm(
+      "确定要永久删除这节课程吗？这个操作不可恢复，示范音频文件也会同步删除。",
+    );
+    if (!confirmed) return;
+    void runLifecycleAction(deleteAction, true);
+  }
+
   return (
     <div className="stack">
       {error ? <p className="notice" role="alert">{error}</p> : null}
@@ -266,6 +311,55 @@ export function TeacherCourseEditor({ course: initialCourse, saveAction }: {
           </div>
         ) : <div className="item-card"><p style={{ margin: 0 }}>暂无云端示范音频。</p></div>}
       </section>
+
+      {initialCourse.id ? (
+        <section className="quiet-card stack">
+          <div className="row start">
+            <div>
+              <p className="kicker">Lifecycle</p>
+              <h2>课程生命周期</h2>
+            </div>
+            <Archive color="var(--sage)" />
+          </div>
+          <p className="notice">
+            归档后学生端不再显示这节课；课程文字、示范音频和历史提交会继续保留，老师仍可查看并重新启用。
+          </p>
+          <div className="row">
+            {course.status === "archived" ? (
+              <button
+                className="button secondary"
+                disabled={lifecycleBusy || saving || uploading}
+                onClick={() => void runLifecycleAction(reactivateAction, false, "published")}
+                type="button"
+              >
+                <RotateCcw size={18} /> 重新启用
+              </button>
+            ) : (
+              <button
+                className="button secondary"
+                disabled={lifecycleBusy || saving || uploading}
+                onClick={() => void runLifecycleAction(archiveAction, false, "archived")}
+                type="button"
+              >
+                <Archive size={18} /> 归档课程
+              </button>
+            )}
+            <button
+              className="button ghost"
+              disabled={lifecycleBusy || saving || uploading || initialCourse.submissionCount > 0}
+              onClick={confirmPermanentDelete}
+              type="button"
+            >
+              <Trash2 size={18} /> 永久删除课程
+            </button>
+          </div>
+          {initialCourse.submissionCount > 0 ? (
+            <p className="notice">已有 {initialCourse.submissionCount} 条学生提交，不能永久删除；请使用归档。</p>
+          ) : (
+            <p className="notice">只有没有任何学生提交的课程才可以永久删除；删除后不可恢复。</p>
+          )}
+        </section>
+      ) : null}
 
       <p className="notice">课程文字与示范音频保存到 Supabase；学生录音仍只保存在当前浏览器和设备中。</p>
       <button className="button full" disabled={saving || uploading} onClick={saveChanges} type="button">

@@ -3,7 +3,12 @@ import { Header } from "@/components/Header";
 import { TeacherCourseEditor } from "@/components/TeacherCourseEditor";
 import { requireAdmin } from "@/lib/auth";
 import { getAdminCourse } from "@/lib/cloud-course-data";
-import { updateCloudCourse } from "@/app/teacher/course-actions";
+import {
+  archiveCloudCourse,
+  permanentlyDeleteCloudCourse,
+  reactivateCloudCourse,
+  updateCloudCourse,
+} from "@/app/teacher/course-actions";
 
 type TeacherCourseEditPageProps = { params: Promise<{ id: string }> };
 
@@ -17,12 +22,21 @@ export default async function TeacherCourseEditPage({ params }: TeacherCourseEdi
   }
 
   const saveAction = updateCloudCourse.bind(null, course.id);
+  const archiveAction = archiveCloudCourse.bind(null, course.id);
+  const reactivateAction = reactivateCloudCourse.bind(null, course.id);
+  const deleteAction = permanentlyDeleteCloudCourse.bind(null, course.id);
   return (
     <main className="app-shell">
       <section className="screen with-top">
         <Header title="编辑云端课程" subtitle={`Giorno ${course.dayNumber}`} backHref="/teacher" />
         <section className="hero"><p className="kicker">Course Editor</p><h1>{course.italianTitle}</h1><p>{course.chineseTitle} · 学生端刷新后读取最新云端内容。</p></section>
-        <TeacherCourseEditor course={course} saveAction={saveAction} />
+        <TeacherCourseEditor
+          archiveAction={archiveAction}
+          course={course}
+          deleteAction={deleteAction}
+          reactivateAction={reactivateAction}
+          saveAction={saveAction}
+        />
       </section>
     </main>
   );

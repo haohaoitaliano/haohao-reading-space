@@ -12,6 +12,7 @@
   --sky: #527a8c;
   --gold: #b9862e;
   --shadow: 0 18px 48px rgba(83, 62, 42, 0.12);
+  --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
 }
 
 * {
@@ -28,7 +29,7 @@ body {
   background:
     radial-gradient(circle at 20% 0%, rgba(157, 79, 59, 0.12), transparent 28rem),
     linear-gradient(180deg, #fbf7f0 0%, #f6efe3 100%);
-  font-family: Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-family: var(--font-sans);
 }
 
 a {
@@ -37,7 +38,9 @@ a {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -91,6 +94,13 @@ input {
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0;
+}
+
+h1,
+h2,
+h3,
+.button {
+  font-family: var(--font-sans);
 }
 
 h1,
@@ -213,7 +223,7 @@ p {
   background: var(--accent);
   border: 0;
   border-radius: 8px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .button.secondary {
@@ -336,7 +346,7 @@ p {
   border-radius: 50%;
   color: #fff;
   background: var(--olive);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .course-status.locked {
@@ -346,7 +356,7 @@ p {
 
 .italian-text {
   color: #34302b;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-sans);
   font-size: 20px;
   line-height: 1.75;
 }
@@ -492,7 +502,7 @@ p {
 
 .submission-course {
   color: var(--ink);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .submission-meta {
