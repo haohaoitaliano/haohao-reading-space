@@ -6,7 +6,7 @@ import { AppFrame } from "@/components/AppFrame";
 import { BrowserRecorder } from "@/components/BrowserRecorder";
 import { Header } from "@/components/Header";
 import { formatFileSize } from "@/lib/audio-file";
-import type { CloudCourseAudio, CloudCourseDetail } from "@/lib/cloud-course-data";
+import type { CloudCourseAudio, CloudCourseDetail, CloudCourseVideo } from "@/lib/cloud-course-data";
 
 function CloudCourseAudioPlayer({ audio }: { audio: CloudCourseAudio }) {
   return (
@@ -16,6 +16,21 @@ function CloudCourseAudioPlayer({ audio }: { audio: CloudCourseAudio }) {
       <audio controls preload="metadata" src={audio.signedUrl} style={{ width: "100%" }}>
         当前浏览器不支持音频播放。
       </audio>
+    </section>
+  );
+}
+
+function CloudCourseVideoPlayer({ video }: { video: CloudCourseVideo }) {
+  return (
+    <section className="quiet-card stack" aria-label="今日视频">
+      <div>
+        <p className="kicker">Video di oggi</p>
+        <h2 style={{ marginBottom: 4 }}>今日视频</h2>
+        <p style={{ margin: 0, fontSize: 13 }}>{video.fileName} · {formatFileSize(video.sizeBytes)}</p>
+      </div>
+      <video controls preload="metadata" src={video.signedUrl} style={{ width: "100%", borderRadius: 8 }}>
+        当前浏览器不支持视频播放。
+      </video>
     </section>
   );
 }
@@ -39,6 +54,14 @@ export function StudentCourseDetail({ course }: StudentCourseDetailProps) {
         <div className="stack">
           {course.audio ? <CloudCourseAudioPlayer audio={course.audio} /> : (
             <section className="audio-box"><p style={{ margin: 0 }}>暂无示范音频。</p></section>
+          )}
+
+          {course.video ? <CloudCourseVideoPlayer video={course.video} /> : (
+            <section className="quiet-card">
+              <p className="kicker">Video di oggi</p>
+              <h2>今日视频</h2>
+              <p style={{ margin: 0 }}>今天暂无视频，请继续完成阅读和打卡。</p>
+            </section>
           )}
 
           <section className="quiet-card">
