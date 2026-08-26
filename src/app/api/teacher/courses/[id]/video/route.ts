@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import { canAccessTeacherRoutes } from "@/lib/auth-policy";
 import { getAuthContext } from "@/lib/auth";
 import {
@@ -20,15 +21,28 @@ async function getAdminCourse(courseId: string) {
   const supabase = await createSupabaseServerClient();
   const { data: course, error } = await supabase
     .from("courses")
-    .select("id, camp_id")
+    .select("id, camp_id, day_number")
     .eq("id", courseId)
-    .maybeSingle<{ id: string; camp_id: string }>();
+    .maybeSingle<{ id: string; camp_id: string; day_number: number }>();
   if (error || !course) return { error: "not_found" as const };
   return { auth, course, supabase };
 }
 
 function errorResponse(message: string, status: number) {
   return NextResponse.json({ success: false, message }, { status });
+}
+
+function revalidateCourseVideoViews(courseId: string, dayNumber: number) {
+  revalidatePath(`/teacher/courses/${courseId}/edit`);
+  revalidatePath("/courses");
+  revalidatePath(`/courses/giorno-${dayNumber}`);
+}
+
+function logVideoUploadFailure(stage: string, error: unknown) {
+  const details = error && typeof error === "object" && "message" in error
+    ? String((error as { message?: unknown }).message)
+    : "unknown";
+  console.error(`[course-video] ${stage}: ${details}`);
 }
 
 export async function POST(request: NextRequest, { params }: RouteProps) {
@@ -65,16 +79,23 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
     `${Date.now()}-${crypto.randomUUID()}`,
   );
 
-  const { data: previousVideo } = await context.supabase
+  const { data: previousVideo, error: previousError } = await context.supabase
     .from("course_videos")
     .select("storage_path")
     .eq("course_id", context.course.id)
     .maybeSingle<{ storage_path: string }>();
+  if (previousError) {
+    logVideoUploadFailure("read existing metadata failed", previousError);
+    return errorResponse("无法读取当前视频信息，请确认视频数据库迁移已执行。", 500);
+  }
 
   const { error: uploadError } = await context.supabase.storage
     .from(COURSE_VIDEO_BUCKET)
     .upload(storagePath, file, { contentType: mimeType, upsert: false });
-  if (uploadError) return errorResponse("视频上传失败，请稍后重试。", 500);
+  if (uploadError) {
+    logVideoUploadFailure("storage upload failed", uploadError);
+    return errorResponse("视频上传失败，请确认视频 Storage bucket 已创建并稍后重试。", 500);
+  }
 
   const { error: metadataError } = await context.supabase.from("course_videos").upsert({
     course_id: context.course.id,
@@ -89,20 +110,23 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
 
   if (metadataError) {
     await context.supabase.storage.from(COURSE_VIDEO_BUCKET).remove([storagePath]);
-    return errorResponse("视频信息保存失败，请稍后重试。", 500);
+    logVideoUploadFailure("metadata upsert failed", metadataError);
+    return errorResponse("视频已传到 Storage，但课程视频信息保存失败；已尝试清理本次上传，请确认视频数据库迁移已执行。", 500);
   }
 
   if (previousVideo?.storage_path && previousVideo.storage_path !== storagePath) {
     await context.supabase.storage.from(COURSE_VIDEO_BUCKET).remove([previousVideo.storage_path]);
   }
 
-  const { data: signed } = await context.supabase.storage
+  const { data: signed, error: signedError } = await context.supabase.storage
     .from(COURSE_VIDEO_BUCKET)
     .createSignedUrl(storagePath, COURSE_VIDEO_SIGNED_URL_SECONDS);
+  if (signedError) logVideoUploadFailure("signed url failed", signedError);
+  revalidateCourseVideoViews(context.course.id, context.course.day_number);
 
   return NextResponse.json({
     success: true,
-    message: "示范视频上传成功。",
+    message: signed?.signedUrl ? "示范视频上传成功。" : "示范视频已上传；预览链接生成失败，请刷新页面重试。",
     video: {
       fileName: file.name.slice(0, 255),
       mimeType,
@@ -133,13 +157,20 @@ export async function DELETE(_: NextRequest, { params }: RouteProps) {
   const { error: storageError } = await context.supabase.storage
     .from(COURSE_VIDEO_BUCKET)
     .remove([video.storage_path]);
-  if (storageError) return errorResponse("视频删除失败，请稍后重试。", 500);
+  if (storageError) {
+    logVideoUploadFailure("storage delete failed", storageError);
+    return errorResponse("视频删除失败，请稍后重试。", 500);
+  }
 
   const { error: metadataError } = await context.supabase
     .from("course_videos")
     .delete()
     .eq("course_id", context.course.id);
-  if (metadataError) return errorResponse("视频信息删除失败，请稍后重试。", 500);
+  if (metadataError) {
+    logVideoUploadFailure("metadata delete failed", metadataError);
+    return errorResponse("视频信息删除失败，请稍后重试。", 500);
+  }
 
+  revalidateCourseVideoViews(context.course.id, context.course.day_number);
   return NextResponse.json({ success: true, message: "示范视频已删除。" });
 }

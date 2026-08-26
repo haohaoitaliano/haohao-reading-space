@@ -206,8 +206,22 @@ export function TeacherCourseEditor({
         if (event.lengthComputable) setVideoUploadProgress(Math.round((event.loaded / event.total) * 100));
       };
       request.onload = () => {
-        try { resolve(JSON.parse(request.responseText)); }
-        catch { resolve({ success: false, message: "视频上传失败，请稍后重试。" }); }
+        let payload: { success?: boolean; message?: string; video?: CloudCourseVideo } = {};
+        try {
+          payload = JSON.parse(request.responseText);
+        } catch {
+          resolve({ success: false, message: `视频上传失败（${request.status || "未知状态"}），请稍后重试。` });
+          return;
+        }
+        if (request.status < 200 || request.status >= 300) {
+          resolve({ success: false, message: payload.message || `视频上传失败（${request.status}），请稍后重试。` });
+          return;
+        }
+        resolve({
+          success: Boolean(payload.success),
+          message: payload.message || "视频上传失败，请稍后重试。",
+          video: payload.video,
+        });
       };
       request.onerror = () => resolve({ success: false, message: "网络错误，视频上传失败。" });
       const formData = new FormData();
@@ -221,6 +235,9 @@ export function TeacherCourseEditor({
       setSelectedVideoFile(null);
       setVideoUploadProgress(100);
       setMessage(result.message);
+      router.refresh();
+    } else if (result.success) {
+      setError(result.message || "视频上传状态异常，请刷新页面确认。");
     } else {
       setError(result.message);
     }
@@ -235,11 +252,12 @@ export function TeacherCourseEditor({
     try {
       const response = await fetch(`/api/teacher/courses/${initialCourse.id}/video`, { method: "DELETE" });
       const result = await response.json() as { success: boolean; message: string };
-      if (!response.ok || !result.success) throw new Error();
+      if (!response.ok || !result.success) throw new Error(result.message);
       setVideo(null);
       setMessage(result.message);
-    } catch {
-      setError("视频删除失败，请稍后重试。");
+      router.refresh();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error && deleteError.message ? deleteError.message : "视频删除失败，请稍后重试。");
     } finally {
       setDeletingVideo(false);
     }
@@ -425,7 +443,11 @@ export function TeacherCourseEditor({
             <div className="row start"><div><strong className="file-name">已上传 · {video.fileName}</strong><p>{formatFileSize(video.sizeBytes)}</p></div>
               <button aria-label="删除云端示范视频" className="button ghost" disabled={deletingVideo} onClick={deleteVideo} type="button"><Trash2 size={18} /></button>
             </div>
-            <video controls preload="metadata" src={video.signedUrl} style={{ width: "100%", borderRadius: 8 }} />
+            {video.signedUrl ? (
+              <video controls preload="metadata" src={video.signedUrl} style={{ width: "100%", borderRadius: 8 }} />
+            ) : (
+              <p className="notice" style={{ margin: 0 }}>视频已保存，预览链接暂时不可用；请刷新页面重试。</p>
+            )}
           </div>
         ) : <div className="item-card"><p style={{ margin: 0 }}>暂无云端示范视频。</p></div>}
       </section>
