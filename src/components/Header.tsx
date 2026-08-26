@@ -8,11 +8,13 @@ type HeaderProps = {
 };
 
 export function Header({ title, subtitle, backHref }: HeaderProps) {
+  const backLabel = backHref === "/teacher" ? "返回老师后台" : "返回";
+
   return (
     <header className="topbar">
       <div className="row" style={{ justifyContent: "flex-start" }}>
         {backHref ? (
-          <Link aria-label="返回" className="button ghost" href={backHref} style={{ minHeight: 38, padding: 8 }}>
+          <Link aria-label={backLabel} className="button ghost" href={backHref} style={{ minHeight: 38, padding: 8 }}>
             <ChevronLeft size={20} />
           </Link>
         ) : (
