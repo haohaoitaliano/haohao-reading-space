@@ -64,6 +64,22 @@ export type CloudCourseVideo = {
   signedUrl: string;
 };
 
+export type CloudCourseMediaItem = {
+  id: string;
+  kind: "audio" | "video";
+  courseId: string;
+  dayNumber: number;
+  courseTitle: string;
+  courseChineseTitle: string;
+  campId: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  durationSeconds: number | null;
+  updatedAt: string;
+  signedUrl: string;
+};
+
 type CourseAudioRow = {
   storage_path: string;
   file_name: string;
@@ -371,4 +387,70 @@ export async function getAdminCampOptions() {
     timezone: camp.timezone,
     status: camp.status,
   }));
+}
+
+export async function getAdminCourseMediaLibrary() {
+  const supabase = await createSupabaseServerClient();
+  const [{ data: scheduleData, error: scheduleError }, { data: audioData, error: audioError }, { data: videoData, error: videoError }] =
+    await Promise.all([
+      supabase.rpc("get_course_schedule", { target_camp_id: null }),
+      supabase
+        .from("course_audio")
+        .select("course_id, storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at"),
+      supabase
+        .from("course_videos")
+        .select("course_id, storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at"),
+    ]);
+
+  if (scheduleError || audioError || videoError) {
+    return { error: true, items: [] as CloudCourseMediaItem[] };
+  }
+
+  const coursesById = new Map(
+    ((scheduleData ?? []) as CourseScheduleRow[]).map((row) => [
+      row.id,
+      {
+        campId: row.camp_id,
+        courseId: row.id,
+        dayNumber: row.day_number,
+        courseTitle: row.italian_title,
+        courseChineseTitle: row.chinese_title ?? "",
+      },
+    ]),
+  );
+
+  async function mapAudio(row: CourseAudioRow & { course_id: string }) {
+    const course = coursesById.get(row.course_id);
+    if (!course) return null;
+    const signed = await createSignedCourseAudio(supabase, row);
+    if (!signed) return null;
+    return {
+      ...course,
+      id: `audio-${row.course_id}`,
+      kind: "audio",
+      ...signed,
+    } satisfies CloudCourseMediaItem;
+  }
+
+  async function mapVideo(row: CourseVideoRow & { course_id: string }) {
+    const course = coursesById.get(row.course_id);
+    if (!course) return null;
+    const signed = await createSignedCourseVideo(supabase, row);
+    if (!signed) return null;
+    return {
+      ...course,
+      id: `video-${row.course_id}`,
+      kind: "video",
+      ...signed,
+    } satisfies CloudCourseMediaItem;
+  }
+
+  const items = (await Promise.all([
+    ...((audioData ?? []) as Array<CourseAudioRow & { course_id: string }>).map(mapAudio),
+    ...((videoData ?? []) as Array<CourseVideoRow & { course_id: string }>).map(mapVideo),
+  ]))
+    .filter((item): item is CloudCourseMediaItem => Boolean(item))
+    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+
+  return { error: false, items };
 }
