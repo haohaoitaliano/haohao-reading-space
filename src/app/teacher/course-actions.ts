@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { validateCourseEditorInput, type CourseEditorInput } from "@/lib/cloud-course";
 import { COURSE_AUDIO_BUCKET } from "@/lib/course-audio";
+import { COURSE_VIDEO_BUCKET } from "@/lib/course-video";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type CourseActionResult = { success: boolean; message: string; courseId?: string };
@@ -139,11 +140,22 @@ export async function permanentlyDeleteCloudCourse(courseId: string): Promise<Co
     .select("storage_path")
     .eq("course_id", courseId)
     .maybeSingle<{ storage_path: string }>();
+  const { data: video } = await supabase
+    .from("course_videos")
+    .select("storage_path")
+    .eq("course_id", courseId)
+    .maybeSingle<{ storage_path: string }>();
   if (audio?.storage_path) {
     const { error: storageError } = await supabase.storage
       .from(COURSE_AUDIO_BUCKET)
       .remove([audio.storage_path]);
     if (storageError) return { success: false, message: "示范音频文件删除失败，请稍后重试。" };
+  }
+  if (video?.storage_path) {
+    const { error: storageError } = await supabase.storage
+      .from(COURSE_VIDEO_BUCKET)
+      .remove([video.storage_path]);
+    if (storageError) return { success: false, message: "示范视频文件删除失败，请稍后重试。" };
   }
 
   const { error: deleteError } = await supabase.from("courses").delete().eq("id", courseId);

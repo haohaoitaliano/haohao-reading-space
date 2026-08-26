@@ -8,6 +8,7 @@ import {
   type CloudVocabularyItem,
 } from "./cloud-course";
 import { COURSE_AUDIO_BUCKET, COURSE_AUDIO_SIGNED_URL_SECONDS } from "./course-audio";
+import { COURSE_VIDEO_BUCKET, COURSE_VIDEO_SIGNED_URL_SECONDS } from "./course-video";
 import { createSupabaseServerClient } from "./supabase/server";
 
 export type CloudCamp = {
@@ -41,6 +42,7 @@ export type CloudCourseDetail = CloudCourseSummary & {
   reflectionPromptIt: string;
   vocabulary: CloudVocabularyItem[];
   audio: CloudCourseAudio | null;
+  video: CloudCourseVideo | null;
   submissionCount: number;
 };
 
@@ -53,7 +55,25 @@ export type CloudCourseAudio = {
   signedUrl: string;
 };
 
+export type CloudCourseVideo = {
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  durationSeconds: number | null;
+  updatedAt: string;
+  signedUrl: string;
+};
+
 type CourseAudioRow = {
+  storage_path: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  duration_seconds: number | null;
+  updated_at: string;
+};
+
+type CourseVideoRow = {
   storage_path: string;
   file_name: string;
   mime_type: string;
@@ -76,6 +96,22 @@ async function createSignedCourseAudio(supabase: SupabaseClient, row: CourseAudi
     updatedAt: row.updated_at,
     signedUrl: data.signedUrl,
   } satisfies CloudCourseAudio;
+}
+
+async function createSignedCourseVideo(supabase: SupabaseClient, row: CourseVideoRow | null) {
+  if (!row) return null;
+  const { data, error } = await supabase.storage
+    .from(COURSE_VIDEO_BUCKET)
+    .createSignedUrl(row.storage_path, COURSE_VIDEO_SIGNED_URL_SECONDS);
+  if (error || !data?.signedUrl) return null;
+  return {
+    fileName: row.file_name,
+    mimeType: row.mime_type,
+    sizeBytes: row.size_bytes,
+    durationSeconds: row.duration_seconds,
+    updatedAt: row.updated_at,
+    signedUrl: data.signedUrl,
+  } satisfies CloudCourseVideo;
 }
 
 type CourseScheduleRow = {
@@ -177,6 +213,7 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
     { data: content, error: contentError },
     { data: vocabulary, error: vocabularyError },
     { data: audioRow, error: audioError },
+    { data: videoRow, error: videoError },
   ] =
     await Promise.all([
       supabase
@@ -199,9 +236,14 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
         .select("storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at")
         .eq("course_id", summary.id)
         .maybeSingle<CourseAudioRow>(),
+      supabase
+        .from("course_videos")
+        .select("storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at")
+        .eq("course_id", summary.id)
+        .maybeSingle<CourseVideoRow>(),
     ]);
 
-  if (contentError || vocabularyError || audioError || !content) {
+  if (contentError || vocabularyError || audioError || videoError || !content) {
     return { state: "database_error" as const, camp: campResult.camp, course: null };
   }
 
@@ -223,6 +265,7 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
       meaningZh: item.meaning_zh ?? "",
     })),
     audio: await createSignedCourseAudio(supabase, audioRow),
+    video: await createSignedCourseVideo(supabase, videoRow),
     submissionCount: 0,
   };
 
@@ -250,7 +293,13 @@ export async function getAdminCourse(courseId: string) {
 
   if (error || !row) return null;
   const summary = mapSummary(row);
-  const [{ data: content }, { data: vocabulary }, { data: audioRow }, submissionResult] = await Promise.all([
+  const [
+    { data: content },
+    { data: vocabulary },
+    { data: audioRow },
+    { data: videoRow },
+    submissionResult,
+  ] = await Promise.all([
     supabase
       .from("course_contents")
       .select("description, reading_text, reflection_prompt_zh, reflection_prompt_it")
@@ -271,6 +320,11 @@ export async function getAdminCourse(courseId: string) {
       .select("storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at")
       .eq("course_id", courseId)
       .maybeSingle<CourseAudioRow>(),
+    supabase
+      .from("course_videos")
+      .select("storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at")
+      .eq("course_id", courseId)
+      .maybeSingle<CourseVideoRow>(),
     supabase
       .from("student_submissions")
       .select("id", { count: "exact", head: true })
@@ -295,6 +349,7 @@ export async function getAdminCourse(courseId: string) {
       meaningZh: item.meaning_zh ?? "",
     })),
     audio: await createSignedCourseAudio(supabase, audioRow),
+    video: await createSignedCourseVideo(supabase, videoRow),
     submissionCount: submissionResult.count ?? 0,
   } satisfies CloudCourseDetail;
 }

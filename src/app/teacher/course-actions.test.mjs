@@ -24,5 +24,7 @@ test("course lifecycle actions archive and permanently delete only courses witho
   assert.match(source, /student_submissions/);
   assert.match(source, /已有学生提交，不能永久删除/);
   assert.match(source, /COURSE_AUDIO_BUCKET/);
+  assert.match(source, /COURSE_VIDEO_BUCKET/);
   assert.match(source, /\.remove\(\[audio\.storage_path\]\)/);
+  assert.match(source, /\.remove\(\[video\.storage_path\]\)/);
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, FileAudio, Plus, RotateCcw, Save, Trash2, Upload } from "lucide-react";
+import { Archive, FileAudio, Plus, RotateCcw, Save, Trash2, Upload, Video } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import type { CourseActionResult } from "@/app/teacher/course-actions";
@@ -10,7 +10,8 @@ import {
   type CourseEditorInput,
 } from "@/lib/cloud-course";
 import { validateCourseAudioFile } from "@/lib/course-audio";
-import type { CloudCourseAudio, CloudCourseDetail } from "@/lib/cloud-course-data";
+import { validateCourseVideoFile } from "@/lib/course-video";
+import type { CloudCourseAudio, CloudCourseDetail, CloudCourseVideo } from "@/lib/cloud-course-data";
 import { formatDateTimeLocalInZone, formatUnlockDateTime } from "@/lib/course-schedule";
 
 type SaveAction = (input: CourseEditorInput) => Promise<CourseActionResult>;
@@ -48,18 +49,29 @@ export function TeacherCourseEditor({
   const router = useRouter();
   const [course, setCourse] = useState(() => toEditorInput(initialCourse));
   const [audio, setAudio] = useState<CloudCourseAudio | null>(initialCourse.audio);
+  const [video, setVideo] = useState<CloudCourseVideo | null>(initialCourse.video);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
+  const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
+  const [selectedVideoDuration, setSelectedVideoDuration] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
   const [deletingAudio, setDeletingAudio] = useState(false);
+  const [deletingVideo, setDeletingVideo] = useState(false);
   const [saving, setSaving] = useState(false);
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const previewUrl = useMemo(() => selectedFile ? URL.createObjectURL(selectedFile) : "", [selectedFile]);
+  const videoPreviewUrl = useMemo(
+    () => selectedVideoFile ? URL.createObjectURL(selectedVideoFile) : "",
+    [selectedVideoFile],
+  );
 
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+  useEffect(() => () => { if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl); }, [videoPreviewUrl]);
 
   function updateField<K extends keyof CourseEditorInput>(field: K, value: CourseEditorInput[K]) {
     setCourse((current) => ({ ...current, [field]: value }));
@@ -101,6 +113,30 @@ export function TeacherCourseEditor({
       URL.revokeObjectURL(objectUrl);
     }, { once: true });
     media.addEventListener("error", () => URL.revokeObjectURL(objectUrl), { once: true });
+  }
+
+  function handleVideoFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const validationError = validateCourseVideoFile(file);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setSelectedVideoFile(file);
+    setSelectedVideoDuration(null);
+    setVideoUploadProgress(0);
+    setError("");
+    const objectUrl = URL.createObjectURL(file);
+    const media = document.createElement("video");
+    media.preload = "metadata";
+    media.addEventListener("loadedmetadata", () => {
+      setSelectedVideoDuration(Number.isFinite(media.duration) ? media.duration : null);
+      URL.revokeObjectURL(objectUrl);
+    }, { once: true });
+    media.addEventListener("error", () => URL.revokeObjectURL(objectUrl), { once: true });
+    media.src = objectUrl;
   }
 
   async function uploadAudio() {
@@ -153,6 +189,59 @@ export function TeacherCourseEditor({
       setError("音频删除失败，请稍后重试。");
     } finally {
       setDeletingAudio(false);
+    }
+  }
+
+  async function uploadVideo() {
+    if (!selectedVideoFile || !initialCourse.id) return;
+    setUploadingVideo(true);
+    setVideoUploadProgress(0);
+    setError("");
+    setMessage("");
+
+    const result = await new Promise<{ success: boolean; message: string; video?: CloudCourseVideo }>((resolve) => {
+      const request = new XMLHttpRequest();
+      request.open("POST", `/api/teacher/courses/${initialCourse.id}/video`);
+      request.upload.onprogress = (event) => {
+        if (event.lengthComputable) setVideoUploadProgress(Math.round((event.loaded / event.total) * 100));
+      };
+      request.onload = () => {
+        try { resolve(JSON.parse(request.responseText)); }
+        catch { resolve({ success: false, message: "视频上传失败，请稍后重试。" }); }
+      };
+      request.onerror = () => resolve({ success: false, message: "网络错误，视频上传失败。" });
+      const formData = new FormData();
+      formData.set("video", selectedVideoFile);
+      if (selectedVideoDuration !== null) formData.set("durationSeconds", String(selectedVideoDuration));
+      request.send(formData);
+    });
+
+    if (result.success && result.video) {
+      setVideo(result.video);
+      setSelectedVideoFile(null);
+      setVideoUploadProgress(100);
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
+    setUploadingVideo(false);
+  }
+
+  async function deleteVideo() {
+    if (!initialCourse.id || !video) return;
+    setDeletingVideo(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch(`/api/teacher/courses/${initialCourse.id}/video`, { method: "DELETE" });
+      const result = await response.json() as { success: boolean; message: string };
+      if (!response.ok || !result.success) throw new Error();
+      setVideo(null);
+      setMessage(result.message);
+    } catch {
+      setError("视频删除失败，请稍后重试。");
+    } finally {
+      setDeletingVideo(false);
     }
   }
 
@@ -312,6 +401,35 @@ export function TeacherCourseEditor({
         ) : <div className="item-card"><p style={{ margin: 0 }}>暂无云端示范音频。</p></div>}
       </section>
 
+      <section className="quiet-card stack">
+        <div className="row start"><div><p className="kicker">Private Storage</p><h2>云端示范视频</h2></div><Video color="var(--olive)" /></div>
+        {!initialCourse.id ? <p className="notice">请先创建课程，再上传示范视频。</p> : null}
+        <label className="button secondary full upload-picker">
+          {video ? <RotateCcw size={18} /> : <Upload size={18} />}{video ? "选择替换视频" : "选择视频文件"}
+          <input accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm" disabled={!initialCourse.id || uploadingVideo} onChange={handleVideoFileChange} type="file" />
+        </label>
+
+        {selectedVideoFile && videoPreviewUrl ? (
+          <div className="audio-box">
+            <div className="row start"><div><strong className="file-name">待上传 · {selectedVideoFile.name}</strong><p>{formatFileSize(selectedVideoFile.size)}</p></div>
+              <button aria-label="取消选择视频" className="button ghost" onClick={() => setSelectedVideoFile(null)} type="button"><Trash2 size={18} /></button>
+            </div>
+            <video controls preload="metadata" src={videoPreviewUrl} style={{ width: "100%", borderRadius: 8 }} />
+            {uploadingVideo ? <div className="progress-bar" aria-label="视频上传进度"><span style={{ "--value": `${videoUploadProgress}%` } as React.CSSProperties} /></div> : null}
+            <button className="button full" disabled={uploadingVideo} onClick={uploadVideo} type="button"><Upload size={18} /> {uploadingVideo ? `上传中 ${videoUploadProgress}%` : "上传视频到云端"}</button>
+          </div>
+        ) : null}
+
+        {video ? (
+          <div className="audio-box">
+            <div className="row start"><div><strong className="file-name">已上传 · {video.fileName}</strong><p>{formatFileSize(video.sizeBytes)}</p></div>
+              <button aria-label="删除云端示范视频" className="button ghost" disabled={deletingVideo} onClick={deleteVideo} type="button"><Trash2 size={18} /></button>
+            </div>
+            <video controls preload="metadata" src={video.signedUrl} style={{ width: "100%", borderRadius: 8 }} />
+          </div>
+        ) : <div className="item-card"><p style={{ margin: 0 }}>暂无云端示范视频。</p></div>}
+      </section>
+
       {initialCourse.id ? (
         <section className="quiet-card stack">
           <div className="row start">
@@ -328,7 +446,7 @@ export function TeacherCourseEditor({
             {course.status === "archived" ? (
               <button
                 className="button secondary"
-                disabled={lifecycleBusy || saving || uploading}
+                disabled={lifecycleBusy || saving || uploading || uploadingVideo}
                 onClick={() => void runLifecycleAction(reactivateAction, false, "published")}
                 type="button"
               >
@@ -337,7 +455,7 @@ export function TeacherCourseEditor({
             ) : (
               <button
                 className="button secondary"
-                disabled={lifecycleBusy || saving || uploading}
+                disabled={lifecycleBusy || saving || uploading || uploadingVideo}
                 onClick={() => void runLifecycleAction(archiveAction, false, "archived")}
                 type="button"
               >
@@ -346,7 +464,7 @@ export function TeacherCourseEditor({
             )}
             <button
               className="button ghost"
-              disabled={lifecycleBusy || saving || uploading || initialCourse.submissionCount > 0}
+              disabled={lifecycleBusy || saving || uploading || uploadingVideo || initialCourse.submissionCount > 0}
               onClick={confirmPermanentDelete}
               type="button"
             >
@@ -361,8 +479,8 @@ export function TeacherCourseEditor({
         </section>
       ) : null}
 
-      <p className="notice">课程文字与示范音频保存到 Supabase；学生录音仍只保存在当前浏览器和设备中。</p>
-      <button className="button full" disabled={saving || uploading} onClick={saveChanges} type="button">
+      <p className="notice">课程文字、示范音频和示范视频保存到 Supabase；学生录音仍只保存在当前浏览器和设备中。</p>
+      <button className="button full" disabled={saving || uploading || uploadingVideo} onClick={saveChanges} type="button">
         <Save size={18} /> {saving ? "正在保存..." : "保存课程"}
       </button>
     </div>
