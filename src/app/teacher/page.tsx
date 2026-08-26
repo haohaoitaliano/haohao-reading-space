@@ -29,7 +29,7 @@ export default async function TeacherPage() {
         <section className="teacher-grid">
           {tools.map((tool) => {
             const Icon = tool.icon;
-            const card = <article className="item-card"><div className="row start"><span className="brand-mark" style={{ width: 38, height: 38, background: "var(--olive)" }}><Icon size={18} /></span><div><h3>{tool.label}</h3><p style={{ margin: 0 }}>{tool.text}</p></div></div></article>;
+            const card = <article className="item-card teacher-tool-card"><span className="brand-mark teacher-tool-icon"><Icon size={18} /></span><div className="teacher-tool-copy"><h3>{tool.label}</h3><p>{tool.text}</p></div></article>;
             return <Link href={tool.href} key={tool.label}>{card}</Link>;
           })}
         </section>

@@ -593,6 +593,36 @@ p {
   gap: 10px;
 }
 
+.teacher-tool-card {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 78px;
+}
+
+.teacher-tool-icon {
+  width: 40px;
+  height: 40px;
+  align-self: center;
+  background: var(--olive);
+}
+
+.teacher-tool-copy {
+  min-width: 0;
+  text-align: left;
+}
+
+.teacher-tool-copy h3 {
+  margin-bottom: 4px;
+}
+
+.teacher-tool-copy p {
+  margin: 0;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 @media (min-width: 700px) {
   .app-shell {
     margin-top: 20px;
