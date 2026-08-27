@@ -95,6 +95,10 @@ test("returns only presentation fields and a same-origin audio endpoint", () => 
     version: 3,
     createdAt: "2026-06-24T08:30:00.000Z",
     audioUrl: "/api/student/submissions/public-new/audio",
+    encouragementCount: 0,
+    hasEncouraged: false,
+    commentCount: 0,
+    comments: [],
   });
   assert.equal("userId" in submission, false);
   assert.equal("storagePath" in submission, false);

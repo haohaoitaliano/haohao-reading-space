@@ -26,6 +26,18 @@ export type CloudSubmission = {
   createdAt: string;
   audioUrl: string;
   isOwn?: boolean;
+  encouragementCount: number;
+  hasEncouraged: boolean;
+  commentCount: number;
+  comments: SubmissionComment[];
+};
+
+export type SubmissionComment = {
+  id: string;
+  authorName: string;
+  content: string;
+  createdAt: string;
+  isOwn: boolean;
 };
 
 export function toCloudSubmission(
@@ -43,6 +55,10 @@ export function toCloudSubmission(
     version: row.version,
     createdAt: row.createdAt,
     audioUrl: `/api/student/submissions/${encodeURIComponent(row.id)}/audio`,
+    encouragementCount: 0,
+    hasEncouraged: false,
+    commentCount: 0,
+    comments: [],
     ...(currentUserId ? { isOwn: row.userId === currentUserId } : {}),
   };
 }

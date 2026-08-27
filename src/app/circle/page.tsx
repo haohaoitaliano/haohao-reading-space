@@ -24,7 +24,7 @@ export default async function CirclePage() {
         </div>
         <div className="stack">
           {result.submissions.map((submission) => (
-            <CloudSubmissionCard key={submission.id} submission={submission} />
+            <CloudSubmissionCard key={submission.id} showInteractions submission={submission} />
           ))}
           {campResult.state === "no_selected_camp" ? <p className="notice">请先在<Link href="/spaces">我的学习空间</Link>选择当前训练营。</p> : null}
           {campResult.state === "no_membership" ? <p className="notice">尚未加入训练营。</p> : null}

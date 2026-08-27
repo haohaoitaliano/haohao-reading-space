@@ -533,6 +533,129 @@ p {
   width: 100%;
 }
 
+.submission-interactions {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 10px;
+}
+
+.submission-interaction-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
+.submission-interaction-button,
+.submission-interaction-static,
+.submission-comment-delete {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  padding: 4px 0;
+}
+
+.submission-interaction-button {
+  cursor: pointer;
+}
+
+.submission-interaction-button[aria-pressed="true"] {
+  color: var(--ink);
+}
+
+.submission-interaction-button:disabled,
+.submission-comment-delete:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.submission-comments {
+  margin-top: 10px;
+}
+
+.submission-comment-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.submission-comment {
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--sky) 7%, white);
+  border-radius: 10px;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 9px 10px;
+}
+
+.submission-comment strong {
+  font-size: 13px;
+}
+
+.submission-comment p {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.submission-comment-delete {
+  color: var(--muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
+.submission-comment-composer {
+  display: block;
+  position: relative;
+}
+
+.submission-comment-composer textarea {
+  min-height: 74px;
+  padding-bottom: 28px;
+  resize: vertical;
+  width: 100%;
+}
+
+.comment-count {
+  bottom: 9px;
+  color: var(--muted);
+  font-size: 12px;
+  position: absolute;
+  right: 10px;
+}
+
+.comment-count.over-limit {
+  color: #b43a3a;
+}
+
+.submission-comment-send {
+  margin-top: 8px;
+  min-height: 38px;
+  padding: 8px 16px;
+}
+
+.submission-interaction-message {
+  color: #9b3333;
+  font-size: 13px;
+  margin: 8px 0 0;
+}
+
+.sr-only {
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
 @keyframes recording-pulse {
   0%, 100% { transform: scale(0.9); }
   50% { transform: scale(1.08); }

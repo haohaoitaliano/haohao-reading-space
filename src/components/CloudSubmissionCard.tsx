@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { CloudSubmission } from "@/lib/cloud-submission-data";
 import { formatRecordingDuration } from "@/lib/recording-utils";
+import { SubmissionInteractions } from "./SubmissionInteractions";
 
 function formatSubmittedAt(value: string) {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -19,9 +20,11 @@ function formatSubmittedAt(value: string) {
 export function CloudSubmissionCard({
   submission,
   manageable = false,
+  showInteractions = false,
 }: {
   submission: CloudSubmission;
   manageable?: boolean;
+  showInteractions?: boolean;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -210,6 +213,7 @@ export function CloudSubmissionCard({
               </button>
             </div>
           ) : null}
+          {showInteractions && isPublic ? <SubmissionInteractions submission={submission} /> : null}
           {message ? <p className="notice" role="status">{message}</p> : null}
         </div>
       </div>

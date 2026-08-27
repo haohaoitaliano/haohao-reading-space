@@ -23,6 +23,20 @@ type SubmissionRow = {
   courses: { day_number: number; italian_title: string } | null;
 };
 
+type EncouragementRow = {
+  submission_id: string;
+  user_id: string;
+};
+
+type CommentRow = {
+  id: string;
+  submission_id: string;
+  user_id: string;
+  author_display_name: string;
+  content: string;
+  created_at: string;
+};
+
 function mapRow(row: SubmissionRow): SubmissionPresentationRow {
   return {
     id: row.id,
@@ -97,12 +111,69 @@ export async function getCampCircleSubmissions(campId: string, currentUserId: st
     .order("created_at", { ascending: false });
 
   if (error) return { submissions: [] as CloudSubmission[], error: true };
+  const submissions = buildCircleSubmissions(
+    ((data ?? []) as unknown as SubmissionRow[]).map(mapRow),
+    campId,
+    currentUserId,
+  );
+  const publicSubmissionIds = submissions
+    .filter((submission) => submission.visibility === "public")
+    .map((submission) => submission.id);
+
+  if (publicSubmissionIds.length === 0) {
+    return { submissions, error: false };
+  }
+
+  const [encouragementResult, commentResult] = await Promise.all([
+    supabase
+      .from("submission_encouragements")
+      .select("submission_id, user_id")
+      .in("submission_id", publicSubmissionIds),
+    supabase
+      .from("submission_comments")
+      .select("id, submission_id, user_id, author_display_name, content, created_at")
+      .in("submission_id", publicSubmissionIds)
+      .order("created_at", { ascending: true }),
+  ]);
+
+  if (encouragementResult.error || commentResult.error) {
+    return { submissions: [] as CloudSubmission[], error: true };
+  }
+
+  const encouragements = (encouragementResult.data ?? []) as EncouragementRow[];
+  const comments = (commentResult.data ?? []) as CommentRow[];
+  const encouragementsBySubmission = new Map<string, EncouragementRow[]>();
+  const commentsBySubmission = new Map<string, CommentRow[]>();
+
+  for (const encouragement of encouragements) {
+    const current = encouragementsBySubmission.get(encouragement.submission_id) ?? [];
+    current.push(encouragement);
+    encouragementsBySubmission.set(encouragement.submission_id, current);
+  }
+  for (const comment of comments) {
+    const current = commentsBySubmission.get(comment.submission_id) ?? [];
+    current.push(comment);
+    commentsBySubmission.set(comment.submission_id, current);
+  }
+
   return {
-    submissions: buildCircleSubmissions(
-      ((data ?? []) as unknown as SubmissionRow[]).map(mapRow),
-      campId,
-      currentUserId,
-    ),
+    submissions: submissions.map((submission) => {
+      const submissionEncouragements = encouragementsBySubmission.get(submission.id) ?? [];
+      const submissionComments = commentsBySubmission.get(submission.id) ?? [];
+      return {
+        ...submission,
+        encouragementCount: submissionEncouragements.length,
+        hasEncouraged: submissionEncouragements.some((item) => item.user_id === currentUserId),
+        commentCount: submissionComments.length,
+        comments: submissionComments.map((comment) => ({
+          id: comment.id,
+          authorName: comment.author_display_name.trim() || "同学",
+          content: comment.content,
+          createdAt: comment.created_at,
+          isOwn: comment.user_id === currentUserId,
+        })),
+      };
+    }),
     error: false,
   };
 }
