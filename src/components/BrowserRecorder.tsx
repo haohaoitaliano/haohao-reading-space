@@ -8,9 +8,10 @@ import {
   chooseRecordingMimeType,
   formatRecordingDuration,
   getMicrophoneErrorMessage,
+  RECORDING_SECURE_CONTEXT_MESSAGE,
   RECORDING_UNSUPPORTED_MESSAGE,
 } from "@/lib/recording-utils";
-import { ENABLE_AI_FEEDBACK } from "@/lib/features";
+import type { StudentCourseSubmissionSummary } from "@/lib/cloud-course-data";
 
 type RecorderState = "idle" | "requesting" | "recording" | "ready" | "submitting" | "submitted" | "error" | "submit_error";
 
@@ -33,7 +34,13 @@ function extensionForMimeType(mimeType: string) {
   return "webm";
 }
 
-export function BrowserRecorder({ courseId }: { courseId: string }) {
+export function BrowserRecorder({
+  courseId,
+  latestSubmission,
+}: {
+  courseId: string;
+  latestSubmission: StudentCourseSubmissionSummary | null;
+}) {
   const router = useRouter();
   const profile = useAuthProfile();
   const [state, setState] = useState<RecorderState>("idle");
@@ -43,6 +50,7 @@ export function BrowserRecorder({ courseId }: { courseId: string }) {
   const [audioUrl, setAudioUrl] = useState("");
   const [mimeType, setMimeType] = useState("");
   const [message, setMessage] = useState("");
+  const [submittedVersion, setSubmittedVersion] = useState<number | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -81,21 +89,7 @@ export function BrowserRecorder({ courseId }: { courseId: string }) {
     };
   }, [audioUrl, stopTimer, stopTracks]);
 
-  const startRecording = async () => {
-    setMessage("");
-    if (
-      typeof window === "undefined" ||
-      typeof window.MediaRecorder === "undefined" ||
-      !navigator.mediaDevices?.getUserMedia
-    ) {
-      setState("error");
-      setMessage(RECORDING_UNSUPPORTED_MESSAGE);
-      return;
-    }
-
-    clearRecording();
-    setState("requesting");
-
+  const requestMicrophoneAndStart = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
@@ -142,6 +136,7 @@ export function BrowserRecorder({ courseId }: { courseId: string }) {
       setDuration(0);
       recorder.start(250);
       setState("recording");
+      setMessage("");
       timerRef.current = setInterval(() => {
         setDuration(Math.floor((Date.now() - startedAtRef.current) / 1000));
       }, 250);
@@ -151,6 +146,25 @@ export function BrowserRecorder({ courseId }: { courseId: string }) {
       setState("error");
       setMessage(getMicrophoneErrorMessage(error));
     }
+  };
+
+  const startRecording = () => {
+    setMessage("");
+    const isInsecureContext = typeof window !== "undefined" && !window.isSecureContext;
+    if (
+      typeof window === "undefined" ||
+      typeof window.MediaRecorder === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
+      setState("error");
+      setMessage(isInsecureContext ? RECORDING_SECURE_CONTEXT_MESSAGE : RECORDING_UNSUPPORTED_MESSAGE);
+      return;
+    }
+
+    clearRecording();
+    setState("requesting");
+    setMessage("正在请求麦克风权限…");
+    void requestMicrophoneAndStart();
   };
 
   const stopRecording = () => {
@@ -197,12 +211,11 @@ export function BrowserRecorder({ courseId }: { courseId: string }) {
         throw new Error(result.message || "submit_failed");
       }
       setState("submitted");
+      setSubmittedVersion(result.version ?? null);
       setMessage(`录音提交成功 · 第 ${result.version} 版`);
-      if (ENABLE_AI_FEEDBACK) {
-        redirectTimerRef.current = setTimeout(() => {
-          router.push(`/ai-feedback?submissionId=${encodeURIComponent(result.submissionId ?? "")}`);
-        }, 900);
-      }
+      redirectTimerRef.current = setTimeout(() => {
+        router.push("/circle");
+      }, 900);
     } catch (error) {
       setState("submit_error");
       setMessage(error instanceof Error && error.message !== "submit_failed"
@@ -213,6 +226,16 @@ export function BrowserRecorder({ courseId }: { courseId: string }) {
 
   const canUseRecording = state !== "recording" && state !== "requesting" && state !== "submitting";
   const hasRecording = Boolean(audioBlob && audioUrl);
+  const persistedVersion = submittedVersion ?? latestSubmission?.version ?? null;
+  const statusLabel = state === "idle" && persistedVersion
+    ? `已提交 · 第 ${persistedVersion} 版`
+    : state === "submitted" && submittedVersion
+      ? `已提交 · 第 ${submittedVersion} 版`
+      : stateLabels[state];
+  const statusDuration = state === "idle" && latestSubmission
+    ? latestSubmission.durationSeconds
+    : duration;
+  const hasSubmitted = state === "submitted" || (state === "idle" && Boolean(persistedVersion));
 
   return (
     <section className={`quiet-card record-panel recorder-${state}`}>
@@ -221,16 +244,19 @@ export function BrowserRecorder({ courseId }: { courseId: string }) {
           <p className="kicker">跟读录音</p>
           <h2 style={{ marginBottom: 0 }}>录一次，也可以再来一次</h2>
         </div>
-        <span className={`pill ${state === "recording" ? "recording-pill" : state === "submitted" ? "olive" : "sky"}`}>
-          {stateLabels[state]}
+        <span className={`pill ${state === "recording" ? "recording-pill" : hasSubmitted ? "olive" : "sky"}`}>
+          {statusLabel}
         </span>
       </div>
 
       <div className={`record-status ${state === "recording" ? "is-recording" : ""}`} aria-live="polite">
         <span className="record-dot" />
         <div>
-          <strong>{state === "recording" ? "正在录音" : stateLabels[state]}</strong>
-          <p style={{ margin: "2px 0 0" }}>{formatRecordingDuration(duration)}</p>
+          <strong>{state === "recording" ? "正在录音" : statusLabel}</strong>
+          <p style={{ margin: "2px 0 0" }}>
+            {state === "idle" && latestSubmission ? "最近提交 " : ""}
+            {formatRecordingDuration(statusDuration)}
+          </p>
         </div>
       </div>
 
@@ -251,6 +277,8 @@ export function BrowserRecorder({ courseId }: { courseId: string }) {
           {hasRecording ? "重新录制" : "开始录音"}
         </button>
       )}
+
+      {message ? <p className={state === "submitted" ? "success-notice" : "notice"} role="status">{message}</p> : null}
 
       <div className="grid-two">
         <button className="button secondary" disabled={!hasRecording || state === "submitting"} onClick={replayRecording} type="button">
@@ -298,7 +326,6 @@ export function BrowserRecorder({ courseId }: { courseId: string }) {
         <Send size={18} />
           {state === "submitting" ? "正在上传..." : "提交录音"}
       </button>
-      {message ? <p className={state === "submitted" ? "success-notice" : "notice"} role="status">{message}</p> : null}
     </section>
   );
 }

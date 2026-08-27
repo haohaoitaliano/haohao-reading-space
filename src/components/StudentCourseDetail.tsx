@@ -6,7 +6,12 @@ import { AppFrame } from "@/components/AppFrame";
 import { BrowserRecorder } from "@/components/BrowserRecorder";
 import { Header } from "@/components/Header";
 import { formatFileSize } from "@/lib/audio-file";
-import type { CloudCourseAudio, CloudCourseDetail, CloudCourseVideo } from "@/lib/cloud-course-data";
+import type {
+  CloudCourseAudio,
+  CloudCourseDetail,
+  CloudCourseVideo,
+  StudentCourseSubmissionSummary,
+} from "@/lib/cloud-course-data";
 
 function CloudCourseAudioPlayer({ audio }: { audio: CloudCourseAudio }) {
   return (
@@ -37,9 +42,14 @@ function CloudCourseVideoPlayer({ video }: { video: CloudCourseVideo }) {
 
 type StudentCourseDetailProps = {
   course: CloudCourseDetail;
+  latestSubmission: StudentCourseSubmissionSummary | null;
 };
 
-export function StudentCourseDetail({ course }: StudentCourseDetailProps) {
+export function StudentCourseDetail({ course, latestSubmission }: StudentCourseDetailProps) {
+  const hasReflection = Boolean(
+    course.reflectionPromptZh.trim() || course.reflectionPromptIt.trim(),
+  );
+
   return (
     <AppFrame active="courses">
       <section className="screen with-top">
@@ -56,54 +66,54 @@ export function StudentCourseDetail({ course }: StudentCourseDetailProps) {
             <section className="audio-box"><p style={{ margin: 0 }}>暂无示范音频。</p></section>
           )}
 
-          {course.video ? <CloudCourseVideoPlayer video={course.video} /> : (
-            <section className="quiet-card">
-              <p className="kicker">Video di oggi</p>
-              <h2>今日视频</h2>
-              <p style={{ margin: 0 }}>今天暂无视频，请继续完成阅读和打卡。</p>
-            </section>
-          )}
+          {course.video ? <CloudCourseVideoPlayer video={course.video} /> : null}
 
           <section className="quiet-card">
             <p className="kicker">Testo</p>
             <p className="italian-text">{course.readingText}</p>
           </section>
 
-          <section className="quiet-card">
-            <div className="row">
-              <h2>重点词汇</h2>
-              <Lightbulb color="var(--gold)" />
-            </div>
-            <div className="stack">
-              {course.vocabulary.map((item, index) => (
-                <div className="row" key={`${item.word}-${index}`}>
-                  <strong>{item.word}</strong>
-                  <span>{item.meaningZh}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="quiet-card stack">
-            <div className="row start">
-              <MessageSquareText color="var(--sky)" />
-              <div>
-                <p className="kicker">Riflessione dopo la lettura</p>
-                <h2 style={{ marginBottom: 0 }}>阅读后的感想</h2>
+          {course.vocabulary.length > 0 ? (
+            <section className="quiet-card">
+              <div className="row">
+                <h2>重点词汇</h2>
+                <Lightbulb color="var(--gold)" />
               </div>
-            </div>
-            <p style={{ margin: 0 }}>{course.reflectionPromptZh}</p>
-            <p className="italian-text" lang="it" style={{ fontSize: 17, margin: 0 }}>
-              {course.reflectionPromptIt}
-            </p>
-            <label className="field" style={{ marginBottom: 0 }}>
-              写下你的感想
-              <textarea placeholder="可以用中文或意大利语写下你的感受或联想" rows={5} />
-            </label>
-            <p className="notice" style={{ margin: 0 }}>录音时，可以在跟读原文后读出你写下的感想。</p>
-          </section>
+              <div className="stack">
+                {course.vocabulary.map((item, index) => (
+                  <div className="row" key={`${item.word}-${index}`}>
+                    <strong>{item.word}</strong>
+                    <span>{item.meaningZh}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
-          <BrowserRecorder courseId={course.id} />
+          {hasReflection ? (
+            <section className="quiet-card stack">
+              <div className="row start">
+                <MessageSquareText color="var(--sky)" />
+                <div>
+                  <p className="kicker">Riflessione dopo la lettura</p>
+                  <h2 style={{ marginBottom: 0 }}>阅读后的感想</h2>
+                </div>
+              </div>
+              {course.reflectionPromptZh.trim() ? <p style={{ margin: 0 }}>{course.reflectionPromptZh}</p> : null}
+              {course.reflectionPromptIt.trim() ? (
+                <p className="italian-text" lang="it" style={{ fontSize: 17, margin: 0 }}>
+                  {course.reflectionPromptIt}
+                </p>
+              ) : null}
+              <label className="field" style={{ marginBottom: 0 }}>
+                写下你的感想
+                <textarea placeholder="可以用中文或意大利语写下你的感受或联想" rows={5} />
+              </label>
+              <p className="notice" style={{ margin: 0 }}>录音时，可以在跟读原文后读出你写下的感想。</p>
+            </section>
+          ) : null}
+
+          <BrowserRecorder courseId={course.id} latestSubmission={latestSubmission} />
 
           <section>
             <div className="row">

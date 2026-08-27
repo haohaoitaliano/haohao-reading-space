@@ -55,5 +55,5 @@ export default async function CoursePage({ params }: CoursePageProps) {
     );
   }
 
-  return <StudentCourseDetail course={result.course} />;
+  return <StudentCourseDetail course={result.course} latestSubmission={result.latestSubmission} />;
 }

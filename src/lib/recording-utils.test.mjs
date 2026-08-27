@@ -4,6 +4,7 @@ import {
   chooseRecordingMimeType,
   formatRecordingDuration,
   getMicrophoneErrorMessage,
+  RECORDING_SECURE_CONTEXT_MESSAGE,
 } from "./recording-utils.ts";
 
 test("chooses the first MIME type supported by the browser", () => {
@@ -28,6 +29,11 @@ test("maps microphone initialization failures to a clear message", () => {
     getMicrophoneErrorMessage({ name: "NotReadableError" }),
     "麦克风可能被其他程序占用，或初始化失败。请关闭其他正在使用麦克风的程序后重试。",
   );
+});
+
+test("explains that microphone recording requires a secure page", () => {
+  assert.match(RECORDING_SECURE_CONTEXT_MESSAGE, /安全连接/);
+  assert.match(RECORDING_SECURE_CONTEXT_MESSAGE, /HTTPS/);
 });
 
 test("formats a recording duration as minutes and seconds", () => {

@@ -47,6 +47,12 @@ export type CloudCourseDetail = CloudCourseSummary & {
   submissionCount: number;
 };
 
+export type StudentCourseSubmissionSummary = {
+  version: number;
+  durationSeconds: number;
+  createdAt: string;
+};
+
 export type CloudCourseAudio = {
   fileName: string;
   mimeType: string;
@@ -209,6 +215,7 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
     { data: vocabulary, error: vocabularyError },
     { data: audioRow, error: audioError },
     { data: videoRow, error: videoError },
+    { data: latestSubmissionRow, error: latestSubmissionError },
   ] =
     await Promise.all([
       supabase
@@ -236,9 +243,22 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
         .select("storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at")
         .eq("course_id", summary.id)
         .maybeSingle<CourseVideoRow>(),
+      supabase
+        .from("student_submissions")
+        .select("version, duration_seconds, created_at")
+        .eq("user_id", userId)
+        .eq("camp_id", campResult.camp.id)
+        .eq("course_id", summary.id)
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle<{
+          version: number;
+          duration_seconds: number;
+          created_at: string;
+        }>(),
     ]);
 
-  if (contentError || vocabularyError || audioError || videoError || !content) {
+  if (contentError || vocabularyError || audioError || videoError || latestSubmissionError || !content) {
     return { state: "database_error" as const, camp: campResult.camp, course: null };
   }
 
@@ -264,7 +284,16 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
     submissionCount: 0,
   };
 
-  return { state: "ok" as const, camp: campResult.camp, course: detail };
+  return {
+    state: "ok" as const,
+    camp: campResult.camp,
+    course: detail,
+    latestSubmission: latestSubmissionRow ? {
+      version: latestSubmissionRow.version,
+      durationSeconds: Number(latestSubmissionRow.duration_seconds),
+      createdAt: latestSubmissionRow.created_at,
+    } satisfies StudentCourseSubmissionSummary : null,
+  };
 }
 
 export async function getAdminCourseList() {

@@ -10,6 +10,9 @@ const RECORDING_MIME_TYPES = [
 export const RECORDING_UNSUPPORTED_MESSAGE =
   "当前浏览器暂不支持录音，请使用最新版 Safari、Chrome 或 Edge。";
 
+export const RECORDING_SECURE_CONTEXT_MESSAGE =
+  "当前页面不是安全连接，浏览器无法使用麦克风。请通过 HTTPS 页面录音。";
+
 export function chooseRecordingMimeType(isSupported: (type: string) => boolean) {
   return RECORDING_MIME_TYPES.find((type) => isSupported(type)) ?? "";
 }

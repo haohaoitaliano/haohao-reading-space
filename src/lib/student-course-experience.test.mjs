@@ -1,0 +1,37 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+test("course submission redirects to the circle only after submission succeeds", async () => {
+  const recorder = await readFile(new URL("../components/BrowserRecorder.tsx", import.meta.url), "utf8");
+
+  const successMessageIndex = recorder.indexOf("录音提交成功");
+  const redirectIndex = recorder.indexOf('router.push("/circle")');
+
+  assert.ok(successMessageIndex >= 0);
+  assert.ok(redirectIndex > successMessageIndex);
+  assert.match(recorder, /setTimeout\(\(\) => \{[\s\S]*router\.push\("\/circle"\)[\s\S]*\}, 900\)/);
+  assert.doesNotMatch(recorder, /router\.push\(`\/ai-feedback/);
+});
+
+test("course page hides optional modules that have no teacher content", async () => {
+  const detail = await readFile(new URL("../components/StudentCourseDetail.tsx", import.meta.url), "utf8");
+
+  assert.match(detail, /course\.video \? <CloudCourseVideoPlayer video=\{course\.video\} \/> : null/);
+  assert.match(detail, /course\.vocabulary\.length > 0/);
+  assert.match(detail, /const hasReflection = Boolean\(/);
+  assert.match(detail, /\{hasReflection \? \(/);
+  assert.doesNotMatch(detail, /今天暂无视频/);
+});
+
+test("latest course submission is isolated by user, camp, and course", async () => {
+  const dataSource = await readFile(new URL("./cloud-course-data.ts", import.meta.url), "utf8");
+  const recorder = await readFile(new URL("../components/BrowserRecorder.tsx", import.meta.url), "utf8");
+
+  assert.match(
+    dataSource,
+    /\.from\("student_submissions"\)[\s\S]*?\.eq\("user_id", userId\)[\s\S]*?\.eq\("camp_id", campResult\.camp\.id\)[\s\S]*?\.eq\("course_id", summary\.id\)[\s\S]*?\.order\("version", \{ ascending: false \}\)/,
+  );
+  assert.match(recorder, /`已提交 · 第 \$\{persistedVersion\} 版`/);
+  assert.match(recorder, /latestSubmission\?\.version/);
+});
