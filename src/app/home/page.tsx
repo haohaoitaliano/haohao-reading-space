@@ -63,11 +63,23 @@ export default async function HomePage() {
         ) : null}
 
         <section className="grid-two" style={{ marginBottom: 14 }}>
-          <div className="metric">
-            <CalendarCheck size={20} color="var(--olive)" />
-            <strong>{ownSubmissionResult.error ? "—" : stats.pendingTasks}</strong>
-            <span>待完成任务</span>
-          </div>
+          {today ? (
+            <Link
+              className="metric metric-link"
+              href={`/courses/${getCourseRouteId(today.dayNumber)}`}
+              aria-label="查看今天的任务"
+            >
+              <CalendarCheck size={20} color="var(--olive)" />
+              <strong>{ownSubmissionResult.error ? "—" : stats.pendingTasks}</strong>
+              <span>待完成任务</span>
+            </Link>
+          ) : (
+            <div className="metric">
+              <CalendarCheck size={20} color="var(--olive)" />
+              <strong>{ownSubmissionResult.error ? "—" : stats.pendingTasks}</strong>
+              <span>待完成任务</span>
+            </div>
+          )}
           <div className="metric">
             <Mic2 size={20} color="var(--accent)" />
             <strong>{ownSubmissionResult.error ? "—" : stats.completedOutputs}</strong>

@@ -11,7 +11,7 @@ const navItems = [
   { key: "home", label: "首页", href: "/home", icon: Home },
   { key: "courses", label: "课程", href: "/courses", icon: BookOpen },
   { key: "circle", label: "作业圈", href: "/circle", icon: Mic2 },
-  { key: "progress", label: "进度", href: "/progress", icon: CircleUserRound },
+  { key: "progress", label: "我的", href: "/progress", icon: CircleUserRound },
   { key: "weekly", label: "周会", href: "/weekly", icon: CalendarDays },
 ] as const;
 
