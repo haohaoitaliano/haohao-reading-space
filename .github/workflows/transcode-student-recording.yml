@@ -1,0 +1,55 @@
+name: Transcode student recording
+
+on:
+  workflow_dispatch:
+    inputs:
+      submission_id:
+        description: Student submission UUID (blank runs recovery scan)
+        required: false
+        type: string
+  schedule:
+    - cron: "*/10 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: student-recording-transcode-${{ inputs.submission_id || 'recovery' }}
+  cancel-in-progress: false
+
+jobs:
+  transcode:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      TRANSCODE_SUBMISSION_ID: ${{ inputs.submission_id || '' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Ensure FFmpeg is available
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes ffmpeg
+          fi
+          ffmpeg -version
+
+      - name: Generate iPhone-compatible playback
+        run: pnpm recordings:transcode -- --apply

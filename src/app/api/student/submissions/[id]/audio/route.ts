@@ -9,6 +9,7 @@ import {
   validateStudentRecordingFile,
 } from "@/lib/student-recording";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { dispatchStudentRecordingTranscode } from "@/lib/student-transcode-dispatch";
 
 type RouteProps = { params: Promise<{ id: string }> };
 type OwnedSubmission = {
@@ -20,6 +21,7 @@ type OwnedSubmission = {
 };
 type VisibleSubmission = {
   storage_path: string;
+  mime_type: string;
   playback_storage_path: string | null;
   playback_mime_type: string | null;
   transcode_status: string;
@@ -50,7 +52,7 @@ export async function GET(_: NextRequest, { params }: RouteProps) {
   const supabase = await createSupabaseServerClient();
   const { data: submission, error } = await supabase
     .from("student_submissions")
-    .select("storage_path, playback_storage_path, playback_mime_type, transcode_status")
+    .select("storage_path, mime_type, playback_storage_path, playback_mime_type, transcode_status")
     .eq("id", id)
     .maybeSingle<VisibleSubmission>();
   if (error || !submission) return failure("录音不存在或无权播放。", 404);
@@ -58,6 +60,17 @@ export async function GET(_: NextRequest, { params }: RouteProps) {
   const playbackReady = submission.transcode_status === "ready"
     && submission.playback_mime_type === "audio/mp4"
     && Boolean(submission.playback_storage_path);
+  const needsCompatiblePlayback = submission.mime_type === "audio/webm"
+    || submission.mime_type === "audio/ogg";
+  if (needsCompatiblePlayback && !playbackReady) {
+    const response = NextResponse.json({
+      status: submission.transcode_status === "failed" ? "retrying" : "processing",
+      retryAfterSeconds: 3,
+    }, { status: 202 });
+    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("Retry-After", "3");
+    return response;
+  }
   const audioPath = playbackReady ? submission.playback_storage_path! : submission.storage_path;
   const { data: signed, error: signedError } = await supabase.storage
     .from(STUDENT_RECORDING_BUCKET)
@@ -108,6 +121,7 @@ export async function PUT(request: NextRequest, { params }: RouteProps) {
     await context.supabase.storage.from(STUDENT_RECORDING_BUCKET).remove([nextPath]);
     return failure("录音替换失败，请稍后重试。", 500);
   }
+  await dispatchStudentRecordingTranscode(id);
   const previousPaths = [context.submission.storage_path, context.submission.playback_storage_path]
     .filter((path): path is string => Boolean(path));
   await context.supabase.storage.from(STUDENT_RECORDING_BUCKET).remove(previousPaths);

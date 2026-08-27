@@ -2,7 +2,7 @@
 
 import { LockKeyhole, RefreshCw, Trash2, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CloudSubmission } from "@/lib/cloud-submission-data";
 import { formatRecordingDuration } from "@/lib/recording-utils";
 
@@ -29,42 +29,72 @@ export function CloudSubmissionCard({
   const [message, setMessage] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
   const [audioLoading, setAudioLoading] = useState(true);
+  const [audioProcessing, setAudioProcessing] = useState(false);
   const [audioError, setAudioError] = useState(false);
+  const [audioReloadKey, setAudioReloadKey] = useState(0);
   const audioRequestRef = useRef(0);
   const audioRefreshAttemptsRef = useRef(0);
   const isPublic = submission.visibility === "public";
 
-  const loadAudioUrl = useCallback(async () => {
-    const requestId = ++audioRequestRef.current;
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 10_000);
-    setAudioLoading(true);
-    setAudioError(false);
-
-    try {
-      const response = await fetch(submission.audioUrl, {
-        cache: "no-store",
-        signal: controller.signal,
-      });
-      const result = await response.json() as { url?: string };
-      if (!response.ok || !result.url) throw new Error("signed audio URL unavailable");
-      if (audioRequestRef.current === requestId) setAudioUrl(result.url);
-    } catch {
-      if (audioRequestRef.current === requestId) setAudioError(true);
-    } finally {
-      window.clearTimeout(timeoutId);
-      if (audioRequestRef.current === requestId) setAudioLoading(false);
-    }
-  }, [submission.audioUrl]);
-
   useEffect(() => {
     audioRefreshAttemptsRef.current = 0;
-    const timeoutId = window.setTimeout(() => void loadAudioUrl(), 0);
+    let pollTimeoutId: number | undefined;
+    let fetchTimeoutId: number | undefined;
+    let controller: AbortController | undefined;
+
+    async function loadAudioUrl() {
+      const requestId = ++audioRequestRef.current;
+      controller = new AbortController();
+      fetchTimeoutId = window.setTimeout(() => controller?.abort(), 10_000);
+      let continueProcessing = false;
+      setAudioLoading(true);
+      setAudioError(false);
+
+      try {
+        const response = await fetch(submission.audioUrl, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const result = await response.json() as {
+          url?: string;
+          status?: "processing" | "retrying";
+          retryAfterSeconds?: number;
+        };
+        if (response.status === 202 && (result.status === "processing" || result.status === "retrying")) {
+          continueProcessing = true;
+          if (audioRequestRef.current === requestId) {
+            setAudioUrl("");
+            setAudioProcessing(true);
+            const retryAfterMs = Math.max(1_000, Number(result.retryAfterSeconds || 3) * 1_000);
+            pollTimeoutId = window.setTimeout(() => void loadAudioUrl(), retryAfterMs);
+          }
+          return;
+        }
+        if (!response.ok || !result.url) throw new Error("signed audio URL unavailable");
+        if (audioRequestRef.current === requestId) {
+          setAudioProcessing(false);
+          setAudioUrl(result.url);
+        }
+      } catch {
+        if (audioRequestRef.current === requestId) {
+          setAudioProcessing(false);
+          setAudioError(true);
+        }
+      } finally {
+        if (fetchTimeoutId) window.clearTimeout(fetchTimeoutId);
+        if (audioRequestRef.current === requestId) setAudioLoading(continueProcessing);
+      }
+    }
+
+    const initialTimeoutId = window.setTimeout(() => void loadAudioUrl(), 0);
     return () => {
-      window.clearTimeout(timeoutId);
+      window.clearTimeout(initialTimeoutId);
+      if (pollTimeoutId) window.clearTimeout(pollTimeoutId);
+      if (fetchTimeoutId) window.clearTimeout(fetchTimeoutId);
+      controller?.abort();
       audioRequestRef.current += 1;
     };
-  }, [loadAudioUrl]);
+  }, [audioReloadKey, submission.audioUrl]);
 
   function handleAudioError() {
     if (audioRefreshAttemptsRef.current === 0) {
@@ -72,7 +102,7 @@ export function CloudSubmissionCard({
       setAudioError(false);
       setAudioUrl("");
       setAudioLoading(true);
-      void loadAudioUrl();
+      setAudioReloadKey((value) => value + 1);
       return;
     }
     setAudioError(true);
@@ -127,6 +157,7 @@ export function CloudSubmissionCard({
             onError={audioUrl ? handleAudioError : undefined}
             onLoadedMetadata={() => {
               audioRefreshAttemptsRef.current = 0;
+              setAudioProcessing(false);
               setAudioError(false);
             }}
             preload="metadata"
@@ -134,7 +165,9 @@ export function CloudSubmissionCard({
           >
             当前浏览器不支持音频播放。
           </audio>
-          {audioLoading && !audioUrl ? (
+          {audioProcessing ? (
+            <p className="submission-audio-status" role="status">正在处理录音…完成后会自动显示播放器。</p>
+          ) : audioLoading && !audioUrl ? (
             <p className="submission-audio-status" role="status">正在准备播放器…</p>
           ) : null}
           {audioError ? (
@@ -145,7 +178,7 @@ export function CloudSubmissionCard({
                 setAudioError(false);
                 setAudioUrl("");
                 setAudioLoading(true);
-                void loadAudioUrl();
+                setAudioReloadKey((value) => value + 1);
               }} type="button">
                 <RefreshCw size={16} />重新获取
               </button>

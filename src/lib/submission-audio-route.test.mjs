@@ -13,6 +13,10 @@ test("audio GET returns a fresh signed resource without proxying the recording",
   assert.match(source, /playback_storage_path/);
   assert.match(source, /transcode_status === "ready"/);
   assert.match(source, /playback_mime_type === "audio\/mp4"/);
+  assert.match(source, /needsCompatiblePlayback && !playbackReady/);
+  assert.match(source, /status:\s*submission\.transcode_status === "failed" \? "retrying" : "processing"/);
+  assert.match(source, /\{ status: 202 \}/);
+  assert.match(source, /headers\.set\("Retry-After", "3"\)/);
   assert.match(source, /playbackReady \? submission\.playback_storage_path! : submission\.storage_path/);
   assert.match(source, /createSignedUrl/);
   assert.match(source, /NextResponse\.json\(\{[\s\S]*url:\s*signed\.signedUrl/);
@@ -28,6 +32,9 @@ test("cloud submission cards fetch a signed URL before assigning the audio sourc
 
   assert.match(source, /fetch\(submission\.audioUrl,\s*\{[\s\S]*cache:\s*"no-store"[\s\S]*signal:\s*controller\.signal/);
   assert.match(source, /setAudioUrl\(result\.url\)/);
+  assert.match(source, /response\.status === 202/);
+  assert.match(source, /setAudioProcessing\(true\)/);
+  assert.match(source, /正在处理录音…完成后会自动显示播放器/);
   assert.match(source, /<audio[\s\S]*src=\{audioUrl \|\| undefined\}/);
   assert.match(source, /正在准备播放器/);
   assert.match(source, /setAudioError\(true\)/);

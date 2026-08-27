@@ -9,6 +9,7 @@ import {
 } from "@/lib/student-recording";
 import { getCurrentLearningSpace } from "@/lib/learning-space";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { dispatchStudentRecordingTranscode } from "@/lib/student-transcode-dispatch";
 
 type RouteProps = { params: Promise<{ id: string }> };
 
@@ -78,12 +79,21 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
       duration_seconds: duration,
       visibility,
     })
-    .select("id, version")
-    .single<{ id: string; version: number }>();
+    .select("id, version, transcode_status")
+    .single<{ id: string; version: number; transcode_status: string }>();
   if (metadataError || !submission) {
     await supabase.storage.from(STUDENT_RECORDING_BUCKET).remove([storagePath]);
     return failure("提交记录保存失败，请稍后重试。", 500);
   }
 
-  return NextResponse.json({ success: true, submissionId: submission.id, version: submission.version });
+  if (submission.transcode_status === "pending") {
+    await dispatchStudentRecordingTranscode(submission.id);
+  }
+
+  return NextResponse.json({
+    success: true,
+    submissionId: submission.id,
+    version: submission.version,
+    transcodeStatus: submission.transcode_status,
+  });
 }
