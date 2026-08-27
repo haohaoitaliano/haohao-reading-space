@@ -1,22 +1,13 @@
-import { BookOpenCheck, ChartNoAxesColumnIncreasing, Mic2, Repeat2 } from "lucide-react";
+import { ArrowRight, BookOpenCheck, ChartNoAxesColumnIncreasing, Mic2, Repeat2 } from "lucide-react";
 import Link from "next/link";
 import { AppFrame } from "@/components/AppFrame";
 import { Header } from "@/components/Header";
 import { requireAuthenticatedUser } from "@/lib/auth";
-import { getStudentCourseList } from "@/lib/cloud-course-data";
-import { getOwnCloudSubmissions } from "@/lib/cloud-submission-data";
-import { buildStudentCampStats } from "@/lib/learning-progress";
+import { getStudentCampProgress } from "@/lib/student-camp-progress";
 
 export default async function ProgressPage() {
   const { profile } = await requireAuthenticatedUser();
-  const courseResult = await getStudentCourseList(profile.id);
-  const submissionResult = courseResult.camp
-    ? await getOwnCloudSubmissions(profile.id, courseResult.camp.id)
-    : { submissions: [], error: courseResult.state === "database_error" };
-  const stats = buildStudentCampStats({
-    courses: courseResult.courses,
-    submissions: submissionResult.submissions,
-  });
+  const { courseResult, submissionResult, stats } = await getStudentCampProgress(profile.id);
   const value = (number: number) => submissionResult.error ? "—" : number;
 
   return (
@@ -48,7 +39,12 @@ export default async function ProgressPage() {
         <section className="grid-two" style={{ marginTop: 14 }}>
           <div className="metric"><BookOpenCheck /><strong>{value(stats.pendingTasks)}</strong><span>待完成任务</span></div>
           <div className="metric"><ChartNoAxesColumnIncreasing /><strong>{value(stats.completedTasks)}</strong><span>已完成任务</span></div>
-          <div className="metric"><Mic2 /><strong>{value(stats.completedOutputs)}</strong><span>已完成输出</span></div>
+          <Link className="metric metric-link" href="/my-work" aria-label={`查看 ${value(stats.completedOutputs)} 次已完成输出`}>
+            <Mic2 />
+            <strong>{value(stats.completedOutputs)}</strong>
+            <span>已完成输出</span>
+            <span className="metric-link-hint">查看 <ArrowRight size={15} /></span>
+          </Link>
           <div className="metric"><Repeat2 /><strong>{value(stats.resubmissions)}</strong><span>重新提交</span></div>
         </section>
 

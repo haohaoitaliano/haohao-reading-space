@@ -5,30 +5,22 @@ import { CloudSubmissionCard } from "@/components/CloudSubmissionCard";
 import { Header } from "@/components/Header";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { getCourseRouteId } from "@/lib/cloud-course";
-import { getStudentCourseList } from "@/lib/cloud-course-data";
 import {
-  getOwnCloudSubmissions,
   getPublicCampSubmissions,
 } from "@/lib/cloud-submission-data";
-import { buildStudentCampStats } from "@/lib/learning-progress";
+import { getStudentCampProgress } from "@/lib/student-camp-progress";
 
 export default async function HomePage() {
   const { profile } = await requireAuthenticatedUser();
-  const result = await getStudentCourseList(profile.id);
+  const {
+    courseResult: result,
+    submissionResult: ownSubmissionResult,
+    stats,
+  } = await getStudentCampProgress(profile.id);
   const today = result.courses.filter((course) => course.isUnlocked).at(-1) ?? null;
-  const [publicSubmissionResult, ownSubmissionResult] = result.state === "ok" && result.camp
-    ? await Promise.all([
-      getPublicCampSubmissions(result.camp.id, profile.id, 2),
-      getOwnCloudSubmissions(profile.id, result.camp.id),
-    ])
-    : [
-      { submissions: [], error: result.state === "database_error" },
-      { submissions: [], error: result.state === "database_error" },
-    ];
-  const stats = buildStudentCampStats({
-    courses: result.courses,
-    submissions: ownSubmissionResult.submissions,
-  });
+  const publicSubmissionResult = result.state === "ok" && result.camp
+    ? await getPublicCampSubmissions(result.camp.id, profile.id, 2)
+    : { submissions: [], error: result.state === "database_error" };
   const todaySubmitted = today
     ? ownSubmissionResult.submissions.some((submission) => submission.courseId === today.id)
     : false;

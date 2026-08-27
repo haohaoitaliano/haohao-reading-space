@@ -25,9 +25,24 @@ test("home uses current-camp cloud submissions without prototype data", async ()
   const source = await readFile(new URL("../app/home/page.tsx", import.meta.url), "utf8");
 
   assert.doesNotMatch(source, /@\/lib\/mock-data/);
+  assert.match(source, /getStudentCampProgress\(profile\.id\)/);
   assert.match(source, /getPublicCampSubmissions\(result\.camp\.id, profile\.id, 2\)/);
-  assert.match(source, /getOwnCloudSubmissions\(profile\.id, result\.camp\.id\)/);
   assert.doesNotMatch(source, /66%|progress\.streak/);
+});
+
+test("student progress pages share the current-camp data source", async () => {
+  const [sharedSource, progressSource, profileSource] = await Promise.all([
+    readFile(new URL("./student-camp-progress.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/progress/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/profile/page.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(sharedSource, /getStudentCourseList\(userId\)/);
+  assert.match(sharedSource, /getOwnCloudSubmissions\(userId, courseResult\.camp\.id\)/);
+  assert.match(progressSource, /getStudentCampProgress\(profile\.id\)/);
+  assert.match(profileSource, /getStudentCampProgress\(profile\.id\)/);
+  assert.match(progressSource, /href="\/my-work"/);
+  assert.doesNotMatch(profileSource, /@\/lib\/mock-data|模拟级别|7 天免费公测|progress\.completed|progress\.submitted/);
 });
 
 test("public submission queries are camp-scoped and limited in the database", async () => {
