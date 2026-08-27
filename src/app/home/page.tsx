@@ -1,31 +1,54 @@
 import { ArrowRight, CalendarCheck, Headphones, Mic2 } from "lucide-react";
 import Link from "next/link";
 import { AppFrame } from "@/components/AppFrame";
-import { AssignmentCard } from "@/components/AssignmentCard";
+import { CloudSubmissionCard } from "@/components/CloudSubmissionCard";
 import { Header } from "@/components/Header";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { getCourseRouteId } from "@/lib/cloud-course";
 import { getStudentCourseList } from "@/lib/cloud-course-data";
-import { assignments, currentStudentId, progress } from "@/lib/mock-data";
+import {
+  getOwnCloudSubmissions,
+  getPublicCampSubmissions,
+} from "@/lib/cloud-submission-data";
+import { buildStudentCampStats } from "@/lib/learning-progress";
 
 export default async function HomePage() {
   const { profile } = await requireAuthenticatedUser();
   const result = await getStudentCourseList(profile.id);
   const today = result.courses.filter((course) => course.isUnlocked).at(-1) ?? null;
-  const publicAssignments = assignments.filter(
-    (assignment) => assignment.visibility === "public" && assignment.studentId !== currentStudentId,
-  );
+  const [publicSubmissionResult, ownSubmissionResult] = result.state === "ok" && result.camp
+    ? await Promise.all([
+      getPublicCampSubmissions(result.camp.id, profile.id, 2),
+      getOwnCloudSubmissions(profile.id, result.camp.id),
+    ])
+    : [
+      { submissions: [], error: result.state === "database_error" },
+      { submissions: [], error: result.state === "database_error" },
+    ];
+  const stats = buildStudentCampStats({
+    courses: result.courses,
+    submissions: ownSubmissionResult.submissions,
+  });
+  const todaySubmitted = today
+    ? ownSubmissionResult.submissions.some((submission) => submission.courseId === today.id)
+    : false;
 
   return (
     <AppFrame active="home">
       <section className="screen with-top">
-        <Header title="共读空间" subtitle={`Buongiorno, ${profile.display_name}`} />
+        <Header
+          title="共读空间"
+          subtitle={`Buongiorno, ${profile.display_name}${result.camp ? ` · ${result.camp.name}` : ""}`}
+        />
 
         {result.state === "database_error" ? (
           <section className="notice" role="alert">课程数据库暂时不可用，请稍后刷新。</section>
         ) : null}
         {result.state === "no_membership" ? (
           <section className="notice">尚未加入训练营，请先前往加入训练营页面。</section>
+        ) : null}
+        {result.state === "no_selected_camp" ? (
+          <section className="notice">请先在<Link href="/spaces">我的学习空间</Link>选择当前训练营。</section>
         ) : null}
         {result.state === "empty" ? (
           <section className="hero">
@@ -50,13 +73,13 @@ export default async function HomePage() {
         <section className="grid-two" style={{ marginBottom: 14 }}>
           <div className="metric">
             <CalendarCheck size={20} color="var(--olive)" />
-            <strong>{result.courses.filter((course) => course.isUnlocked).length}</strong>
-            <span>已解锁课程</span>
+            <strong>{ownSubmissionResult.error ? "—" : stats.pendingTasks}</strong>
+            <span>待完成任务</span>
           </div>
           <div className="metric">
             <Mic2 size={20} color="var(--accent)" />
-            <strong>{progress.streak}</strong>
-            <span>连续学习</span>
+            <strong>{ownSubmissionResult.error ? "—" : stats.completedOutputs}</strong>
+            <span>已完成输出</span>
           </div>
         </section>
 
@@ -65,18 +88,28 @@ export default async function HomePage() {
             <div><p className="kicker">今日任务</p><h2>听、读、录、交流</h2></div>
             <Headphones color="var(--sky)" />
           </div>
-          <div className="progress-bar" aria-label="今日任务进度">
-            <span style={{ "--value": "66%" } as React.CSSProperties} />
-          </div>
-          <p style={{ margin: 0 }}>录音和作业进度当前仍使用本地原型数据。</p>
+          <p style={{ margin: 0 }}>听示范、阅读文本、完成录音，并和同学交流。</p>
+          {today ? (
+            <p style={{ margin: 0 }}>
+              今日录音：{ownSubmissionResult.error
+                ? "状态暂时无法读取"
+                : todaySubmitted ? "已提交" : "未提交"}
+            </p>
+          ) : null}
         </section>
 
         <section style={{ marginTop: 18 }}>
           <div className="row"><h2>同学新作业</h2><Link className="pill sky" href="/circle">查看全部</Link></div>
           <div className="stack">
-            {publicAssignments.slice(0, 2).map((assignment) => (
-              <AssignmentCard assignment={assignment} key={assignment.id} compact />
+            {publicSubmissionResult.submissions.map((submission) => (
+              <CloudSubmissionCard key={submission.id} submission={submission} />
             ))}
+            {!publicSubmissionResult.error && publicSubmissionResult.submissions.length === 0 ? (
+              <p className="notice">当前训练营暂时没有同学公开录音。</p>
+            ) : null}
+            {publicSubmissionResult.error ? (
+              <p className="notice" role="alert">同学作业暂时无法读取，请稍后重试。</p>
+            ) : null}
           </div>
         </section>
       </section>

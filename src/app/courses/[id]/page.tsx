@@ -40,12 +40,15 @@ export default async function CoursePage({ params }: CoursePageProps) {
       ? "课程数据库暂时不可用，请稍后重试。"
       : result.state === "no_membership"
         ? "你尚未加入训练营。"
+        : result.state === "no_selected_camp"
+          ? "请先选择当前学习空间。"
         : "课程不存在或仍是草稿。";
     return (
       <AppFrame active="courses">
         <section className="screen with-top">
           <Header title="课程" backHref="/courses" />
           <section className="notice" role="alert">{message}</section>
+          {result.state === "no_selected_camp" ? <Link className="button full" href="/spaces">前往我的学习空间</Link> : null}
           <Link className="button secondary full" href="/courses">返回课程列表</Link>
         </section>
       </AppFrame>

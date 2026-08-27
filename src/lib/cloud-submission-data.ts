@@ -14,6 +14,7 @@ type SubmissionRow = {
   id: string;
   camp_id: string;
   course_id: string;
+  user_id: string;
   student_display_name: string;
   duration_seconds: number;
   visibility: "public" | "teacher_only";
@@ -27,6 +28,7 @@ function mapRow(row: SubmissionRow): SubmissionPresentationRow {
     id: row.id,
     campId: row.camp_id,
     courseId: row.course_id,
+    userId: row.user_id,
     dayNumber: row.courses?.day_number ?? 0,
     courseTitle: row.courses?.italian_title ?? "课程",
     studentName: row.student_display_name,
@@ -37,36 +39,69 @@ function mapRow(row: SubmissionRow): SubmissionPresentationRow {
   };
 }
 
-const selection = "id, camp_id, course_id, student_display_name, duration_seconds, visibility, version, created_at, courses(day_number, italian_title)";
+const selection = "id, camp_id, course_id, user_id, student_display_name, duration_seconds, visibility, version, created_at, courses(day_number, italian_title)";
 
-export async function getOwnCloudSubmissions(userId: string) {
+export async function getOwnCloudSubmissions(userId: string, campId: string) {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("student_submissions")
     .select(selection)
     .eq("user_id", userId)
+    .eq("camp_id", campId)
     .order("created_at", { ascending: false });
   if (error) return { submissions: [] as CloudSubmission[], error: true };
   return {
-    submissions: ((data ?? []) as unknown as SubmissionRow[]).map(mapRow).map(toCloudSubmission),
+    submissions: ((data ?? []) as unknown as SubmissionRow[])
+      .map(mapRow)
+      .map((row) => toCloudSubmission(row, userId)),
     error: false,
   };
 }
 
-export async function getPublicCampSubmissions(campId: string, currentUserId: string) {
+export async function getPublicCampSubmissions(
+  campId: string,
+  currentUserId: string,
+  limit?: number,
+) {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("student_submissions")
     .select(selection)
     .eq("camp_id", campId)
     .eq("visibility", "public")
     .neq("user_id", currentUserId)
     .order("created_at", { ascending: false });
+
+  if (limit !== undefined) {
+    query = query.limit(Math.max(1, Math.min(100, Math.trunc(limit))));
+  }
+
+  const { data, error } = await query;
   if (error) return { submissions: [] as CloudSubmission[], error: true };
   return {
     submissions: buildCircleSubmissions(
       ((data ?? []) as unknown as SubmissionRow[]).map(mapRow),
       campId,
+    ),
+    error: false,
+  };
+}
+
+export async function getCampCircleSubmissions(campId: string, currentUserId: string) {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("student_submissions")
+    .select(selection)
+    .eq("camp_id", campId)
+    .or(`visibility.eq.public,user_id.eq.${currentUserId}`)
+    .order("created_at", { ascending: false });
+
+  if (error) return { submissions: [] as CloudSubmission[], error: true };
+  return {
+    submissions: buildCircleSubmissions(
+      ((data ?? []) as unknown as SubmissionRow[]).map(mapRow),
+      campId,
+      currentUserId,
     ),
     error: false,
   };
@@ -80,7 +115,9 @@ export async function getAdminCloudSubmissions() {
     .order("created_at", { ascending: false });
   if (error) return { submissions: [] as CloudSubmission[], error: true };
   return {
-    submissions: ((data ?? []) as unknown as SubmissionRow[]).map(mapRow).map(toCloudSubmission),
+    submissions: ((data ?? []) as unknown as SubmissionRow[])
+      .map(mapRow)
+      .map((row) => toCloudSubmission(row)),
     error: false,
   };
 }

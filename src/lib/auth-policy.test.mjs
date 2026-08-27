@@ -10,7 +10,7 @@ import {
 } from "./auth-policy.ts";
 
 test("sends students home and admins to the teacher dashboard", () => {
-  assert.equal(getPostLoginPath("student"), "/home");
+  assert.equal(getPostLoginPath("student"), "/spaces");
   assert.equal(getPostLoginPath("admin"), "/teacher");
 });
 
@@ -19,6 +19,7 @@ test("student content routes require an active camp membership", () => {
     assert.equal(requiresCampMembership(path), true);
   }
   assert.equal(requiresCampMembership("/join-camp"), false);
+  assert.equal(requiresCampMembership("/spaces"), false);
   assert.equal(requiresCampMembership("/profile"), false);
 });
 
@@ -26,10 +27,12 @@ test("students without a camp are redirected while admins are unaffected", () =>
   const student = { role: "student", status: "active" };
   const admin = { role: "admin", status: "active" };
 
-  assert.equal(getCampMembershipRedirect("/home", student, false), "/join-camp");
-  assert.equal(getCampMembershipRedirect("/home", student, true), null);
-  assert.equal(getCampMembershipRedirect("/teacher", admin, false), null);
-  assert.equal(getCampMembershipRedirect("/join-camp", student, true), "/home");
+  assert.equal(getCampMembershipRedirect("/home", student, { hasActiveMembership: false, hasSelectedCamp: false }), "/join-camp");
+  assert.equal(getCampMembershipRedirect("/home", student, { hasActiveMembership: true, hasSelectedCamp: false }), "/spaces");
+  assert.equal(getCampMembershipRedirect("/home", student, { hasActiveMembership: true, hasSelectedCamp: true }), null);
+  assert.equal(getCampMembershipRedirect("/teacher", admin, { hasActiveMembership: false, hasSelectedCamp: false }), null);
+  assert.equal(getCampMembershipRedirect("/join-camp", student, { hasActiveMembership: true, hasSelectedCamp: true }), null);
+  assert.equal(getCampMembershipRedirect("/spaces", student, { hasActiveMembership: true, hasSelectedCamp: false }), null);
 });
 
 test("only an active admin can access teacher routes", () => {

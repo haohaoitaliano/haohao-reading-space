@@ -3,7 +3,6 @@
 import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function LogoutButton({ className = "button ghost full" }: { className?: string }) {
   const router = useRouter();
@@ -14,9 +13,8 @@ export function LogoutButton({ className = "button ghost full" }: { className?: 
     setLoggingOut(true);
     setError("");
     try {
-      const supabase = createSupabaseBrowserClient();
-      const { error: signOutError } = await supabase.auth.signOut();
-      if (signOutError) throw signOutError;
+      const response = await fetch("/auth/logout", { method: "POST" });
+      if (!response.ok) throw new Error("logout_failed");
       router.replace("/login");
       router.refresh();
     } catch {

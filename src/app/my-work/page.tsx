@@ -4,23 +4,39 @@ import { AppFrame } from "@/components/AppFrame";
 import { CloudSubmissionCard } from "@/components/CloudSubmissionCard";
 import { Header } from "@/components/Header";
 import { requireAuthenticatedUser } from "@/lib/auth";
+import { getActiveCampForUser } from "@/lib/cloud-course-data";
 import { getOwnCloudSubmissions } from "@/lib/cloud-submission-data";
 import { ENABLE_AI_FEEDBACK } from "@/lib/features";
 
 export default async function MyWorkPage() {
   const { profile } = await requireAuthenticatedUser();
-  const result = await getOwnCloudSubmissions(profile.id);
+  const campResult = await getActiveCampForUser(profile.id);
+  const result = campResult.state === "ok"
+    ? await getOwnCloudSubmissions(profile.id, campResult.camp.id)
+    : { submissions: [], error: campResult.state === "database_error" };
 
   return (
     <AppFrame active="progress">
       <section className="screen with-top">
-        <Header title="我的作业" subtitle={`${profile.display_name} · 云端录音`} />
+        <Header title="我的作业" subtitle={`${profile.display_name} · ${campResult.camp?.name ?? "云端录音"}`} />
         <div className="hero">
           <p className="kicker">I miei compiti</p>
           <h1>回看每一次提交和修改。</h1>
           <p>这里展示你的云端录音、公开状态和提交版本。</p>
         </div>
         <div className="stack">
+          {campResult.state === "no_selected_camp" ? (
+            <section className="notice">
+              请先选择一个学习空间，再查看该训练营的作业。
+              <Link href="/spaces"> 前往我的学习空间</Link>
+            </section>
+          ) : null}
+          {campResult.state === "no_membership" ? (
+            <section className="notice">
+              尚未加入训练营。
+              <Link href="/join-camp"> 输入邀请码</Link>
+            </section>
+          ) : null}
           {result.submissions.map((submission) => (
             <section className="stack" key={submission.id}>
               <CloudSubmissionCard manageable submission={submission} />

@@ -53,7 +53,7 @@ export default function RegisterPage() {
       if (data.session) {
         const inviteResult = await redeemCampInvite(supabase, invitationCode);
         if (isCampInviteSuccess(inviteResult.resultCode)) {
-          window.location.assign("/home");
+          window.location.assign("/spaces");
           return;
         }
 

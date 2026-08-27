@@ -10,7 +10,7 @@ export type AuthProfile = {
 };
 
 export function getPostLoginPath(role: AppRole) {
-  return role === "admin" ? "/teacher" : "/home";
+  return role === "admin" ? "/teacher" : "/spaces";
 }
 
 const campProtectedPrefixes = [
@@ -33,11 +33,12 @@ export function requiresCampMembership(pathname: string) {
 export function getCampMembershipRedirect(
   pathname: string,
   profile: Pick<AuthProfile, "role" | "status">,
-  hasActiveMembership: boolean,
+  campAccess: { hasActiveMembership: boolean; hasSelectedCamp: boolean },
 ) {
   if (profile.role !== "student" || profile.status !== "active") return null;
-  if (pathname === "/join-camp" && hasActiveMembership) return "/home";
-  if (requiresCampMembership(pathname) && !hasActiveMembership) return "/join-camp";
+  if (pathname === "/join-camp" || pathname === "/spaces") return null;
+  if (requiresCampMembership(pathname) && !campAccess.hasActiveMembership) return "/join-camp";
+  if (requiresCampMembership(pathname) && !campAccess.hasSelectedCamp) return "/spaces";
   return null;
 }
 

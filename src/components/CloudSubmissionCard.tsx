@@ -63,7 +63,10 @@ export function CloudSubmissionCard({
       <div className="row start">
         <div className="avatar">{submission.studentName.charAt(0) || "读"}</div>
         <div className="submission-card-main">
-          <strong>{submission.studentName}</strong>
+          <div className="row" style={{ justifyContent: "flex-start" }}>
+            <strong>{submission.studentName}</strong>
+            {submission.isOwn ? <span className="pill muted">我的作业</span> : null}
+          </div>
           <p className="submission-course" lang="it">
             Giorno {submission.dayNumber} · {submission.courseTitle}
           </p>

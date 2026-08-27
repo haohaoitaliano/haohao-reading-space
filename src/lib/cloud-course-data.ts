@@ -9,6 +9,7 @@ import {
 } from "./cloud-course";
 import { COURSE_AUDIO_BUCKET, COURSE_AUDIO_SIGNED_URL_SECONDS } from "./course-audio";
 import { COURSE_VIDEO_BUCKET, COURSE_VIDEO_SIGNED_URL_SECONDS } from "./course-video";
+import { getCurrentLearningSpace } from "./learning-space";
 import { createSupabaseServerClient } from "./supabase/server";
 
 export type CloudCamp = {
@@ -163,31 +164,9 @@ function mapSummary(row: CourseScheduleRow): CloudCourseSummary {
 }
 
 export async function getActiveCampForUser(userId: string) {
-  const supabase = await createSupabaseServerClient();
-  const { data: membership, error: membershipError } = await supabase
-    .from("camp_members")
-    .select("camp_id")
-    .eq("user_id", userId)
-    .eq("status", "active")
-    .limit(1)
-    .maybeSingle<{ camp_id: string }>();
-
-  if (membershipError) return { state: "database_error" as const, camp: null };
-  if (!membership) return { state: "no_membership" as const, camp: null };
-
-  const { data: camp, error: campError } = await supabase
-    .from("camps")
-    .select("id, name, slug, starts_at, timezone")
-    .eq("id", membership.camp_id)
-    .eq("status", "active")
-    .maybeSingle<{ id: string; name: string; slug: string; starts_at: string | null; timezone: string }>();
-
-  if (campError) return { state: "database_error" as const, camp: null };
-  if (!camp) return { state: "no_membership" as const, camp: null };
-  return {
-    state: "ok" as const,
-    camp: { id: camp.id, name: camp.name, slug: camp.slug, startsAt: camp.starts_at, timezone: camp.timezone, status: "active" },
-  };
+  const result = await getCurrentLearningSpace(userId);
+  if (result.state !== "ok") return { state: result.state, camp: null };
+  return { state: "ok" as const, camp: result.camp };
 }
 
 export async function getStudentCourseList(userId: string) {

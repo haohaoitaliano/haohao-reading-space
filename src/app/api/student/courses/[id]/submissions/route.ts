@@ -7,6 +7,7 @@ import {
   STUDENT_RECORDING_BUCKET,
   validateStudentRecordingFile,
 } from "@/lib/student-recording";
+import { getCurrentLearningSpace } from "@/lib/learning-space";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type RouteProps = { params: Promise<{ id: string }> };
@@ -21,6 +22,11 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
     return failure("请先以学生身份登录。", 401);
   }
   const { id: courseId } = await params;
+  const campResult = await getCurrentLearningSpace(auth.profile.id);
+  if (campResult.state === "no_selected_camp") return failure("请先选择当前训练营。", 403);
+  if (campResult.state === "no_membership") return failure("请先加入训练营。", 403);
+  if (campResult.state !== "ok") return failure("训练营信息暂时无法读取，请稍后重试。", 503);
+
   const supabase = await createSupabaseServerClient();
   const { data: course } = await supabase
     .from("courses")
@@ -28,6 +34,7 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
     .eq("id", courseId)
     .maybeSingle<{ id: string; camp_id: string }>();
   if (!course) return failure("课程不存在、尚未发布或还未解锁。", 403);
+  if (course.camp_id !== campResult.camp.id) return failure("请切换到该课程所属训练营后再提交。", 403);
 
   let formData: FormData;
   try {

@@ -1,12 +1,13 @@
-import { BookOpen, CalendarDays, CircleUserRound, Home, Mic2 } from "lucide-react";
+import { BookOpen, CalendarDays, CircleUserRound, Home, Layers3, Mic2 } from "lucide-react";
 import Link from "next/link";
 
 type AppFrameProps = {
   children: React.ReactNode;
-  active?: "home" | "courses" | "circle" | "progress" | "weekly";
+  active?: "spaces" | "home" | "courses" | "circle" | "progress" | "weekly";
 };
 
 const navItems = [
+  { key: "spaces", label: "空间", href: "/spaces", icon: Layers3 },
   { key: "home", label: "首页", href: "/home", icon: Home },
   { key: "courses", label: "课程", href: "/courses", icon: BookOpen },
   { key: "circle", label: "作业圈", href: "/circle", icon: Mic2 },

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AppFrame } from "@/components/AppFrame";
 import { CourseCard } from "@/components/CourseCard";
 import { Header } from "@/components/Header";
@@ -20,6 +21,7 @@ export default async function CoursesPage() {
 
         {result.state === "database_error" ? <p className="notice" role="alert">课程数据库暂时不可用。</p> : null}
         {result.state === "no_membership" ? <p className="notice">尚未加入训练营。</p> : null}
+        {result.state === "no_selected_camp" ? <p className="notice">请先在<Link href="/spaces">我的学习空间</Link>选择当前训练营。</p> : null}
         {result.state === "empty" ? <p className="notice">训练营还没有已发布课程。</p> : null}
         <div className="stack">
           {result.courses.map((course) => <CourseCard course={course} key={course.id} />)}

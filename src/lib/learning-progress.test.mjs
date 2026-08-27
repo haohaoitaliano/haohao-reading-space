@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildLearningProgress } from "./learning-progress.ts";
+import { buildLearningProgress, buildStudentCampStats } from "./learning-progress.ts";
 
 test("missing work includes only published courses already unlocked", () => {
   const result = buildLearningProgress({
@@ -27,4 +27,28 @@ test("missing work includes only published courses already unlocked", () => {
   assert.deepEqual(result[0].missingCourses.map((course) => course.id), ["c2"]);
   assert.equal(result[0].submittedCount, 1);
   assert.deepEqual(result[1].missingCourses.map((course) => course.id), ["c1", "c2"]);
+});
+
+test("student camp stats count opened missing tasks and every real submission", () => {
+  const stats = buildStudentCampStats({
+    courses: [
+      { id: "opened-done", isUnlocked: true },
+      { id: "opened-missing", isUnlocked: true },
+      { id: "locked", isUnlocked: false },
+    ],
+    submissions: [
+      { courseId: "opened-done", version: 1 },
+      { courseId: "opened-done", version: 2 },
+      { courseId: "locked", version: 1 },
+    ],
+  });
+
+  assert.deepEqual(stats, {
+    openedTasks: 2,
+    completedTasks: 1,
+    pendingTasks: 1,
+    completedOutputs: 3,
+    resubmissions: 1,
+    completionPercent: 50,
+  });
 });

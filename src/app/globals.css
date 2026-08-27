@@ -304,7 +304,7 @@ p {
   max-width: 460px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 4px;
   padding: 9px 8px 12px;
   background: rgba(255, 253, 248, 0.95);

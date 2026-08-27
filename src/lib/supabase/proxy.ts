@@ -6,9 +6,10 @@ import {
   requiresCampMembership,
   type AuthProfile,
 } from "@/lib/auth-policy";
+import { ACTIVE_CAMP_COOKIE, getActiveCampCookieOptions, getExpiredActiveCampCookieOptions } from "@/lib/active-camp-cookie";
 import { getSupabaseConfig, isSupabaseConfigured } from "./config";
 
-const publicPaths = new Set(["/", "/login", "/register", "/auth/callback", "/auth/error", "/forbidden"]);
+const publicPaths = new Set(["/", "/login", "/register", "/auth/callback", "/auth/error", "/auth/logout", "/forbidden"]);
 
 function copyUrl(request: NextRequest, pathname: string) {
   const url = request.nextUrl.clone();
@@ -71,17 +72,34 @@ export async function updateSupabaseSession(request: NextRequest) {
 
   if (
     profile.role === "student"
-    && (requiresCampMembership(pathname) || pathname === "/join-camp")
+    && (requiresCampMembership(pathname) || pathname === "/join-camp" || pathname === "/spaces")
   ) {
-    const { data: membership } = await supabase
+    const { data: memberships } = await supabase
       .from("camp_members")
-      .select("id")
+      .select("camp_id, camps(status)")
       .eq("user_id", userId)
-      .eq("status", "active")
-      .limit(1)
-      .maybeSingle();
+      .eq("status", "active");
 
-    const membershipRedirect = getCampMembershipRedirect(pathname, profile, Boolean(membership));
+    const activeCampIds = ((memberships ?? []) as unknown as Array<{
+      camp_id: string;
+      camps: { status: string } | null;
+    }>)
+      .filter((membership) => membership.camps?.status === "active")
+      .map((membership) => membership.camp_id);
+    const selectedCampId = request.cookies.get(ACTIVE_CAMP_COOKIE)?.value ?? null;
+    let hasSelectedCamp = Boolean(selectedCampId && activeCampIds.includes(selectedCampId));
+    if (!selectedCampId && activeCampIds.length === 1) {
+      hasSelectedCamp = true;
+      response.cookies.set(ACTIVE_CAMP_COOKIE, activeCampIds[0], getActiveCampCookieOptions());
+    }
+    if (selectedCampId && !hasSelectedCamp) {
+      response.cookies.set(ACTIVE_CAMP_COOKIE, "", getExpiredActiveCampCookieOptions());
+    }
+
+    const membershipRedirect = getCampMembershipRedirect(pathname, profile, {
+      hasActiveMembership: activeCampIds.length > 0,
+      hasSelectedCamp,
+    });
     if (membershipRedirect) {
       return NextResponse.redirect(copyUrl(request, membershipRedirect));
     }

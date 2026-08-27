@@ -9,6 +9,40 @@ export type ProgressCourse = {
 export type ProgressMember = { userId: string; displayName: string };
 export type ProgressSubmission = { userId: string; courseId: string };
 
+export type StudentCampStats = {
+  openedTasks: number;
+  completedTasks: number;
+  pendingTasks: number;
+  completedOutputs: number;
+  resubmissions: number;
+  completionPercent: number;
+};
+
+export function buildStudentCampStats(input: {
+  courses: Array<{ id: string; isUnlocked: boolean }>;
+  submissions: Array<{ courseId: string; version: number }>;
+}): StudentCampStats {
+  const openedCourseIds = new Set(
+    input.courses.filter((course) => course.isUnlocked).map((course) => course.id),
+  );
+  const completedCourseIds = new Set(
+    input.submissions
+      .filter((submission) => openedCourseIds.has(submission.courseId))
+      .map((submission) => submission.courseId),
+  );
+  const openedTasks = openedCourseIds.size;
+  const completedTasks = completedCourseIds.size;
+
+  return {
+    openedTasks,
+    completedTasks,
+    pendingTasks: Math.max(0, openedTasks - completedTasks),
+    completedOutputs: input.submissions.length,
+    resubmissions: input.submissions.filter((submission) => submission.version >= 2).length,
+    completionPercent: openedTasks ? Math.round((completedTasks / openedTasks) * 100) : 0,
+  };
+}
+
 export function buildLearningProgress(input: {
   now?: Date;
   members: ProgressMember[];
