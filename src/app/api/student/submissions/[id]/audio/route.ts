@@ -11,8 +11,19 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type RouteProps = { params: Promise<{ id: string }> };
-type OwnedSubmission = { id: string; camp_id: string; user_id: string; storage_path: string };
-type VisibleSubmission = { storage_path: string };
+type OwnedSubmission = {
+  id: string;
+  camp_id: string;
+  user_id: string;
+  storage_path: string;
+  playback_storage_path: string | null;
+};
+type VisibleSubmission = {
+  storage_path: string;
+  playback_storage_path: string | null;
+  playback_mime_type: string | null;
+  transcode_status: string;
+};
 
 function failure(message: string, status: number) {
   return NextResponse.json({ success: false, message }, { status });
@@ -24,7 +35,7 @@ async function getOwnedSubmission(id: string) {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("student_submissions")
-    .select("id, camp_id, user_id, storage_path")
+    .select("id, camp_id, user_id, storage_path, playback_storage_path")
     .eq("id", id)
     .eq("user_id", auth.profile.id)
     .maybeSingle<OwnedSubmission>();
@@ -39,17 +50,24 @@ export async function GET(_: NextRequest, { params }: RouteProps) {
   const supabase = await createSupabaseServerClient();
   const { data: submission, error } = await supabase
     .from("student_submissions")
-    .select("storage_path")
+    .select("storage_path, playback_storage_path, playback_mime_type, transcode_status")
     .eq("id", id)
     .maybeSingle<VisibleSubmission>();
   if (error || !submission) return failure("录音不存在或无权播放。", 404);
 
+  const playbackReady = submission.transcode_status === "ready"
+    && submission.playback_mime_type === "audio/mp4"
+    && Boolean(submission.playback_storage_path);
+  const audioPath = playbackReady ? submission.playback_storage_path! : submission.storage_path;
   const { data: signed, error: signedError } = await supabase.storage
     .from(STUDENT_RECORDING_BUCKET)
-    .createSignedUrl(submission.storage_path, STUDENT_RECORDING_SIGNED_URL_SECONDS);
+    .createSignedUrl(audioPath, STUDENT_RECORDING_SIGNED_URL_SECONDS);
   if (signedError || !signed?.signedUrl) return failure("录音暂时无法播放，请刷新后重试。", 503);
 
-  const response = NextResponse.redirect(signed.signedUrl, 307);
+  const response = NextResponse.json({
+    url: signed.signedUrl,
+    expiresIn: STUDENT_RECORDING_SIGNED_URL_SECONDS,
+  });
   response.headers.set("Cache-Control", "private, no-store");
   return response;
 }
@@ -90,7 +108,9 @@ export async function PUT(request: NextRequest, { params }: RouteProps) {
     await context.supabase.storage.from(STUDENT_RECORDING_BUCKET).remove([nextPath]);
     return failure("录音替换失败，请稍后重试。", 500);
   }
-  await context.supabase.storage.from(STUDENT_RECORDING_BUCKET).remove([context.submission.storage_path]);
+  const previousPaths = [context.submission.storage_path, context.submission.playback_storage_path]
+    .filter((path): path is string => Boolean(path));
+  await context.supabase.storage.from(STUDENT_RECORDING_BUCKET).remove(previousPaths);
   return NextResponse.json({ success: true, message: "录音已替换。" });
 }
 
@@ -98,9 +118,11 @@ export async function DELETE(_: NextRequest, { params }: RouteProps) {
   const { id } = await params;
   const context = await getOwnedSubmission(id);
   if (!context) return failure("录音不存在或无权删除。", 403);
+  const paths = [context.submission.storage_path, context.submission.playback_storage_path]
+    .filter((path): path is string => Boolean(path));
   const { error: storageError } = await context.supabase.storage
     .from(STUDENT_RECORDING_BUCKET)
-    .remove([context.submission.storage_path]);
+    .remove(paths);
   if (storageError) return failure("录音删除失败，请稍后重试。", 500);
   const { error: metadataError } = await context.supabase
     .from("student_submissions")

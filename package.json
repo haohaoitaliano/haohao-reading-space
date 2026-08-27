@@ -7,7 +7,8 @@
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/lib/*.test.mjs src/lib/supabase/*.test.mjs supabase/migrations/*.test.mjs supabase/seed/*.test.mjs"
+    "test": "node --experimental-strip-types --test src/lib/*.test.mjs src/lib/supabase/*.test.mjs supabase/migrations/*.test.mjs supabase/seed/*.test.mjs",
+    "recordings:transcode-existing": "node scripts/transcode-existing-student-recordings.mjs"
   },
   "keywords": [],
   "author": "",

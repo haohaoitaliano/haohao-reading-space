@@ -516,6 +516,12 @@ p {
   margin-top: 8px;
 }
 
+.submission-audio-status {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .submission-audio-error .button {
   width: 100%;
 }
