@@ -97,23 +97,14 @@ function increment(map: Map<string, number>, campId: string) {
   map.set(campId, (map.get(campId) ?? 0) + 1);
 }
 
-export async function getCampUsageCounts(campId: string): Promise<CampUsageCounts | null> {
+export async function getCampMemberCount(campId: string): Promise<number | null> {
   const supabase = await createSupabaseServerClient();
-  const [courses, members, meetings, invites, submissions] = await Promise.all([
-    supabase.from("courses").select("id", { count: "exact", head: true }).eq("camp_id", campId),
-    supabase.from("camp_members").select("id", { count: "exact", head: true }).eq("camp_id", campId),
-    supabase.from("weekly_meetings").select("id", { count: "exact", head: true }).eq("camp_id", campId),
-    supabase.from("camp_invites").select("id", { count: "exact", head: true }).eq("camp_id", campId),
-    supabase.from("student_submissions").select("id", { count: "exact", head: true }).eq("camp_id", campId),
-  ]);
-  if (courses.error || members.error || meetings.error || invites.error || submissions.error) return null;
-  return {
-    courses: courses.count ?? 0,
-    members: members.count ?? 0,
-    meetings: meetings.count ?? 0,
-    invites: invites.count ?? 0,
-    submissions: submissions.count ?? 0,
-  };
+  const { count, error } = await supabase
+    .from("camp_members")
+    .select("id", { count: "exact", head: true })
+    .eq("camp_id", campId)
+    .eq("status", "active");
+  return error ? null : (count ?? 0);
 }
 
 export async function getAdminCampManagementData() {
@@ -121,7 +112,7 @@ export async function getAdminCampManagementData() {
   const [campResult, coursesResult, membersResult, meetingsResult, invitesResult, submissionsResult] = await Promise.all([
     supabase.from("camps").select("id, name, slug, starts_at, timezone, status, max_students").order("created_at", { ascending: true }),
     supabase.from("courses").select("camp_id"),
-    supabase.from("camp_members").select("camp_id"),
+    supabase.from("camp_members").select("camp_id").eq("status", "active"),
     supabase.from("weekly_meetings").select("camp_id"),
     supabase.from("camp_invites").select("camp_id"),
     supabase.from("student_submissions").select("camp_id"),

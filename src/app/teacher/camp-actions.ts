@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { normalizeCampTimeZone } from "@/lib/course-schedule";
-import { getCampUsageCounts } from "@/lib/teacher-operations-data";
+import { COURSE_AUDIO_BUCKET } from "@/lib/course-audio";
+import { COURSE_VIDEO_BUCKET } from "@/lib/course-video";
+import { STUDENT_RECORDING_BUCKET } from "@/lib/student-recording";
+import { getCampMemberCount } from "@/lib/teacher-operations-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type CampScheduleActionResult = { success: boolean; message: string };
@@ -81,6 +84,24 @@ function revalidateCampViews() {
   revalidatePath("/weekly");
 }
 
+async function removeStoragePaths(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  bucket: string,
+  paths: string[],
+) {
+  for (let index = 0; index < paths.length; index += 100) {
+    const chunk = paths.slice(index, index + 100);
+    let failed = false;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const { error } = await supabase.storage.from(bucket).remove(chunk);
+      failed = Boolean(error);
+      if (!failed) break;
+    }
+    if (failed) return false;
+  }
+  return true;
+}
+
 export async function updateCampStatus(input: {
   campId: string;
   status: "active" | "archived";
@@ -98,16 +119,69 @@ export async function updateCampStatus(input: {
 
 export async function permanentlyDeleteCamp(campId: string): Promise<CampScheduleActionResult> {
   await requireAdmin();
-  const counts = await getCampUsageCounts(campId);
-  if (!counts) return { success: false, message: "无法确认训练营是否为空，请稍后重试。" };
-  const total = counts.courses + counts.members + counts.meetings + counts.invites + counts.submissions;
-  if (total > 0) {
-    return { success: false, message: "只有空训练营才能永久删除。请先确认没有课程、成员、会议、邀请码和提交记录。" };
+  const memberCount = await getCampMemberCount(campId);
+  if (memberCount === null) return { success: false, message: "无法确认训练营成员数，请稍后重试。" };
+  if (memberCount > 0) {
+    return { success: false, message: "请先移除所有成员后再永久删除训练营。" };
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from("camps").delete().eq("id", campId);
-  if (error) return { success: false, message: "训练营删除失败，请确认它仍为空。" };
+  const [coursesResult, submissionsResult] = await Promise.all([
+    supabase.from("courses").select("id").eq("camp_id", campId),
+    supabase
+      .from("student_submissions")
+      .select("storage_path, playback_storage_path")
+      .eq("camp_id", campId),
+  ]);
+  if (coursesResult.error || submissionsResult.error) {
+    return { success: false, message: "无法确认训练营关联文件，请稍后重试。" };
+  }
+
+  const courseIds = (coursesResult.data ?? []).map((course) => course.id);
+  const [audioResult, videoResult] = courseIds.length
+    ? await Promise.all([
+        supabase.from("course_audio").select("storage_path").in("course_id", courseIds),
+        supabase.from("course_videos").select("storage_path").in("course_id", courseIds),
+      ])
+    : [{ data: [], error: null }, { data: [], error: null }];
+  if (audioResult.error || videoResult.error) {
+    return { success: false, message: "无法确认训练营课程文件，请稍后重试。" };
+  }
+
+  const { data: deletedCamp, error: deleteError } = await supabase
+    .from("camps")
+    .delete()
+    .eq("id", campId)
+    .select("id")
+    .maybeSingle<{ id: string }>();
+  if (deleteError || !deletedCamp) {
+    return { success: false, message: "训练营删除失败。请确认所有成员已移除后重试。" };
+  }
+
+  const storageGroups = [
+    {
+      bucket: COURSE_AUDIO_BUCKET,
+      paths: (audioResult.data ?? []).map((row) => row.storage_path),
+    },
+    {
+      bucket: COURSE_VIDEO_BUCKET,
+      paths: (videoResult.data ?? []).map((row) => row.storage_path),
+    },
+    {
+      bucket: STUDENT_RECORDING_BUCKET,
+      paths: (submissionsResult.data ?? []).flatMap((row) =>
+        [row.storage_path, row.playback_storage_path].filter((path): path is string => Boolean(path)),
+      ),
+    },
+  ];
+
+  for (const group of storageGroups) {
+    if (!(await removeStoragePaths(supabase, group.bucket, group.paths))) {
+      revalidateCampViews();
+      return { success: false, message: "训练营数据已删除，但部分关联文件清理失败，请联系管理员继续清理。" };
+    }
+  }
+
   revalidateCampViews();
   return { success: true, message: "训练营已永久删除。" };
 }

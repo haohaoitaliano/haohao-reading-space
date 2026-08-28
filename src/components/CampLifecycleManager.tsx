@@ -7,11 +7,6 @@ import { useState } from "react";
 import { permanentlyDeleteCamp, updateCampStatus } from "@/app/teacher/camp-actions";
 import type { ManagedCamp } from "@/lib/teacher-operations-data";
 
-function totalUsage(camp: ManagedCamp) {
-  const { courses, members, meetings, invites, submissions } = camp.counts;
-  return courses + members + meetings + invites + submissions;
-}
-
 export function CampLifecycleManager({ camps }: { camps: ManagedCamp[] }) {
   const router = useRouter();
   const [busyCampId, setBusyCampId] = useState("");
@@ -34,7 +29,7 @@ export function CampLifecycleManager({ camps }: { camps: ManagedCamp[] }) {
 
   async function deleteCamp(camp: ManagedCamp) {
     const confirmed = window.confirm(
-      `确定永久删除「${camp.name}」吗？这个操作不可恢复。只有没有课程、成员、会议、邀请码和提交记录的训练营才能删除。`,
+      `确定永久删除「${camp.name}」吗？删除后，该训练营及其课程、邀请码、会议和历史数据将无法恢复。`,
     );
     if (!confirmed) return;
     setBusyCampId(camp.id);
@@ -55,7 +50,6 @@ export function CampLifecycleManager({ camps }: { camps: ManagedCamp[] }) {
       {error ? <p className="notice" role="alert">{error}</p> : null}
       {message ? <p className="success-notice" role="status">{message}</p> : null}
       {camps.map((camp) => {
-        const usage = totalUsage(camp);
         const isBusy = busyCampId === camp.id;
         return (
           <article className="item-card stack" key={camp.id}>
@@ -85,10 +79,11 @@ export function CampLifecycleManager({ camps }: { camps: ManagedCamp[] }) {
                 <RotateCcw size={18} /> 重新启用
               </button>
             )}
-            <button className="button ghost full" disabled={isBusy || usage > 0} onClick={() => deleteCamp(camp)} type="button">
+            <button className="button ghost full" disabled={isBusy || camp.counts.members > 0} onClick={() => deleteCamp(camp)} type="button">
               <Trash2 size={18} /> 永久删除
             </button>
-            {usage > 0 ? <p className="notice">永久删除仅适用于完全空的训练营；课程、成员、会议、邀请码和历史提交都会保留。</p> : null}
+            <p className="notice">成员数为 0 时可永久删除。删除后，该训练营及其课程、邀请码、会议和历史数据将无法恢复。</p>
+            {camp.counts.members > 0 ? <p className="notice">请先移除所有成员后再永久删除训练营。</p> : null}
           </article>
         );
       })}
