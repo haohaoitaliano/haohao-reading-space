@@ -13,6 +13,47 @@ export const RECORDING_UNSUPPORTED_MESSAGE =
 export const RECORDING_SECURE_CONTEXT_MESSAGE =
   "当前页面不是安全连接，浏览器无法使用麦克风。请通过 HTTPS 页面录音。";
 
+export const MICROPHONE_REQUEST_TIMEOUT_MS = 10_000;
+
+export const MICROPHONE_REQUEST_TIMEOUT_MESSAGE =
+  "请求麦克风权限超时。请检查系统权限弹窗或浏览器的麦克风设置，然后重新请求。";
+
+function createMicrophoneTimeoutError() {
+  const error = new Error("microphone_request_timeout");
+  error.name = "TimeoutError";
+  return error;
+}
+
+export function requestMicrophoneWithTimeout(
+  request: () => Promise<MediaStream>,
+  timeoutMs = MICROPHONE_REQUEST_TIMEOUT_MS,
+) {
+  let timedOut = false;
+
+  return new Promise<MediaStream>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      reject(createMicrophoneTimeoutError());
+    }, timeoutMs);
+
+    request().then(
+      (stream) => {
+        if (timedOut) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        clearTimeout(timeoutId);
+        resolve(stream);
+      },
+      (error) => {
+        if (timedOut) return;
+        clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
+
 export function chooseRecordingMimeType(isSupported: (type: string) => boolean) {
   return RECORDING_MIME_TYPES.find((type) => isSupported(type)) ?? "";
 }
@@ -27,6 +68,9 @@ export function formatRecordingDuration(totalSeconds: number) {
 export function getMicrophoneErrorMessage(error: unknown) {
   const name = typeof error === "object" && error && "name" in error ? String(error.name) : "";
 
+  if (name === "TimeoutError") {
+    return MICROPHONE_REQUEST_TIMEOUT_MESSAGE;
+  }
   if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") {
     return "无法使用麦克风，请在浏览器设置中允许麦克风权限。";
   }

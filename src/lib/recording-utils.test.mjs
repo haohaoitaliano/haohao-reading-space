@@ -4,7 +4,9 @@ import {
   chooseRecordingMimeType,
   formatRecordingDuration,
   getMicrophoneErrorMessage,
+  MICROPHONE_REQUEST_TIMEOUT_MESSAGE,
   RECORDING_SECURE_CONTEXT_MESSAGE,
+  requestMicrophoneWithTimeout,
 } from "./recording-utils.ts";
 
 test("chooses the first MIME type supported by the browser", () => {
@@ -29,6 +31,34 @@ test("maps microphone initialization failures to a clear message", () => {
     getMicrophoneErrorMessage({ name: "NotReadableError" }),
     "麦克风可能被其他程序占用，或初始化失败。请关闭其他正在使用麦克风的程序后重试。",
   );
+});
+
+test("maps microphone request timeout to a clear message", () => {
+  assert.equal(
+    getMicrophoneErrorMessage({ name: "TimeoutError" }),
+    MICROPHONE_REQUEST_TIMEOUT_MESSAGE,
+  );
+});
+
+test("times out a microphone request that does not return", async () => {
+  await assert.rejects(
+    requestMicrophoneWithTimeout(() => new Promise(() => {}), 5),
+    { name: "TimeoutError" },
+  );
+});
+
+test("stops a microphone stream that arrives after timeout", async () => {
+  let resolveRequest;
+  let stopped = false;
+  const request = new Promise((resolve) => {
+    resolveRequest = resolve;
+  });
+
+  await assert.rejects(requestMicrophoneWithTimeout(() => request, 5), { name: "TimeoutError" });
+  resolveRequest({ getTracks: () => [{ stop: () => { stopped = true; } }] });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(stopped, true);
 });
 
 test("explains that microphone recording requires a secure page", () => {

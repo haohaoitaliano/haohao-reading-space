@@ -8,6 +8,7 @@ import {
   chooseRecordingMimeType,
   formatRecordingDuration,
   getMicrophoneErrorMessage,
+  requestMicrophoneWithTimeout,
   RECORDING_SECURE_CONTEXT_MESSAGE,
   RECORDING_UNSUPPORTED_MESSAGE,
 } from "@/lib/recording-utils";
@@ -58,6 +59,7 @@ export function BrowserRecorder({
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const microphoneRequestIdRef = useRef(0);
 
   const stopTracks = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -89,11 +91,24 @@ export function BrowserRecorder({
     };
   }, [audioUrl, stopTimer, stopTracks]);
 
+  useEffect(() => {
+    return () => {
+      microphoneRequestIdRef.current += 1;
+    };
+  }, []);
+
   const requestMicrophoneAndStart = async () => {
+    const requestId = ++microphoneRequestIdRef.current;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
-      });
+      const stream = await requestMicrophoneWithTimeout(() =>
+        navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true },
+        }),
+      );
+      if (requestId !== microphoneRequestIdRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       streamRef.current = stream;
       const selectedMimeType = chooseRecordingMimeType((type) =>
         typeof MediaRecorder.isTypeSupported === "function" ? MediaRecorder.isTypeSupported(type) : false,
@@ -141,6 +156,7 @@ export function BrowserRecorder({
         setDuration(Math.floor((Date.now() - startedAtRef.current) / 1000));
       }, 250);
     } catch (error) {
+      if (requestId !== microphoneRequestIdRef.current) return;
       stopTimer();
       stopTracks();
       setState("error");
@@ -274,7 +290,7 @@ export function BrowserRecorder({
       ) : (
         <button className="button full recorder-primary" disabled={!canUseRecording} onClick={startRecording} type="button">
           <Mic size={19} />
-          {hasRecording ? "重新录制" : "开始录音"}
+          {hasRecording ? "重新录制" : state === "error" ? "重新请求麦克风权限" : "开始录音"}
         </button>
       )}
 
