@@ -70,7 +70,7 @@ export function StudentCourseDetail({ course, latestSubmission }: StudentCourseD
 
           <section className="quiet-card">
             <p className="kicker">Testo</p>
-            <p className="italian-text">{course.readingText}</p>
+            <p className="italian-text reading-text">{course.readingText}</p>
           </section>
 
           {course.vocabulary.length > 0 ? (

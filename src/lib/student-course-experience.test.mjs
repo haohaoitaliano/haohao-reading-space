@@ -24,6 +24,14 @@ test("course page hides optional modules that have no teacher content", async ()
   assert.doesNotMatch(detail, /今天暂无视频/);
 });
 
+test("course reading text preserves teacher-entered line breaks without horizontal overflow", async () => {
+  const detail = await readFile(new URL("../components/StudentCourseDetail.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(detail, /className="italian-text reading-text">\{course\.readingText\}<\/p>/);
+  assert.match(styles, /\.reading-text\s*\{[^}]*overflow-wrap:\s*anywhere;[^}]*white-space:\s*pre-wrap;[^}]*\}/);
+});
+
 test("latest course submission is isolated by user, camp, and course", async () => {
   const dataSource = await readFile(new URL("./cloud-course-data.ts", import.meta.url), "utf8");
   const recorder = await readFile(new URL("../components/BrowserRecorder.tsx", import.meta.url), "utf8");
