@@ -113,7 +113,12 @@ export function StudentCourseDetail({ course, latestSubmission }: StudentCourseD
             </section>
           ) : null}
 
-          <BrowserRecorder courseId={course.id} latestSubmission={latestSubmission} />
+          <BrowserRecorder
+            courseId={course.id}
+            latestSubmission={latestSubmission}
+            maxDurationSeconds={course.maxDurationSeconds}
+            targetDurationSeconds={course.targetDurationSeconds}
+          />
 
           <section>
             <div className="row">

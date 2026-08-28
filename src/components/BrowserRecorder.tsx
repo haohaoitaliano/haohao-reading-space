@@ -1,17 +1,19 @@
 "use client";
 
-import { Mic, RotateCcw, Send, Square, Trash2, Volume2 } from "lucide-react";
+import { Mic, RotateCcw, Send, Square, Trash2, Upload, Volume2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useAuthProfile } from "@/components/AuthProfileProvider";
 import {
   chooseRecordingMimeType,
   formatRecordingDuration,
+  getRecordingTargetFeedback,
   getMicrophoneErrorMessage,
   requestMicrophoneWithTimeout,
   RECORDING_SECURE_CONTEXT_MESSAGE,
   RECORDING_UNSUPPORTED_MESSAGE,
 } from "@/lib/recording-utils";
+import { validateManualStudentRecordingFile } from "@/lib/student-recording";
 import type { StudentCourseSubmissionSummary } from "@/lib/cloud-course-data";
 
 type RecorderState = "idle" | "requesting" | "recording" | "ready" | "submitting" | "submitted" | "error" | "submit_error";
@@ -38,9 +40,13 @@ function extensionForMimeType(mimeType: string) {
 export function BrowserRecorder({
   courseId,
   latestSubmission,
+  maxDurationSeconds,
+  targetDurationSeconds,
 }: {
   courseId: string;
   latestSubmission: StudentCourseSubmissionSummary | null;
+  maxDurationSeconds: number;
+  targetDurationSeconds: number | null;
 }) {
   const router = useRouter();
   const profile = useAuthProfile();
@@ -50,6 +56,7 @@ export function BrowserRecorder({
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState("");
   const [mimeType, setMimeType] = useState("");
+  const [recordingSource, setRecordingSource] = useState<"browser_recording" | "manual_upload">("browser_recording");
   const [message, setMessage] = useState("");
   const [submittedVersion, setSubmittedVersion] = useState<number | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -60,6 +67,7 @@ export function BrowserRecorder({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const microphoneRequestIdRef = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const stopTracks = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -76,6 +84,7 @@ export function BrowserRecorder({
     setAudioUrl("");
     setAudioBlob(null);
     setMimeType("");
+    setRecordingSource("browser_recording");
     setDuration(0);
     setMessage("");
     chunksRef.current = [];
@@ -131,7 +140,10 @@ export function BrowserRecorder({
       recorder.onstop = () => {
         stopTimer();
         stopTracks();
-        const recordedDuration = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000));
+        const recordedDuration = Math.min(
+          maxDurationSeconds,
+          Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)),
+        );
         const recordedMimeType = recorder.mimeType || selectedMimeType || chunksRef.current[0]?.type || "audio/webm";
         const blob = new Blob(chunksRef.current, { type: recordedMimeType });
         if (blob.size === 0) {
@@ -142,6 +154,7 @@ export function BrowserRecorder({
         const objectUrl = URL.createObjectURL(blob);
         setDuration(recordedDuration);
         setMimeType(recordedMimeType);
+        setRecordingSource("browser_recording");
         setAudioBlob(blob);
         setAudioUrl(objectUrl);
         setState("ready");
@@ -153,7 +166,12 @@ export function BrowserRecorder({
       setState("recording");
       setMessage("");
       timerRef.current = setInterval(() => {
-        setDuration(Math.floor((Date.now() - startedAtRef.current) / 1000));
+        const elapsed = Math.floor((Date.now() - startedAtRef.current) / 1000);
+        setDuration(Math.min(elapsed, maxDurationSeconds));
+        if (elapsed >= maxDurationSeconds && recorder.state === "recording") {
+          setMessage(`已达到最大录音时长 ${formatRecordingDuration(maxDurationSeconds)}，录音已自动停止。`);
+          recorder.stop();
+        }
       }, 250);
     } catch (error) {
       if (requestId !== microphoneRequestIdRef.current) return;
@@ -192,6 +210,51 @@ export function BrowserRecorder({
     setState("idle");
   };
 
+  const selectManualRecording = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const validationError = validateManualStudentRecordingFile(file);
+    if (validationError) {
+      setMessage(validationError);
+      setState("submit_error");
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    const media = new Audio(objectUrl);
+    media.preload = "metadata";
+    media.addEventListener("loadedmetadata", () => {
+      const fileDuration = Math.max(1, Math.round(media.duration));
+      if (!Number.isFinite(media.duration)) {
+        URL.revokeObjectURL(objectUrl);
+        setState("submit_error");
+        setMessage("无法读取音频时长，请重新选择 M4A 或 MP3 文件。");
+        return;
+      }
+      if (fileDuration > maxDurationSeconds) {
+        URL.revokeObjectURL(objectUrl);
+        setState("submit_error");
+        setMessage(`音频超过本任务最大时长 ${formatRecordingDuration(maxDurationSeconds)}，请压缩内容后重新上传。`);
+        return;
+      }
+      clearRecording();
+      setAudioBlob(file);
+      setAudioUrl(objectUrl);
+      setMimeType(file.type || (file.name.toLowerCase().endsWith(".mp3") ? "audio/mpeg" : "audio/mp4"));
+      setRecordingSource("manual_upload");
+      setDuration(fileDuration);
+      setState("ready");
+      setMessage("音频已选择，可以试听后正式提交。");
+    }, { once: true });
+    media.addEventListener("error", () => {
+      URL.revokeObjectURL(objectUrl);
+      setState("submit_error");
+      setMessage("无法读取音频文件，请确认文件是可播放的 M4A 或 MP3。");
+    }, { once: true });
+    media.src = objectUrl;
+  };
+
   const replayRecording = async () => {
     try {
       await audioRef.current?.play();
@@ -213,6 +276,7 @@ export function BrowserRecorder({
       ));
       formData.set("durationSeconds", String(duration));
       formData.set("visibility", visibility);
+      formData.set("source", recordingSource);
       const response = await fetch(`/api/student/courses/${courseId}/submissions`, {
         method: "POST",
         body: formData,
@@ -228,7 +292,7 @@ export function BrowserRecorder({
       }
       setState("submitted");
       setSubmittedVersion(result.version ?? null);
-      setMessage(`录音提交成功 · 第 ${result.version} 版`);
+      setMessage(`录音提交成功 · 第 ${result.version} 次提交`);
       redirectTimerRef.current = setTimeout(() => {
         router.push("/circle");
       }, 900);
@@ -244,21 +308,31 @@ export function BrowserRecorder({
   const hasRecording = Boolean(audioBlob && audioUrl);
   const persistedVersion = submittedVersion ?? latestSubmission?.version ?? null;
   const statusLabel = state === "idle" && persistedVersion
-    ? `已提交 · 第 ${persistedVersion} 版`
+    ? `已提交 · 第 ${persistedVersion} 次提交`
     : state === "submitted" && submittedVersion
-      ? `已提交 · 第 ${submittedVersion} 版`
+      ? `已提交 · 第 ${submittedVersion} 次提交`
       : stateLabels[state];
   const statusDuration = state === "idle" && latestSubmission
     ? latestSubmission.durationSeconds
     : duration;
   const hasSubmitted = state === "submitted" || (state === "idle" && Boolean(persistedVersion));
+  const targetFeedback = hasRecording
+    ? getRecordingTargetFeedback(duration, targetDurationSeconds)
+    : null;
 
   return (
     <section className={`quiet-card record-panel recorder-${state}`}>
       <div className="row">
         <div>
-          <p className="kicker">跟读录音</p>
+          <p className="kicker">主要方式 · 网页直接录音</p>
           <h2 style={{ marginBottom: 0 }}>录一次，也可以再来一次</h2>
+          <p style={{ margin: "6px 0 0" }}>
+            最大录制时长：{formatRecordingDuration(maxDurationSeconds)}
+            {targetDurationSeconds ? ` · 🎯 目标：${targetDurationSeconds} 秒以内` : ""}
+          </p>
+          {targetDurationSeconds ? (
+            <small>在保持发音准确、清晰、自然的同时完成挑战，不是越快越好。</small>
+          ) : null}
         </div>
         <span className={`pill ${state === "recording" ? "recording-pill" : hasSubmitted ? "olive" : "sky"}`}>
           {statusLabel}
@@ -295,6 +369,11 @@ export function BrowserRecorder({
       )}
 
       {message ? <p className={state === "submitted" ? "success-notice" : "notice"} role="status">{message}</p> : null}
+      {targetFeedback ? (
+        <p className={targetFeedback.reached ? "success-notice" : "notice"} role="status">
+          {targetFeedback.message}
+        </p>
+      ) : null}
 
       <div className="grid-two">
         <button className="button secondary" disabled={!hasRecording || state === "submitting"} onClick={replayRecording} type="button">
@@ -313,6 +392,28 @@ export function BrowserRecorder({
           重录
         </button>
       ) : null}
+
+      <input
+        accept=".m4a,.mp3,.wav,audio/mp4,audio/x-m4a,audio/mpeg,audio/wav,audio/x-wav"
+        hidden
+        onChange={selectManualRecording}
+        ref={fileInputRef}
+        type="file"
+      />
+      <details className="manual-upload-fallback">
+        <summary>无法直接录音？上传已有音频</summary>
+        <div className="manual-upload-content">
+          <p>仅支持 M4A / MP3，最大 3 MB</p>
+          <button
+            className="button ghost full"
+            disabled={!canUseRecording}
+            onClick={() => fileInputRef.current?.click()}
+            type="button"
+          >
+            <Upload size={18} />选择已有音频
+          </button>
+        </div>
+      </details>
 
       <div className="privacy-options">
         <p className="kicker">公开设置</p>

@@ -5,6 +5,7 @@ import {
   getStudentRecordingExtension,
   normalizeStudentRecordingMimeType,
   STUDENT_RECORDING_BUCKET,
+  validateManualStudentRecordingFile,
   validateStudentRecordingFile,
 } from "@/lib/student-recording";
 import { getCurrentLearningSpace } from "@/lib/learning-space";
@@ -30,10 +31,9 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
 
   const supabase = await createSupabaseServerClient();
   const { data: course } = await supabase
-    .from("courses")
-    .select("id, camp_id")
+    .rpc("get_course_schedule", { target_camp_id: campResult.camp.id })
     .eq("id", courseId)
-    .maybeSingle<{ id: string; camp_id: string }>();
+    .maybeSingle<{ id: string; camp_id: string; max_duration_seconds?: number }>();
   if (!course) return failure("课程不存在、尚未发布或还未解锁。", 403);
   if (course.camp_id !== campResult.camp.id) return failure("请切换到该课程所属训练营后再提交。", 403);
 
@@ -45,7 +45,13 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
   }
   const audio = formData.get("audio");
   if (!(audio instanceof File)) return failure("请先完成录音。", 400);
-  const validationError = validateStudentRecordingFile(audio);
+  const source = formData.get("source");
+  if (source !== "browser_recording" && source !== "manual_upload") {
+    return failure("无法确认录音来源，请重新选择或录制。", 400);
+  }
+  const validationError = source === "manual_upload"
+    ? validateManualStudentRecordingFile(audio)
+    : validateStudentRecordingFile(audio);
   if (validationError) return failure(validationError, 400);
   const visibility = formData.get("visibility");
   if (visibility !== "public" && visibility !== "teacher_only") {
@@ -55,10 +61,18 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
   if (!Number.isFinite(duration) || duration < 0 || duration > 7200) {
     return failure("录音时长无效，请重新录制。", 400);
   }
+  const maxDurationSeconds = Number.isInteger(course.max_duration_seconds)
+    && Number(course.max_duration_seconds) > 0
+    ? Number(course.max_duration_seconds)
+    : 120;
+  if (duration > maxDurationSeconds) {
+    return failure(`音频超过本任务最大时长 ${maxDurationSeconds} 秒，请重新录制或选择其他文件。`, 400);
+  }
 
   const submissionId = crypto.randomUUID();
   const extension = getStudentRecordingExtension(audio.name, audio.type);
-  const mimeType = normalizeStudentRecordingMimeType(audio.type);
+  const mimeType = normalizeStudentRecordingMimeType(audio.type)
+    || (extension === "mp3" ? "audio/mpeg" : "audio/mp4");
   const storagePath = buildStudentRecordingPath(course.camp_id, auth.profile.id, submissionId, extension);
   const { error: uploadError } = await supabase.storage
     .from(STUDENT_RECORDING_BUCKET)

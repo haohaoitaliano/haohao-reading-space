@@ -9,6 +9,7 @@ export type SubmissionPresentationRow = {
   courseTitle: string;
   studentName: string;
   durationSeconds: number;
+  targetDurationSeconds: number | null;
   visibility: SubmissionVisibility;
   version: number;
   createdAt: string;
@@ -21,6 +22,7 @@ export type CloudSubmission = {
   courseTitle: string;
   studentName: string;
   durationSeconds: number;
+  targetDurationSeconds: number | null;
   visibility: SubmissionVisibility;
   version: number;
   createdAt: string;
@@ -51,6 +53,7 @@ export function toCloudSubmission(
     courseTitle: row.courseTitle,
     studentName: row.studentName.trim() || "同学",
     durationSeconds: row.durationSeconds,
+    targetDurationSeconds: row.targetDurationSeconds,
     visibility: row.visibility,
     version: row.version,
     createdAt: row.createdAt,

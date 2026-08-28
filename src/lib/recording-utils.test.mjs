@@ -4,6 +4,7 @@ import {
   chooseRecordingMimeType,
   formatRecordingDuration,
   getMicrophoneErrorMessage,
+  getRecordingTargetFeedback,
   MICROPHONE_REQUEST_TIMEOUT_MESSAGE,
   RECORDING_SECURE_CONTEXT_MESSAGE,
   requestMicrophoneWithTimeout,
@@ -69,4 +70,16 @@ test("explains that microphone recording requires a secure page", () => {
 test("formats a recording duration as minutes and seconds", () => {
   assert.equal(formatRecordingDuration(0), "00:00");
   assert.equal(formatRecordingDuration(65), "01:05");
+});
+
+test("target duration is feedback rather than a submission limit", () => {
+  assert.deepEqual(getRecordingTargetFeedback(28, 30), {
+    reached: true,
+    message: "本次用时：28 秒 ✅ 已达到本次目标！再听一遍，检查发音和语调。",
+  });
+  assert.deepEqual(getRecordingTargetFeedback(36, 30), {
+    reached: false,
+    message: "本次用时：36 秒。🎯 目标：30 秒以内。可以再试一次，看看能不能在保持发音准确、清晰、自然的同时更流畅。",
+  });
+  assert.equal(getRecordingTargetFeedback(36, null), null);
 });

@@ -18,6 +18,16 @@ export type StudentCampStats = {
   completionPercent: number;
 };
 
+export function getTodayTaskStatus(input: {
+  hasTask: boolean;
+  hasSubmission: boolean;
+  submissionError: boolean;
+}) {
+  if (!input.hasTask) return "今日暂无任务";
+  if (input.submissionError) return "状态暂时无法读取";
+  return input.hasSubmission ? "已完成" : "待完成";
+}
+
 export function buildStudentCampStats(input: {
   courses: Array<{ id: string; isUnlocked: boolean }>;
   submissions: Array<{ courseId: string; version: number }>;

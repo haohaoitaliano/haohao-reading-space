@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildLearningProgress, buildStudentCampStats } from "./learning-progress.ts";
+import { buildLearningProgress, buildStudentCampStats, getTodayTaskStatus } from "./learning-progress.ts";
 
 test("missing work includes only published courses already unlocked", () => {
   const result = buildLearningProgress({
@@ -51,4 +51,11 @@ test("student camp stats count opened missing tasks and every real submission", 
     resubmissions: 1,
     completionPercent: 50,
   });
+});
+
+test("today task status distinguishes no task, pending, completed, and query errors", () => {
+  assert.equal(getTodayTaskStatus({ hasTask: false, hasSubmission: false, submissionError: false }), "今日暂无任务");
+  assert.equal(getTodayTaskStatus({ hasTask: true, hasSubmission: false, submissionError: false }), "待完成");
+  assert.equal(getTodayTaskStatus({ hasTask: true, hasSubmission: true, submissionError: false }), "已完成");
+  assert.equal(getTodayTaskStatus({ hasTask: true, hasSubmission: false, submissionError: true }), "状态暂时无法读取");
 });

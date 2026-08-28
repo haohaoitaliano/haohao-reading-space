@@ -21,8 +21,8 @@ export default async function MyWorkPage() {
         <Header title="我的作业" subtitle={`${profile.display_name} · ${campResult.camp?.name ?? "云端录音"}`} />
         <div className="hero">
           <p className="kicker">I miei compiti</p>
-          <h1>回看每一次提交和修改。</h1>
-          <p>这里展示你的云端录音、公开状态和提交版本。</p>
+          <h1>历史提交</h1>
+          <p>这里展示当前训练营中仍然保留的每一次独立提交和实际录音时长。</p>
         </div>
         <div className="stack">
           {campResult.state === "no_selected_camp" ? (
@@ -50,7 +50,7 @@ export default async function MyWorkPage() {
           {!result.error && result.submissions.length === 0 ? (
             <section className="quiet-card">
               <h2>还没有提交记录</h2>
-              <p>完成一次跟读录音后，不同版本会按时间显示在这里。</p>
+              <p>完成一次跟读录音后，每一次独立提交都会按时间显示在这里。</p>
               <Link className="button full" href="/courses">去录制今日作业</Link>
             </section>
           ) : null}

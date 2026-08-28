@@ -40,6 +40,24 @@ test("latest course submission is isolated by user, camp, and course", async () 
     dataSource,
     /\.from\("student_submissions"\)[\s\S]*?\.eq\("user_id", userId\)[\s\S]*?\.eq\("camp_id", campResult\.camp\.id\)[\s\S]*?\.eq\("course_id", summary\.id\)[\s\S]*?\.order\("version", \{ ascending: false \}\)/,
   );
-  assert.match(recorder, /`已提交 · 第 \$\{persistedVersion\} 版`/);
+  assert.match(recorder, /`已提交 · 第 \$\{persistedVersion\} 次提交`/);
   assert.match(recorder, /latestSubmission\?\.version/);
+});
+
+test("recorder enforces the task maximum while target duration remains feedback", async () => {
+  const recorder = await readFile(new URL("../components/BrowserRecorder.tsx", import.meta.url), "utf8");
+  const route = await readFile(
+    new URL("../app/api/student/courses/[id]/submissions/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(recorder, /elapsed >= maxDurationSeconds/);
+  assert.match(recorder, /录音已自动停止/);
+  assert.match(recorder, /getRecordingTargetFeedback\(duration, targetDurationSeconds\)/);
+  assert.match(recorder, /主要方式 · 网页直接录音/);
+  assert.match(recorder, /无法直接录音？上传已有音频/);
+  assert.match(recorder, /仅支持 M4A \/ MP3，最大 3 MB/);
+  assert.match(route, /source === "manual_upload"[\s\S]*validateManualStudentRecordingFile/);
+  assert.match(route, /duration > maxDurationSeconds/);
+  assert.doesNotMatch(route, /duration > .*target/i);
 });

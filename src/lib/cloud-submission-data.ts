@@ -20,7 +20,10 @@ type SubmissionRow = {
   visibility: "public" | "teacher_only";
   version: number;
   created_at: string;
-  courses: { day_number: number; italian_title: string } | null;
+  courses: {
+    day_number: number;
+    italian_title: string;
+  } | null;
 };
 
 type EncouragementRow = {
@@ -37,7 +40,7 @@ type CommentRow = {
   created_at: string;
 };
 
-function mapRow(row: SubmissionRow): SubmissionPresentationRow {
+function mapRow(row: SubmissionRow, targetDurations = new Map<string, number | null>()): SubmissionPresentationRow {
   return {
     id: row.id,
     campId: row.camp_id,
@@ -47,6 +50,7 @@ function mapRow(row: SubmissionRow): SubmissionPresentationRow {
     courseTitle: row.courses?.italian_title ?? "课程",
     studentName: row.student_display_name,
     durationSeconds: Number(row.duration_seconds),
+    targetDurationSeconds: targetDurations.get(row.course_id) ?? null,
     visibility: row.visibility,
     version: row.version,
     createdAt: row.created_at,
@@ -55,18 +59,34 @@ function mapRow(row: SubmissionRow): SubmissionPresentationRow {
 
 const selection = "id, camp_id, course_id, user_id, student_display_name, duration_seconds, visibility, version, created_at, courses(day_number, italian_title)";
 
+async function getTargetDurations(campId: string | null) {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.rpc("get_course_schedule", { target_camp_id: campId });
+  return new Map(
+    ((data ?? []) as Array<{ id: string; target_duration_seconds?: number | null }>).map((course) => [
+      course.id,
+      Number.isInteger(course.target_duration_seconds) && Number(course.target_duration_seconds) > 0
+        ? Number(course.target_duration_seconds)
+        : null,
+    ]),
+  );
+}
+
 export async function getOwnCloudSubmissions(userId: string, campId: string) {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("student_submissions")
-    .select(selection)
-    .eq("user_id", userId)
-    .eq("camp_id", campId)
-    .order("created_at", { ascending: false });
+  const [{ data, error }, targetDurations] = await Promise.all([
+    supabase
+      .from("student_submissions")
+      .select(selection)
+      .eq("user_id", userId)
+      .eq("camp_id", campId)
+      .order("created_at", { ascending: false }),
+    getTargetDurations(campId),
+  ]);
   if (error) return { submissions: [] as CloudSubmission[], error: true };
   return {
     submissions: ((data ?? []) as unknown as SubmissionRow[])
-      .map(mapRow)
+      .map((row) => mapRow(row, targetDurations))
       .map((row) => toCloudSubmission(row, userId)),
     error: false,
   };
@@ -90,11 +110,11 @@ export async function getPublicCampSubmissions(
     query = query.limit(Math.max(1, Math.min(100, Math.trunc(limit))));
   }
 
-  const { data, error } = await query;
+  const [{ data, error }, targetDurations] = await Promise.all([query, getTargetDurations(campId)]);
   if (error) return { submissions: [] as CloudSubmission[], error: true };
   return {
     submissions: buildCircleSubmissions(
-      ((data ?? []) as unknown as SubmissionRow[]).map(mapRow),
+      ((data ?? []) as unknown as SubmissionRow[]).map((row) => mapRow(row, targetDurations)),
       campId,
     ),
     error: false,
@@ -103,16 +123,19 @@ export async function getPublicCampSubmissions(
 
 export async function getCampCircleSubmissions(campId: string, currentUserId: string) {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("student_submissions")
-    .select(selection)
-    .eq("camp_id", campId)
-    .or(`visibility.eq.public,user_id.eq.${currentUserId}`)
-    .order("created_at", { ascending: false });
+  const [{ data, error }, targetDurations] = await Promise.all([
+    supabase
+      .from("student_submissions")
+      .select(selection)
+      .eq("camp_id", campId)
+      .or(`visibility.eq.public,user_id.eq.${currentUserId}`)
+      .order("created_at", { ascending: false }),
+    getTargetDurations(campId),
+  ]);
 
   if (error) return { submissions: [] as CloudSubmission[], error: true };
   const submissions = buildCircleSubmissions(
-    ((data ?? []) as unknown as SubmissionRow[]).map(mapRow),
+    ((data ?? []) as unknown as SubmissionRow[]).map((row) => mapRow(row, targetDurations)),
     campId,
     currentUserId,
   );
@@ -180,14 +203,17 @@ export async function getCampCircleSubmissions(campId: string, currentUserId: st
 
 export async function getAdminCloudSubmissions() {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("student_submissions")
-    .select(selection)
-    .order("created_at", { ascending: false });
+  const [{ data, error }, targetDurations] = await Promise.all([
+    supabase
+      .from("student_submissions")
+      .select(selection)
+      .order("created_at", { ascending: false }),
+    getTargetDurations(null),
+  ]);
   if (error) return { submissions: [] as CloudSubmission[], error: true };
   return {
     submissions: ((data ?? []) as unknown as SubmissionRow[])
-      .map(mapRow)
+      .map((row) => mapRow(row, targetDurations))
       .map((row) => toCloudSubmission(row)),
     error: false,
   };

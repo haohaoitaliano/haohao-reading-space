@@ -35,6 +35,8 @@ export default async function NewTeacherCoursePage({ searchParams }: {
     timezone: camp.timezone,
     status: "draft",
     isUnlocked: true,
+    maxDurationSeconds: 120,
+    targetDurationSeconds: null,
     vocabulary: [],
     audio: null,
     video: null,

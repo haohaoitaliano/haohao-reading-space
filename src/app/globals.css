@@ -446,6 +446,30 @@ p {
   font-size: 16px;
 }
 
+.manual-upload-fallback {
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+}
+
+.manual-upload-fallback summary {
+  min-height: 44px;
+  padding: 12px 2px 0;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.manual-upload-content {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.manual-upload-content p {
+  margin: 0;
+  font-size: 13px;
+}
+
 .privacy-options {
   display: grid;
   gap: 8px;

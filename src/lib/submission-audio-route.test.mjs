@@ -4,6 +4,7 @@ import test from "node:test";
 
 const routeUrl = new URL("../app/api/student/submissions/[id]/audio/route.ts", import.meta.url);
 const cardUrl = new URL("../components/CloudSubmissionCard.tsx", import.meta.url);
+const submissionRouteUrl = new URL("../app/api/student/submissions/[id]/route.ts", import.meta.url);
 
 test("audio GET returns a fresh signed resource without proxying the recording", async () => {
   const source = await readFile(routeUrl, "utf8");
@@ -25,6 +26,19 @@ test("audio GET returns a fresh signed resource without proxying the recording",
   assert.doesNotMatch(source, /fetch\(signed\.signedUrl/);
   assert.doesNotMatch(source, /arrayBuffer\(\)/);
   assert.doesNotMatch(source, /NextResponse\.redirect/);
+});
+
+test("submitted audio cannot be replaced and whole submissions can be deleted", async () => {
+  const audioRoute = await readFile(routeUrl, "utf8");
+  const submissionRoute = await readFile(submissionRouteUrl, "utf8");
+  const card = await readFile(cardUrl, "utf8");
+
+  assert.doesNotMatch(audioRoute, /export async function PUT/);
+  assert.match(submissionRoute, /export async function DELETE/);
+  assert.match(submissionRoute, /\.from\("student_submissions"\)[\s\S]*\.delete\(\)/);
+  assert.match(submissionRoute, /STUDENT_RECORDING_BUCKET/);
+  assert.match(card, /删除此次提交/);
+  assert.doesNotMatch(card, /替换录音|method:\s*"PUT"/);
 });
 
 test("cloud submission cards fetch a signed URL before assigning the audio source", async () => {

@@ -68,6 +68,8 @@ export async function updateCloudCourse(
       italian_title: input.italianTitle.trim(),
       chinese_title: input.chineseTitle.trim() || null,
       status: input.status,
+      max_duration_seconds: input.maxDurationSeconds,
+      target_duration_seconds: input.targetDurationSeconds,
       updated_by: profile.id,
       updated_at: new Date().toISOString(),
     })
@@ -194,6 +196,8 @@ export async function createCloudCourse(
       italian_title: input.italianTitle.trim(),
       chinese_title: input.chineseTitle.trim() || null,
       status: input.status,
+      max_duration_seconds: input.maxDurationSeconds,
+      target_duration_seconds: input.targetDurationSeconds,
       created_by: profile.id,
       updated_by: profile.id,
     })

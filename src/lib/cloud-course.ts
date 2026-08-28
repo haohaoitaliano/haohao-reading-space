@@ -19,6 +19,8 @@ export type CourseEditorInput = {
   unlockMode: CloudCourseUnlockMode;
   unlockAtLocal: string | null;
   status: CloudCourseStatus;
+  maxDurationSeconds: number;
+  targetDurationSeconds: number | null;
   vocabulary: CloudVocabularyItem[];
 };
 
@@ -65,6 +67,21 @@ export function validateCourseEditorInput(input: CourseEditorInput) {
   }
   if (input.unlockMode === "manual" && !input.unlockAtLocal) {
     return "请选择手动解锁时间";
+  }
+  if (!Number.isInteger(input.maxDurationSeconds) || input.maxDurationSeconds <= 0) {
+    return "最大录音时长必须是大于 0 的整数秒数";
+  }
+  if (
+    input.targetDurationSeconds !== null
+    && (!Number.isInteger(input.targetDurationSeconds) || input.targetDurationSeconds <= 0)
+  ) {
+    return "目标时长必须是大于 0 的整数秒数";
+  }
+  if (
+    input.targetDurationSeconds !== null
+    && input.targetDurationSeconds > input.maxDurationSeconds
+  ) {
+    return "目标时长不能超过最大录音时长";
   }
 
   const positions = new Set<number>();

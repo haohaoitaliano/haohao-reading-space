@@ -34,6 +34,8 @@ export type CloudCourseSummary = {
   timezone: string;
   status: CloudCourseStatus;
   isUnlocked: boolean;
+  maxDurationSeconds: number;
+  targetDurationSeconds: number | null;
 };
 
 export type CloudCourseDetail = CloudCourseSummary & {
@@ -150,6 +152,8 @@ type CourseScheduleRow = {
   camp_timezone: string;
   camp_starts_at: string | null;
   status: CloudCourseStatus;
+  max_duration_seconds: number;
+  target_duration_seconds: number | null;
 };
 
 function mapSummary(row: CourseScheduleRow): CloudCourseSummary {
@@ -166,6 +170,12 @@ function mapSummary(row: CourseScheduleRow): CloudCourseSummary {
     timezone: row.camp_timezone,
     status: row.status,
     isUnlocked: isCourseUnlocked(row.effective_unlock_at),
+    maxDurationSeconds: Number.isInteger(row.max_duration_seconds) && row.max_duration_seconds > 0
+      ? row.max_duration_seconds
+      : 120,
+    targetDurationSeconds: Number.isInteger(row.target_duration_seconds) && row.target_duration_seconds! > 0
+      ? row.target_duration_seconds
+      : null,
   };
 }
 

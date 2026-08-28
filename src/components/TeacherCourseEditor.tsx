@@ -29,6 +29,8 @@ function toEditorInput(course: CloudCourseDetail): CourseEditorInput {
     unlockMode: course.unlockMode,
     unlockAtLocal: formatDateTimeLocalInZone(course.unlockOverrideAt, course.timezone),
     status: course.status,
+    maxDurationSeconds: course.maxDurationSeconds,
+    targetDurationSeconds: course.targetDurationSeconds,
     vocabulary: course.vocabulary.map((item) => ({ ...item })),
   };
 }
@@ -367,6 +369,31 @@ export function TeacherCourseEditor({
         </label>
         <label className="field">阅读后的感想意大利语引导语
           <textarea onChange={(event) => updateField("reflectionPromptIt", event.target.value)} rows={4} value={course.reflectionPromptIt} />
+        </label>
+        <label className="field">最大录音时长（秒）
+          <input
+            min={1}
+            onChange={(event) => updateField("maxDurationSeconds", Number(event.target.value))}
+            step={1}
+            type="number"
+            value={course.maxDurationSeconds}
+          />
+          <small>达到这个时长时，网页录音会自动停止。现有课程默认为 120 秒。</small>
+        </label>
+        <label className="field">目标时长（秒，可选）
+          <input
+            max={course.maxDurationSeconds}
+            min={1}
+            onChange={(event) => updateField(
+              "targetDurationSeconds",
+              event.target.value === "" ? null : Number(event.target.value),
+            )}
+            placeholder="例如 30；留空表示普通录音任务"
+            step={1}
+            type="number"
+            value={course.targetDurationSeconds ?? ""}
+          />
+          <small>这是准确、清晰、自然表达下的挑战目标，不是提交限制。</small>
         </label>
       </section>
 

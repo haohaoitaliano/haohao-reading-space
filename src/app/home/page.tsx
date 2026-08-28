@@ -5,6 +5,7 @@ import { CloudSubmissionCard } from "@/components/CloudSubmissionCard";
 import { Header } from "@/components/Header";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { getCourseRouteId } from "@/lib/cloud-course";
+import { getTodayTaskStatus } from "@/lib/learning-progress";
 import {
   getPublicCampSubmissions,
 } from "@/lib/cloud-submission-data";
@@ -24,6 +25,11 @@ export default async function HomePage() {
   const todaySubmitted = today
     ? ownSubmissionResult.submissions.some((submission) => submission.courseId === today.id)
     : false;
+  const todayTaskStatus = getTodayTaskStatus({
+    hasTask: Boolean(today),
+    hasSubmission: todaySubmitted,
+    submissionError: ownSubmissionResult.error,
+  });
 
   return (
     <AppFrame active="home">
@@ -93,13 +99,7 @@ export default async function HomePage() {
             <Headphones color="var(--sky)" />
           </div>
           <p style={{ margin: 0 }}>听示范、阅读文本、完成录音，并和同学交流。</p>
-          {today ? (
-            <p style={{ margin: 0 }}>
-              今日录音：{ownSubmissionResult.error
-                ? "状态暂时无法读取"
-                : todaySubmitted ? "已提交" : "未提交"}
-            </p>
-          ) : null}
+          <p style={{ margin: 0 }}>今日录音：{todayTaskStatus}</p>
         </section>
 
         <section style={{ marginTop: 18 }}>

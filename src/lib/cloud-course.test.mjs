@@ -55,6 +55,8 @@ test("validates required admin course fields and vocabulary positions", () => {
     unlockMode: "auto",
     unlockAtLocal: null,
     status: "published",
+    maxDurationSeconds: 120,
+    targetDurationSeconds: null,
     vocabulary: [{ position: 1, word: "forno", meaningZh: "烤炉" }],
   };
 
@@ -62,4 +64,6 @@ test("validates required admin course fields and vocabulary positions", () => {
   assert.equal(validateCourseEditorInput({ ...valid, dayNumber: 0 }), "课程天数必须大于 0");
   assert.equal(validateCourseEditorInput({ ...valid, italianTitle: "" }), "请输入意大利语标题");
   assert.equal(validateCourseEditorInput({ ...valid, readingText: "" }), "请输入阅读材料");
+  assert.equal(validateCourseEditorInput({ ...valid, maxDurationSeconds: 0 }), "最大录音时长必须是大于 0 的整数秒数");
+  assert.equal(validateCourseEditorInput({ ...valid, targetDurationSeconds: 121 }), "目标时长不能超过最大录音时长");
 });

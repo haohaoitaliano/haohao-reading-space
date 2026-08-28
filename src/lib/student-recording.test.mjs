@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildStudentRecordingPath,
+  MANUAL_STUDENT_RECORDING_MAX_BYTES,
   STUDENT_RECORDING_MAX_BYTES,
+  validateManualStudentRecordingFile,
   validateStudentRecordingFile,
 } from "./student-recording.ts";
 
@@ -18,6 +20,27 @@ test("accepts browser recording formats", () => {
   assert.equal(
     validateStudentRecordingFile({ name: "recording.webm", type: "audio/webm;codecs=opus", size: 1024 }),
     null,
+  );
+});
+
+test("manual uploads accept only M4A and MP3 files up to 3 MB", () => {
+  assert.equal(validateManualStudentRecordingFile({ name: "practice.m4a", type: "audio/mp4", size: 1024 }), null);
+  assert.equal(validateManualStudentRecordingFile({ name: "practice.mp3", type: "audio/mpeg", size: 1024 }), null);
+  assert.equal(
+    validateManualStudentRecordingFile({ name: "practice.wav", type: "audio/wav", size: 1024 }),
+    "暂不支持 WAV 格式。WAV 文件通常较大，请转换为 M4A 或 MP3 后重新上传。",
+  );
+  assert.equal(
+    validateManualStudentRecordingFile({
+      name: "large.mp3",
+      type: "audio/mpeg",
+      size: MANUAL_STUDENT_RECORDING_MAX_BYTES + 1,
+    }),
+    "音频文件过大，单个文件请勿超过 3 MB。建议使用 M4A 或 MP3 格式，或压缩音频后重新上传。",
+  );
+  assert.equal(
+    validateManualStudentRecordingFile({ name: "practice.webm", type: "audio/webm", size: 1024 }),
+    "手动上传仅支持 M4A 或 MP3 格式。",
   );
 });
 

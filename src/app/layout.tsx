@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AuthProfileProvider } from "@/components/AuthProfileProvider";
+import { AudioPlaybackCoordinator } from "@/components/AudioPlaybackCoordinator";
 import { getAuthContext } from "@/lib/auth";
 import "./globals.css";
 
@@ -16,6 +17,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="zh-CN">
       <body>
+        <AudioPlaybackCoordinator />
         <AuthProfileProvider profile={auth?.profile ?? null}>{children}</AuthProfileProvider>
       </body>
     </html>

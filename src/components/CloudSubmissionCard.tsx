@@ -27,7 +27,6 @@ export function CloudSubmissionCard({
   showInteractions?: boolean;
 }) {
   const router = useRouter();
-  const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
@@ -111,31 +110,16 @@ export function CloudSubmissionCard({
     setAudioError(true);
   }
 
-  async function replaceAudio(file: File | undefined) {
-    if (!file) return;
-    setBusy(true);
-    setMessage("");
-    const formData = new FormData();
-    formData.set("audio", file);
-    formData.set("durationSeconds", String(submission.durationSeconds));
-    const response = await fetch(`/api/student/submissions/${submission.id}/audio`, {
-      method: "PUT",
-      body: formData,
-    });
-    const result = await response.json() as { message?: string };
-    setBusy(false);
-    setMessage(result.message ?? (response.ok ? "录音已替换。" : "替换失败，请重试。"));
-    if (response.ok) router.refresh();
-  }
-
   async function deleteSubmission() {
-    if (!window.confirm("确定删除这次提交吗？此操作无法撤销。")) return;
+    if (!window.confirm(
+      "确定删除这次提交吗？\n删除后，这次录音和提交记录将无法恢复。\n删除此次提交后，与它相关的评论和鼓励也会一并删除。",
+    )) return;
     setBusy(true);
     setMessage("");
-    const response = await fetch(`/api/student/submissions/${submission.id}/audio`, { method: "DELETE" });
+    const response = await fetch(`/api/student/submissions/${submission.id}`, { method: "DELETE" });
     const result = await response.json() as { message?: string };
     setBusy(false);
-    setMessage(result.message ?? (response.ok ? "录音已删除。" : "删除失败，请重试。"));
+    setMessage(result.message ?? (response.ok ? "此次提交已删除。" : "删除失败，请重试。"));
     if (response.ok) router.refresh();
   }
 
@@ -152,7 +136,8 @@ export function CloudSubmissionCard({
             Giorno {submission.dayNumber} · {submission.courseTitle}
           </p>
           <p className="submission-meta">
-            {formatSubmittedAt(submission.createdAt)} · 第 {submission.version} 版
+            第 {submission.version} 次提交 · {formatSubmittedAt(submission.createdAt)} · {Math.round(submission.durationSeconds)} 秒
+            {submission.targetDurationSeconds && submission.durationSeconds <= submission.targetDurationSeconds ? " 🎯" : ""}
           </p>
           <audio
             aria-busy={audioLoading}
@@ -197,21 +182,9 @@ export function CloudSubmissionCard({
             </span>
           </div>
           {manageable ? (
-            <div className="grid-two" style={{ marginTop: 10 }}>
-              <input
-                accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,audio/webm,audio/ogg"
-                hidden
-                onChange={(event) => void replaceAudio(event.target.files?.[0])}
-                ref={inputRef}
-                type="file"
-              />
-              <button className="button secondary" disabled={busy} onClick={() => inputRef.current?.click()} type="button">
-                <RefreshCw size={17} />替换
-              </button>
-              <button className="button ghost" disabled={busy} onClick={() => void deleteSubmission()} type="button">
-                <Trash2 size={17} />删除
-              </button>
-            </div>
+            <button className="button ghost full" disabled={busy} onClick={() => void deleteSubmission()} style={{ marginTop: 10 }} type="button">
+              <Trash2 size={17} />删除此次提交
+            </button>
           ) : null}
           {showInteractions && isPublic ? <SubmissionInteractions submission={submission} /> : null}
           {message ? <p className="notice" role="status">{message}</p> : null}

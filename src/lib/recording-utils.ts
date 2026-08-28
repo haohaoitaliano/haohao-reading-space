@@ -65,6 +65,21 @@ export function formatRecordingDuration(totalSeconds: number) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+export function getRecordingTargetFeedback(durationSeconds: number, targetDurationSeconds: number | null) {
+  if (!targetDurationSeconds) return null;
+  const duration = Math.max(0, Math.round(durationSeconds));
+  if (duration <= targetDurationSeconds) {
+    return {
+      reached: true,
+      message: `本次用时：${duration} 秒 ✅ 已达到本次目标！再听一遍，检查发音和语调。`,
+    };
+  }
+  return {
+    reached: false,
+    message: `本次用时：${duration} 秒。🎯 目标：${targetDurationSeconds} 秒以内。可以再试一次，看看能不能在保持发音准确、清晰、自然的同时更流畅。`,
+  };
+}
+
 export function getMicrophoneErrorMessage(error: unknown) {
   const name = typeof error === "object" && error && "name" in error ? String(error.name) : "";
 
