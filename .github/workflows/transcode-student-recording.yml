@@ -7,6 +7,10 @@ on:
         description: Student submission UUID (blank runs recovery scan)
         required: false
         type: string
+      comment_id:
+        description: Submission comment UUID (blank runs recovery scan)
+        required: false
+        type: string
   schedule:
     - cron: "*/10 * * * *"
 
@@ -14,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: student-recording-transcode-${{ inputs.submission_id || 'recovery' }}
+  group: recording-transcode-${{ inputs.submission_id || inputs.comment_id || 'recovery' }}
   cancel-in-progress: false
 
 jobs:
@@ -25,6 +29,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       TRANSCODE_SUBMISSION_ID: ${{ inputs.submission_id || '' }}
+      TRANSCODE_COMMENT_ID: ${{ inputs.comment_id || '' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -56,3 +61,6 @@ jobs:
 
       - name: Generate iPhone-compatible playback
         run: pnpm recordings:transcode -- --apply
+
+      - name: Generate iPhone-compatible comment playback
+        run: pnpm comments:transcode -- --apply

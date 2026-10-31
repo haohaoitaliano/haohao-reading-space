@@ -1,5 +1,5 @@
 const DEFAULT_REPOSITORY = "haohaoitaliano/haohao-reading-space";
-const WORKFLOW_FILE = "transcode-comment-audio.yml";
+const WORKFLOW_FILE = "transcode-student-recording.yml";
 
 export async function dispatchSubmissionCommentTranscode(commentId: string) {
   const token = process.env.GITHUB_TRANSCODE_TOKEN;

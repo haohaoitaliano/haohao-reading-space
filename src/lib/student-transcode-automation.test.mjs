@@ -6,6 +6,9 @@ const workerUrl = new URL("../../scripts/transcode-student-recordings.mjs", impo
 const workflowUrl = new URL("../../.github/workflows/transcode-student-recording.yml", import.meta.url);
 const dispatchUrl = new URL("./student-transcode-dispatch.ts", import.meta.url);
 const uploadRouteUrl = new URL("../app/api/student/courses/[id]/submissions/route.ts", import.meta.url);
+const commentWorkerUrl = new URL("../../scripts/transcode-comment-audio.mjs", import.meta.url);
+const commentDispatchUrl = new URL("./submission-comment-transcode-dispatch.ts", import.meta.url);
+const commentRouteUrl = new URL("../app/api/student/submissions/[id]/comments/route.ts", import.meta.url);
 
 test("transcode worker claims retryable rows and never replaces the original object", async () => {
   const source = await readFile(workerUrl, "utf8");
@@ -47,4 +50,24 @@ test("GitHub workflow uses secrets, immediate dispatch, and scheduled recovery",
   assert.doesNotMatch(dispatch, /console\.(?:log|error)/);
   assert.match(uploadRoute, /await dispatchStudentRecordingTranscode\(submission\.id\)/);
   assert.match(uploadRoute, /return NextResponse\.json\(\{[\s\S]*success: true/);
+});
+
+test("comment audio reuses the proven recording workflow and recovery schedule", async () => {
+  const [workflow, worker, dispatch, route] = await Promise.all([
+    readFile(workflowUrl, "utf8"),
+    readFile(commentWorkerUrl, "utf8"),
+    readFile(commentDispatchUrl, "utf8"),
+    readFile(commentRouteUrl, "utf8"),
+  ]);
+
+  assert.match(workflow, /comment_id:/);
+  assert.match(workflow, /TRANSCODE_COMMENT_ID: \$\{\{ inputs\.comment_id \|\| '' \}\}/);
+  assert.match(workflow, /Ensure FFmpeg is available[\s\S]*DEBIAN_FRONTEND=noninteractive timeout 90s/);
+  assert.match(workflow, /pnpm comments:transcode -- --apply/);
+  assert.match(worker, /audio_transcode_status", \["pending", "failed", "processing"\]/);
+  assert.match(worker, /audio_transcode_status:\s*"ready"/);
+  assert.match(worker, /playback-aac-lc-v1\.m4a/);
+  assert.match(dispatch, /const WORKFLOW_FILE = "transcode-student-recording\.yml"/);
+  assert.match(dispatch, /inputs: \{ comment_id: commentId \}/);
+  assert.match(route, /dispatchSubmissionCommentTranscode\(data\.id\)/);
 });
