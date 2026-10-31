@@ -44,12 +44,15 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Ensure FFmpeg is available
+        timeout-minutes: 4
         run: |
           if ! command -v ffmpeg >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install --yes ffmpeg
+            sudo env DEBIAN_FRONTEND=noninteractive timeout 90s \
+              apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
+            sudo env DEBIAN_FRONTEND=noninteractive timeout 90s \
+              apt-get -o Dpkg::Use-Pty=0 install --yes --no-install-recommends ffmpeg
           fi
-          ffmpeg -version
+          ffmpeg -hide_banner -version
 
       - name: Generate iPhone-compatible playback
         run: pnpm recordings:transcode -- --apply

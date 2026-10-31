@@ -37,6 +37,10 @@ test("GitHub workflow uses secrets, immediate dispatch, and scheduled recovery",
   assert.match(workflow, /cron: "\*\/10 \* \* \* \*"/);
   assert.match(workflow, /SUPABASE_URL: \$\{\{ secrets\.SUPABASE_URL \}\}/);
   assert.match(workflow, /SUPABASE_SERVICE_ROLE_KEY: \$\{\{ secrets\.SUPABASE_SERVICE_ROLE_KEY \}\}/);
+  assert.match(workflow, /Ensure FFmpeg is available[\s\S]*timeout-minutes: 4/);
+  assert.match(workflow, /DEBIAN_FRONTEND=noninteractive timeout 90s/);
+  assert.match(workflow, /Acquire::Retries=3/);
+  assert.match(workflow, /--no-install-recommends ffmpeg/);
   assert.doesNotMatch(workflow, /eyJ[a-zA-Z0-9_-]{20,}/);
   assert.match(dispatch, /process\.env\.GITHUB_TRANSCODE_TOKEN/);
   assert.match(dispatch, /actions\/workflows\/\$\{WORKFLOW_FILE\}\/dispatches/);
