@@ -24,7 +24,7 @@ test("interaction RLS requires a visible public submission in an active camp", (
   assert.doesNotMatch(sql, /grant update on public\.submission_(?:encouragements|comments)/i);
 });
 
-test("comments are trimmed and constrained to 100 characters in the database", () => {
+test("legacy comments were trimmed and constrained when originally introduced", () => {
   assert.match(sql, /new\.content := trim\(new\.content\)/i);
   assert.match(sql, /content = trim\(content\)/i);
   assert.match(sql, /char_length\(content\) between 1 and 100/i);

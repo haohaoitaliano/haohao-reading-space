@@ -41,6 +41,7 @@ export default async function TeacherSubmissionsPage() {
               assignmentId={assignment?.assignmentId}
               key={submission.id}
               photos={assignment?.photos}
+              showInteractions
               submission={assignment ? { ...submission, version: assignment.version, createdAt: assignment.createdAt } : submission}
             />;
           })}
@@ -49,6 +50,7 @@ export default async function TeacherSubmissionsPage() {
               assignmentId={assignment.assignmentId}
               key={assignment.assignmentId}
               photos={assignment.photos}
+              showInteractions
               submission={{
                 id: assignment.assignmentId,
                 courseId: assignment.courseId,

@@ -58,6 +58,7 @@ export default async function MyWorkPage() {
                 assignmentId={assignment?.assignmentId}
                 manageable
                 photos={assignment?.photos}
+                showInteractions
                 submission={displayedSubmission}
               />
               {ENABLE_AI_FEEDBACK ? (
@@ -76,6 +77,7 @@ export default async function MyWorkPage() {
               key={assignment.assignmentId}
               manageable
               photos={assignment.photos}
+              showInteractions
               submission={{
                 id: assignment.assignmentId,
                 courseId: assignment.courseId,

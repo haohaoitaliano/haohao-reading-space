@@ -28,8 +28,8 @@ test("encouragement routes bind writes to the authenticated user and block self 
 });
 
 test("comment routes validate content and only delete the authenticated user's comment", () => {
-  assert.match(commentSource, /validateSubmissionComment\(rawContent\)/);
+  assert.match(commentSource, /validateSubmissionComment\(rawContent, Boolean\(audioFile \|\| imageFile\)\)/);
   assert.match(commentSource, /user_id: context\.auth\.profile\.id/);
-  assert.match(deleteCommentSource, /\.eq\("submission_id", context\.submission\.id\)/);
+  assert.match(deleteCommentSource, /assignment_submission_id\.eq\.\$\{context\.target\.id\},submission_id\.eq\.\$\{context\.target\.id\}/);
   assert.match(deleteCommentSource, /\.eq\("user_id", context\.auth\.profile\.id\)/);
 });

@@ -213,7 +213,7 @@ export function CloudSubmissionCard({
               <Trash2 size={17} />删除此次提交
             </button>
           ) : null}
-          {showInteractions && isPublic && hasAudio ? <SubmissionInteractions submission={submission} /> : null}
+          {showInteractions ? <SubmissionInteractions showEncouragement={submission.isOwn !== undefined} submission={submission} /> : null}
           {message ? <p className="notice" role="status">{message}</p> : null}
         </div>
       </div>

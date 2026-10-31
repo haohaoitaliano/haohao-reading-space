@@ -37,9 +37,14 @@ export type CloudSubmission = {
 export type SubmissionComment = {
   id: string;
   authorName: string;
-  content: string;
+  authorRole: "admin" | "student";
+  content: string | null;
   createdAt: string;
   isOwn: boolean;
+  parentCommentId: string | null;
+  replyToAuthorName: string | null;
+  audioUrl: string | null;
+  imageUrl: string | null;
 };
 
 export function toCloudSubmission(

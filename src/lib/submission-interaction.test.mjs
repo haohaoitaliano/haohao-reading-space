@@ -6,13 +6,14 @@ import {
   validateSubmissionComment,
 } from "./submission-interaction.ts";
 
-test("submission comments trim surrounding whitespace and reject empty content", () => {
+test("submission comments trim whitespace and allow attachment-only feedback", () => {
   assert.equal(normalizeSubmissionComment("  加油！  "), "加油！");
-  assert.equal(validateSubmissionComment(" \n\t "), "评论不能为空。");
+  assert.equal(validateSubmissionComment(" \n\t "), "请填写文字，或添加录音/照片。");
+  assert.equal(validateSubmissionComment(" \n\t ", true), null);
 });
 
-test("submission comments accept at most 100 Unicode characters", () => {
+test("submission comments accept at most 1000 Unicode characters", () => {
   assert.equal(countCommentCharacters("👏好"), 2);
-  assert.equal(validateSubmissionComment("好".repeat(100)), null);
-  assert.equal(validateSubmissionComment("好".repeat(101)), "评论最多 100 字。");
+  assert.equal(validateSubmissionComment("好".repeat(1000)), null);
+  assert.equal(validateSubmissionComment("好".repeat(1001)), "评论最多 1000 字。");
 });

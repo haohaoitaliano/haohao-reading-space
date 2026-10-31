@@ -738,23 +738,52 @@ p {
 }
 
 .submission-comment {
-  align-items: flex-start;
   background: color-mix(in srgb, var(--sky) 7%, white);
+  border: 1px solid color-mix(in srgb, var(--sky) 20%, var(--line));
   border-radius: 10px;
-  display: flex;
-  gap: 10px;
-  justify-content: space-between;
+  display: grid;
+  gap: 7px;
   padding: 9px 10px;
+}
+
+.submission-comment.is-reply {
+  border-left: 3px solid var(--sky);
+  margin-left: 14px;
+}
+
+.submission-comment header,
+.submission-comment footer {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.submission-comment header time {
+  color: var(--muted);
+  font-size: 12px;
+  margin-left: auto;
 }
 
 .submission-comment strong {
   font-size: 13px;
 }
 
-.submission-comment p {
+.submission-comment .comment-content {
   margin: 2px 0 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.submission-comment .comment-reply-target,
+.comment-media-status {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0;
+}
+
+.submission-comment audio {
+  width: 100%;
 }
 
 .submission-comment-delete {
@@ -762,6 +791,58 @@ p {
   cursor: pointer;
   flex: 0 0 auto;
   font-size: 12px;
+}
+
+.submission-comment-reply {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--accent-deep);
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.submission-comment footer .submission-comment-delete {
+  margin-left: auto;
+}
+
+.comment-image-button {
+  background: transparent;
+  border: 0;
+  max-width: 180px;
+  padding: 0;
+}
+
+.comment-image-button img {
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  display: block;
+  object-fit: cover;
+  width: 100%;
+}
+
+.comment-replying {
+  align-items: center;
+  background: #f5eee5;
+  border-radius: 8px 8px 0 0;
+  color: var(--muted);
+  display: flex;
+  font-size: 13px;
+  justify-content: space-between;
+  padding: 7px 10px;
+}
+
+.comment-replying button,
+.comment-attachment-preview button,
+.comment-image-preview button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  display: inline-flex;
+  min-height: 32px;
+  padding: 6px;
 }
 
 .submission-comment-composer {
@@ -792,6 +873,109 @@ p {
   margin-top: 8px;
   min-height: 38px;
   padding: 8px 16px;
+}
+
+.comment-media-picker {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.comment-media-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.comment-media-actions .button {
+  flex: 1 1 118px;
+  font-size: 13px;
+  min-height: 42px;
+  padding: 8px 10px;
+}
+
+.comment-attachment-preview,
+.comment-image-preview {
+  align-items: center;
+  background: #f8f4ee;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: 8px;
+}
+
+.comment-attachment-preview audio {
+  min-width: 0;
+  width: 100%;
+}
+
+.comment-attachment-preview span,
+.comment-image-preview span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.comment-image-preview img {
+  border-radius: 6px;
+  height: 72px;
+  object-fit: cover;
+  width: 72px;
+}
+
+.comment-upload-progress {
+  background: #eee5d9;
+  border-radius: 999px;
+  height: 22px;
+  margin-top: 8px;
+  overflow: hidden;
+  position: relative;
+}
+
+.comment-upload-progress span {
+  background: var(--sky);
+  display: block;
+  height: 100%;
+  transition: width 160ms ease;
+}
+
+.comment-upload-progress b {
+  font-size: 11px;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.comment-lightbox {
+  align-items: center;
+  background: rgba(31, 25, 20, 0.88);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 1000;
+}
+
+.comment-lightbox > button {
+  align-items: center;
+  background: #fff;
+  border: 0;
+  border-radius: 999px;
+  display: flex;
+  min-height: 44px;
+  min-width: 44px;
+  position: absolute;
+  right: 16px;
+  top: 16px;
+}
+
+.comment-lightbox img {
+  max-height: calc(100vh - 40px);
+  max-width: min(100%, 900px);
+  object-fit: contain;
 }
 
 .submission-interaction-message {

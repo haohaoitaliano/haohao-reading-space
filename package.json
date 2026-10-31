@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test src/lib/*.test.mjs src/lib/supabase/*.test.mjs supabase/migrations/*.test.mjs supabase/seed/*.test.mjs",
     "recordings:transcode-existing": "node scripts/transcode-existing-student-recordings.mjs",
-    "recordings:transcode": "node scripts/transcode-student-recordings.mjs"
+    "recordings:transcode": "node scripts/transcode-student-recordings.mjs",
+    "comments:transcode": "node scripts/transcode-comment-audio.mjs"
   },
   "keywords": [],
   "author": "",

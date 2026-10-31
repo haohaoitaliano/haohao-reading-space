@@ -191,9 +191,14 @@ export async function getCampCircleSubmissions(campId: string, currentUserId: st
         comments: submissionComments.map((comment) => ({
           id: comment.id,
           authorName: comment.author_display_name.trim() || "同学",
+          authorRole: "student" as const,
           content: comment.content,
           createdAt: comment.created_at,
           isOwn: comment.user_id === currentUserId,
+          parentCommentId: null,
+          replyToAuthorName: null,
+          audioUrl: null,
+          imageUrl: null,
         })),
       };
     }),
