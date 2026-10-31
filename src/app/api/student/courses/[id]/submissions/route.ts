@@ -36,6 +36,12 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
     .maybeSingle<{ id: string; camp_id: string; max_duration_seconds?: number }>();
   if (!course) return failure("课程不存在、尚未发布或还未解锁。", 403);
   if (course.camp_id !== campResult.camp.id) return failure("请切换到该课程所属训练营后再提交。", 403);
+  const { data: assignment } = await supabase
+    .from("course_contents")
+    .select("recording_assignment_enabled")
+    .eq("course_id", course.id)
+    .maybeSingle<{ recording_assignment_enabled: boolean }>();
+  if (!assignment?.recording_assignment_enabled) return failure("本课没有开启录音作业。", 403);
 
   let formData: FormData;
   try {

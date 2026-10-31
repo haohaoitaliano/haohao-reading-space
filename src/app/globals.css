@@ -281,6 +281,133 @@ p {
   opacity: 0;
 }
 
+.assignment-options {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.assignment-options legend {
+  padding: 0 6px;
+  font-weight: 700;
+}
+
+.assignment-options label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.assignment-options input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+
+.pdf-reader {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.pdf-reader summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.pdf-reader iframe {
+  display: block;
+  width: 100%;
+  height: min(68vh, 620px);
+  min-height: 420px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: white;
+}
+
+.pdf-actions {
+  padding: 10px;
+  flex-wrap: wrap;
+}
+
+.pdf-actions .button {
+  flex: 1 1 140px;
+}
+
+.photo-picker-actions {
+  gap: 8px;
+}
+
+.photo-preview-grid,
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.photo-preview-grid figure,
+.photo-grid figure {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.photo-preview-grid img,
+.photo-grid img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  background: var(--soft);
+}
+
+.photo-preview-grid figcaption,
+.photo-grid figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px;
+  font-size: 12px;
+}
+
+.photo-preview-grid figcaption span,
+.photo-grid figcaption span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-preview-grid figcaption button,
+.photo-grid figcaption a {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+}
+
+.photo-submission-card {
+  overflow: hidden;
+}
+
 .file-name {
   display: block;
   overflow: hidden;
@@ -823,5 +950,16 @@ p {
     min-height: calc(100vh - 40px);
     border-radius: 18px;
     overflow: hidden;
+  }
+}
+
+@media (max-width: 380px) {
+  .photo-preview-grid,
+  .photo-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pdf-reader iframe {
+    min-height: 360px;
   }
 }

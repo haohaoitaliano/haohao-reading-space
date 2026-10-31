@@ -37,9 +37,12 @@ export default async function NewTeacherCoursePage({ searchParams }: {
     isUnlocked: true,
     maxDurationSeconds: 120,
     targetDurationSeconds: null,
+    recordingAssignmentEnabled: true,
+    photoAssignmentEnabled: false,
     vocabulary: [],
     audio: null,
     video: null,
+    pdfs: [],
     submissionCount: 0,
   };
   const saveAction = createCloudCourse.bind(null, camp.id);

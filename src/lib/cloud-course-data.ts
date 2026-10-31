@@ -9,6 +9,7 @@ import {
 } from "./cloud-course";
 import { COURSE_AUDIO_BUCKET, COURSE_AUDIO_SIGNED_URL_SECONDS } from "./course-audio";
 import { COURSE_VIDEO_BUCKET, COURSE_VIDEO_SIGNED_URL_SECONDS } from "./course-video";
+import { COURSE_PDF_BUCKET, COURSE_PDF_SIGNED_URL_SECONDS } from "./course-pdf";
 import { getCurrentLearningSpace } from "./learning-space";
 import { createSupabaseServerClient } from "./supabase/server";
 
@@ -36,6 +37,8 @@ export type CloudCourseSummary = {
   isUnlocked: boolean;
   maxDurationSeconds: number;
   targetDurationSeconds: number | null;
+  recordingAssignmentEnabled: boolean;
+  photoAssignmentEnabled: boolean;
 };
 
 export type CloudCourseDetail = CloudCourseSummary & {
@@ -46,6 +49,7 @@ export type CloudCourseDetail = CloudCourseSummary & {
   vocabulary: CloudVocabularyItem[];
   audio: CloudCourseAudio | null;
   video: CloudCourseVideo | null;
+  pdfs: CloudCoursePdf[];
   submissionCount: number;
 };
 
@@ -71,6 +75,16 @@ export type CloudCourseVideo = {
   durationSeconds: number | null;
   updatedAt: string;
   signedUrl: string;
+};
+
+export type CloudCoursePdf = {
+  id: string;
+  fileName: string;
+  sizeBytes: number;
+  position: number;
+  updatedAt: string;
+  signedUrl: string;
+  downloadUrl: string;
 };
 
 export type CloudCourseMediaItem = {
@@ -107,6 +121,21 @@ type CourseVideoRow = {
   updated_at: string;
 };
 
+type CoursePdfRow = {
+  id: string;
+  storage_path: string;
+  file_name: string;
+  size_bytes: number;
+  position: number;
+  updated_at: string;
+};
+
+type CourseAssignmentRow = {
+  course_id: string;
+  recording_assignment_enabled: boolean;
+  photo_assignment_enabled: boolean;
+};
+
 async function createSignedCourseAudio(supabase: SupabaseClient, row: CourseAudioRow | null) {
   if (!row) return null;
   const { data, error } = await supabase.storage
@@ -139,6 +168,27 @@ async function createSignedCourseVideo(supabase: SupabaseClient, row: CourseVide
   } satisfies CloudCourseVideo;
 }
 
+async function createSignedCoursePdf(supabase: SupabaseClient, row: CoursePdfRow) {
+  const [inlineResult, downloadResult] = await Promise.all([
+    supabase.storage.from(COURSE_PDF_BUCKET).createSignedUrl(row.storage_path, COURSE_PDF_SIGNED_URL_SECONDS),
+    supabase.storage.from(COURSE_PDF_BUCKET).createSignedUrl(
+      row.storage_path,
+      COURSE_PDF_SIGNED_URL_SECONDS,
+      { download: row.file_name },
+    ),
+  ]);
+  if (inlineResult.error || !inlineResult.data?.signedUrl) return null;
+  return {
+    id: row.id,
+    fileName: row.file_name,
+    sizeBytes: row.size_bytes,
+    position: row.position,
+    updatedAt: row.updated_at,
+    signedUrl: inlineResult.data.signedUrl,
+    downloadUrl: downloadResult.data?.signedUrl ?? inlineResult.data.signedUrl,
+  } satisfies CloudCoursePdf;
+}
+
 type CourseScheduleRow = {
   id: string;
   camp_id: string;
@@ -156,7 +206,7 @@ type CourseScheduleRow = {
   target_duration_seconds: number | null;
 };
 
-function mapSummary(row: CourseScheduleRow): CloudCourseSummary {
+function mapSummary(row: CourseScheduleRow, assignment?: CourseAssignmentRow): CloudCourseSummary {
   return {
     id: row.id,
     campId: row.camp_id,
@@ -176,7 +226,19 @@ function mapSummary(row: CourseScheduleRow): CloudCourseSummary {
     targetDurationSeconds: Number.isInteger(row.target_duration_seconds) && row.target_duration_seconds! > 0
       ? row.target_duration_seconds
       : null,
+    recordingAssignmentEnabled: assignment?.recording_assignment_enabled ?? true,
+    photoAssignmentEnabled: assignment?.photo_assignment_enabled ?? false,
   };
+}
+
+async function getAssignmentMap(supabase: SupabaseClient, courseIds: string[]) {
+  if (!courseIds.length) return new Map<string, CourseAssignmentRow>();
+  const { data, error } = await supabase
+    .from("course_contents")
+    .select("course_id, recording_assignment_enabled, photo_assignment_enabled")
+    .in("course_id", courseIds);
+  if (error) return null;
+  return new Map(((data ?? []) as CourseAssignmentRow[]).map((row) => [row.course_id, row]));
 }
 
 export async function getActiveCampForUser(userId: string) {
@@ -195,10 +257,13 @@ export async function getStudentCourseList(userId: string) {
     .order("day_number", { ascending: true });
 
   if (error) return { state: "database_error" as const, camp: campResult.camp, courses: [] };
+  const rows = (data as CourseScheduleRow[] | null) ?? [];
+  const assignments = await getAssignmentMap(supabase, rows.map((row) => row.id));
+  if (!assignments) return { state: "database_error" as const, camp: campResult.camp, courses: [] };
   return {
     state: data?.length ? "ok" as const : "empty" as const,
     camp: campResult.camp,
-    courses: (data as CourseScheduleRow[] | null)?.map(mapSummary) ?? [],
+    courses: rows.map((row) => mapSummary(row, assignments.get(row.id))),
   };
 }
 
@@ -215,7 +280,9 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
   if (courseError) return { state: "database_error" as const, camp: campResult.camp, course: null };
   if (!courseRow) return { state: "not_found" as const, camp: campResult.camp, course: null };
 
-  const summary = mapSummary(courseRow);
+  const assignments = await getAssignmentMap(supabase, [courseRow.id]);
+  if (!assignments) return { state: "database_error" as const, camp: campResult.camp, course: null };
+  const summary = mapSummary(courseRow, assignments.get(courseRow.id));
   if (!summary.isUnlocked) {
     return { state: "locked" as const, camp: campResult.camp, course: summary };
   }
@@ -225,18 +292,22 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
     { data: vocabulary, error: vocabularyError },
     { data: audioRow, error: audioError },
     { data: videoRow, error: videoError },
+    { data: pdfRows, error: pdfError },
     { data: latestSubmissionRow, error: latestSubmissionError },
+    { data: latestPhotoSubmissionRow, error: latestPhotoSubmissionError },
   ] =
     await Promise.all([
       supabase
         .from("course_contents")
-        .select("description, reading_text, reflection_prompt_zh, reflection_prompt_it")
+        .select("description, reading_text, reflection_prompt_zh, reflection_prompt_it, recording_assignment_enabled, photo_assignment_enabled")
         .eq("course_id", summary.id)
         .maybeSingle<{
           description: string | null;
-          reading_text: string;
+          reading_text: string | null;
           reflection_prompt_zh: string | null;
           reflection_prompt_it: string | null;
+          recording_assignment_enabled: boolean;
+          photo_assignment_enabled: boolean;
         }>(),
       supabase
         .from("course_vocabulary")
@@ -254,6 +325,11 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
         .eq("course_id", summary.id)
         .maybeSingle<CourseVideoRow>(),
       supabase
+        .from("course_pdfs")
+        .select("id, storage_path, file_name, size_bytes, position, updated_at")
+        .eq("course_id", summary.id)
+        .order("position", { ascending: true }),
+      supabase
         .from("student_submissions")
         .select("version, duration_seconds, created_at")
         .eq("user_id", userId)
@@ -266,18 +342,29 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
           duration_seconds: number;
           created_at: string;
         }>(),
+      supabase
+        .from("student_photo_submissions")
+        .select("version, created_at")
+        .eq("user_id", userId)
+        .eq("camp_id", campResult.camp.id)
+        .eq("course_id", summary.id)
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle<{ version: number; created_at: string }>(),
     ]);
 
-  if (contentError || vocabularyError || audioError || videoError || latestSubmissionError || !content) {
+  if (contentError || vocabularyError || audioError || videoError || pdfError || latestSubmissionError || latestPhotoSubmissionError || !content) {
     return { state: "database_error" as const, camp: campResult.camp, course: null };
   }
 
   const detail: CloudCourseDetail = {
     ...summary,
     description: content.description ?? "",
-    readingText: content.reading_text,
+    readingText: content.reading_text ?? "",
     reflectionPromptZh: content.reflection_prompt_zh ?? "",
     reflectionPromptIt: content.reflection_prompt_it ?? "",
+    recordingAssignmentEnabled: content.recording_assignment_enabled,
+    photoAssignmentEnabled: content.photo_assignment_enabled,
     vocabulary: ((vocabulary ?? []) as Array<{
       id: string;
       position: number;
@@ -291,6 +378,8 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
     })),
     audio: await createSignedCourseAudio(supabase, audioRow),
     video: await createSignedCourseVideo(supabase, videoRow),
+    pdfs: (await Promise.all(((pdfRows ?? []) as CoursePdfRow[]).map((row) => createSignedCoursePdf(supabase, row))))
+      .filter((pdf): pdf is CloudCoursePdf => Boolean(pdf)),
     submissionCount: 0,
   };
 
@@ -303,6 +392,10 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
       durationSeconds: Number(latestSubmissionRow.duration_seconds),
       createdAt: latestSubmissionRow.created_at,
     } satisfies StudentCourseSubmissionSummary : null,
+    latestPhotoSubmission: latestPhotoSubmissionRow ? {
+      version: latestPhotoSubmissionRow.version,
+      createdAt: latestPhotoSubmissionRow.created_at,
+    } : null,
   };
 }
 
@@ -312,9 +405,12 @@ export async function getAdminCourseList() {
     .rpc("get_course_schedule", { target_camp_id: null })
     .order("day_number", { ascending: true });
 
+  if (error) return { error: true, courses: [] as CloudCourseSummary[] };
+  const rows = (data as CourseScheduleRow[] | null) ?? [];
+  const assignments = await getAssignmentMap(supabase, rows.map((row) => row.id));
   return {
-    error: Boolean(error),
-    courses: (data as CourseScheduleRow[] | null)?.map(mapSummary) ?? [],
+    error: !assignments,
+    courses: assignments ? rows.map((row) => mapSummary(row, assignments.get(row.id))) : [],
   };
 }
 
@@ -326,23 +422,29 @@ export async function getAdminCourse(courseId: string) {
     .maybeSingle<CourseScheduleRow>();
 
   if (error || !row) return null;
-  const summary = mapSummary(row);
+  const assignments = await getAssignmentMap(supabase, [row.id]);
+  if (!assignments) return null;
+  const summary = mapSummary(row, assignments.get(row.id));
   const [
     { data: content },
     { data: vocabulary },
     { data: audioRow },
     { data: videoRow },
+    { data: pdfRows },
     submissionResult,
+    photoSubmissionResult,
   ] = await Promise.all([
     supabase
       .from("course_contents")
-      .select("description, reading_text, reflection_prompt_zh, reflection_prompt_it")
+      .select("description, reading_text, reflection_prompt_zh, reflection_prompt_it, recording_assignment_enabled, photo_assignment_enabled")
       .eq("course_id", courseId)
       .maybeSingle<{
         description: string | null;
-        reading_text: string;
+        reading_text: string | null;
         reflection_prompt_zh: string | null;
         reflection_prompt_it: string | null;
+        recording_assignment_enabled: boolean;
+        photo_assignment_enabled: boolean;
       }>(),
     supabase
       .from("course_vocabulary")
@@ -360,7 +462,16 @@ export async function getAdminCourse(courseId: string) {
       .eq("course_id", courseId)
       .maybeSingle<CourseVideoRow>(),
     supabase
+      .from("course_pdfs")
+      .select("id, storage_path, file_name, size_bytes, position, updated_at")
+      .eq("course_id", courseId)
+      .order("position", { ascending: true }),
+    supabase
       .from("student_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("course_id", courseId),
+    supabase
+      .from("student_photo_submissions")
       .select("id", { count: "exact", head: true })
       .eq("course_id", courseId),
   ]);
@@ -371,6 +482,8 @@ export async function getAdminCourse(courseId: string) {
     readingText: content?.reading_text ?? "",
     reflectionPromptZh: content?.reflection_prompt_zh ?? "",
     reflectionPromptIt: content?.reflection_prompt_it ?? "",
+    recordingAssignmentEnabled: content?.recording_assignment_enabled ?? true,
+    photoAssignmentEnabled: content?.photo_assignment_enabled ?? false,
     vocabulary: ((vocabulary ?? []) as Array<{
       id: string;
       position: number;
@@ -384,7 +497,9 @@ export async function getAdminCourse(courseId: string) {
     })),
     audio: await createSignedCourseAudio(supabase, audioRow),
     video: await createSignedCourseVideo(supabase, videoRow),
-    submissionCount: submissionResult.count ?? 0,
+    pdfs: (await Promise.all(((pdfRows ?? []) as CoursePdfRow[]).map((pdf) => createSignedCoursePdf(supabase, pdf))))
+      .filter((pdf): pdf is CloudCoursePdf => Boolean(pdf)),
+    submissionCount: (submissionResult.count ?? 0) + (photoSubmissionResult.count ?? 0),
   } satisfies CloudCourseDetail;
 }
 

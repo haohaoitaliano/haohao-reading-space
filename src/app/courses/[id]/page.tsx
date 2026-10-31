@@ -6,6 +6,7 @@ import { StudentCourseDetail } from "@/components/StudentCourseDetail";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { parseCourseDay } from "@/lib/cloud-course";
 import { getStudentCourseByDay } from "@/lib/cloud-course-data";
+import { getOwnPhotoSubmissions } from "@/lib/photo-submission-data";
 import { formatUnlockDateTime } from "@/lib/course-schedule";
 
 type CoursePageProps = { params: Promise<{ id: string }> };
@@ -55,5 +56,15 @@ export default async function CoursePage({ params }: CoursePageProps) {
     );
   }
 
-  return <StudentCourseDetail course={result.course} latestSubmission={result.latestSubmission} />;
+  const photoResult = result.camp
+    ? await getOwnPhotoSubmissions(profile.id, result.camp.id, result.course.id)
+    : { submissions: [], error: false };
+  return (
+    <StudentCourseDetail
+      course={result.course}
+      latestPhotoSubmission={result.latestPhotoSubmission}
+      latestSubmission={result.latestSubmission}
+      photoSubmissions={photoResult.submissions}
+    />
+  );
 }

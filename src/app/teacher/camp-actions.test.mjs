@@ -12,7 +12,11 @@ test("camp lifecycle actions delete camps only after all members are removed", a
   assert.match(source, /\.from\("camps"\)[\s\S]*?\.delete\(\)[\s\S]*?\.eq\("id", campId\)/);
   assert.match(source, /COURSE_AUDIO_BUCKET/);
   assert.match(source, /COURSE_VIDEO_BUCKET/);
+  assert.match(source, /COURSE_PDF_BUCKET/);
   assert.match(source, /STUDENT_RECORDING_BUCKET/);
+  assert.match(source, /STUDENT_PHOTO_BUCKET/);
+  assert.match(source, /student_photo_submissions/);
+  assert.match(source, /student_submission_photos/);
 
   const dataSource = await readFile(new URL("../../lib/teacher-operations-data.ts", import.meta.url), "utf8");
   assert.match(dataSource, /getCampMemberCount[\s\S]*?\.eq\("camp_id", campId\)[\s\S]*?\.eq\("status", "active"\)/);

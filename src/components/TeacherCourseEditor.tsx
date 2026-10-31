@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, FileAudio, Plus, RotateCcw, Save, Trash2, Upload, Video } from "lucide-react";
+import { Archive, ExternalLink, FileAudio, FileText, Plus, RotateCcw, Save, Trash2, Upload, Video } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import type { CourseActionResult } from "@/app/teacher/course-actions";
@@ -11,7 +11,8 @@ import {
 } from "@/lib/cloud-course";
 import { validateCourseAudioFile } from "@/lib/course-audio";
 import { validateCourseVideoFile } from "@/lib/course-video";
-import type { CloudCourseAudio, CloudCourseDetail, CloudCourseVideo } from "@/lib/cloud-course-data";
+import { validateCoursePdfFile } from "@/lib/course-pdf";
+import type { CloudCourseAudio, CloudCourseDetail, CloudCoursePdf, CloudCourseVideo } from "@/lib/cloud-course-data";
 import { formatDateTimeLocalInZone, formatUnlockDateTime } from "@/lib/course-schedule";
 
 type SaveAction = (input: CourseEditorInput) => Promise<CourseActionResult>;
@@ -31,6 +32,8 @@ function toEditorInput(course: CloudCourseDetail): CourseEditorInput {
     status: course.status,
     maxDurationSeconds: course.maxDurationSeconds,
     targetDurationSeconds: course.targetDurationSeconds,
+    recordingAssignmentEnabled: course.recordingAssignmentEnabled,
+    photoAssignmentEnabled: course.photoAssignmentEnabled,
     vocabulary: course.vocabulary.map((item) => ({ ...item })),
   };
 }
@@ -52,16 +55,21 @@ export function TeacherCourseEditor({
   const [course, setCourse] = useState(() => toEditorInput(initialCourse));
   const [audio, setAudio] = useState<CloudCourseAudio | null>(initialCourse.audio);
   const [video, setVideo] = useState<CloudCourseVideo | null>(initialCourse.video);
+  const [pdfs, setPdfs] = useState<CloudCoursePdf[]>(initialCourse.pdfs);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
   const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
   const [selectedVideoDuration, setSelectedVideoDuration] = useState<number | null>(null);
+  const [selectedPdfFiles, setSelectedPdfFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [videoUploadProgress, setVideoUploadProgress] = useState(0);
+  const [uploadingPdfs, setUploadingPdfs] = useState(false);
+  const [pdfUploadProgress, setPdfUploadProgress] = useState(0);
   const [deletingAudio, setDeletingAudio] = useState(false);
   const [deletingVideo, setDeletingVideo] = useState(false);
+  const [deletingPdfId, setDeletingPdfId] = useState("");
   const [saving, setSaving] = useState(false);
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -139,6 +147,23 @@ export function TeacherCourseEditor({
     }, { once: true });
     media.addEventListener("error", () => URL.revokeObjectURL(objectUrl), { once: true });
     media.src = objectUrl;
+  }
+
+  function handlePdfFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (!files.length) return;
+    for (const file of files) {
+      const validationError = validateCoursePdfFile(file);
+      if (validationError) {
+        setError(`${file.name}：${validationError}`);
+        return;
+      }
+    }
+    setSelectedPdfFiles((current) => [...current, ...files]);
+    setPdfUploadProgress(0);
+    setError("");
+    setMessage("");
   }
 
   async function uploadAudio() {
@@ -265,6 +290,77 @@ export function TeacherCourseEditor({
     }
   }
 
+  async function uploadPdfs() {
+    if (!initialCourse.id || !selectedPdfFiles.length) return;
+    setUploadingPdfs(true);
+    setPdfUploadProgress(0);
+    setError("");
+    setMessage("");
+    const uploaded: CloudCoursePdf[] = [];
+
+    for (const [index, file] of selectedPdfFiles.entries()) {
+      const result = await new Promise<{ success: boolean; message: string; pdf?: CloudCoursePdf }>((resolve) => {
+        const request = new XMLHttpRequest();
+        request.open("POST", `/api/teacher/courses/${initialCourse.id}/pdfs`);
+        request.upload.onprogress = (event) => {
+          if (!event.lengthComputable) return;
+          const fileProgress = event.loaded / event.total;
+          setPdfUploadProgress(Math.round(((index + fileProgress) / selectedPdfFiles.length) * 100));
+        };
+        request.onload = () => {
+          try {
+            const payload = JSON.parse(request.responseText) as { success?: boolean; message?: string; pdf?: CloudCoursePdf };
+            resolve({
+              success: request.status >= 200 && request.status < 300 && Boolean(payload.success),
+              message: payload.message ?? "PDF 上传失败，请重试。",
+              pdf: payload.pdf,
+            });
+          } catch {
+            resolve({ success: false, message: "PDF 上传失败，请稍后重试。" });
+          }
+        };
+        request.onerror = () => resolve({ success: false, message: "网络错误，PDF 上传失败。" });
+        const formData = new FormData();
+        formData.set("pdf", file);
+        request.send(formData);
+      });
+      if (!result.success || !result.pdf) {
+        setPdfs((current) => [...current, ...uploaded]);
+        setSelectedPdfFiles((current) => current.slice(index));
+        setError(`${file.name}：${result.message}；尚未上传的文件已保留，可直接重试。`);
+        setUploadingPdfs(false);
+        router.refresh();
+        return;
+      }
+      uploaded.push(result.pdf);
+    }
+    setPdfs((current) => [...current, ...uploaded]);
+    setSelectedPdfFiles([]);
+    setPdfUploadProgress(100);
+    setMessage(`已上传 ${uploaded.length} 个 PDF。`);
+    setUploadingPdfs(false);
+    router.refresh();
+  }
+
+  async function deletePdf(pdf: CloudCoursePdf) {
+    if (!initialCourse.id || !window.confirm(`确定删除“${pdf.fileName}”吗？`)) return;
+    setDeletingPdfId(pdf.id);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch(`/api/teacher/courses/${initialCourse.id}/pdfs/${pdf.id}`, { method: "DELETE" });
+      const result = await response.json() as { success?: boolean; message?: string };
+      if (!response.ok || !result.success) throw new Error(result.message || "PDF 删除失败，请重试。");
+      setPdfs((current) => current.filter((item) => item.id !== pdf.id));
+      setMessage(result.message || "PDF 已删除。");
+      router.refresh();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "PDF 删除失败，请重试。");
+    } finally {
+      setDeletingPdfId("");
+    }
+  }
+
   async function saveChanges() {
     const validationError = validateCourseEditorInput(course);
     if (validationError) { setError(validationError); return; }
@@ -316,7 +412,7 @@ export function TeacherCourseEditor({
   function confirmPermanentDelete() {
     if (!initialCourse.id || !deleteAction) return;
     const confirmed = window.confirm(
-      "确定要永久删除这节课程吗？这个操作不可恢复，示范音频文件也会同步删除。",
+      "确定要永久删除这节课程吗？这个操作不可恢复，示范音频、视频和 PDF 文件也会同步删除。",
     );
     if (!confirmed) return;
     void runLifecycleAction(deleteAction, true);
@@ -361,7 +457,7 @@ export function TeacherCourseEditor({
         <label className="field">今日解锁说明
           <textarea onChange={(event) => updateField("description", event.target.value)} rows={3} value={course.description} />
         </label>
-        <label className="field">阅读材料
+        <label className="field">阅读材料（选填）
           <textarea onChange={(event) => updateField("readingText", event.target.value)} rows={7} value={course.readingText} />
         </label>
         <label className="field">阅读后的感想中文引导语
@@ -395,6 +491,18 @@ export function TeacherCourseEditor({
           />
           <small>这是准确、清晰、自然表达下的挑战目标，不是提交限制。</small>
         </label>
+        <fieldset className="assignment-options">
+          <legend>本课作业类型</legend>
+          <label>
+            <input checked={course.recordingAssignmentEnabled} onChange={(event) => updateField("recordingAssignmentEnabled", event.target.checked)} type="checkbox" />
+            开启录音作业
+          </label>
+          <label>
+            <input checked={course.photoAssignmentEnabled} onChange={(event) => updateField("photoAssignmentEnabled", event.target.checked)} type="checkbox" />
+            开启照片作业
+          </label>
+          <small>两项可以同时开启；全部关闭时，本课无需提交作业。</small>
+        </fieldset>
       </section>
 
       <section className="quiet-card stack">
@@ -415,6 +523,36 @@ export function TeacherCourseEditor({
             <button className="button ghost full" onClick={() => removeVocabulary(index)} type="button"><Trash2 size={18} /> 删除这个词</button>
           </div>
         ))}
+      </section>
+
+      <section className="quiet-card stack">
+        <div className="row start"><div><p className="kicker">Private Storage</p><h2>PDF 课件</h2></div><FileText color="var(--sky)" /></div>
+        {!initialCourse.id ? <p className="notice">请先创建课程，再上传 PDF 课件。</p> : null}
+        <label className="button secondary full upload-picker">
+          <Upload size={18} />选择 PDF 文件
+          <input accept=".pdf,application/pdf" disabled={!initialCourse.id || uploadingPdfs} multiple onChange={handlePdfFileChange} type="file" />
+        </label>
+        {selectedPdfFiles.length ? (
+          <div className="stack">
+            {selectedPdfFiles.map((file, index) => (
+              <div className="item-card row start" key={`${file.name}-${file.lastModified}-${index}`}>
+                <div><strong className="file-name">待上传 · {file.name}</strong><p style={{ marginBottom: 0 }}>{formatFileSize(file.size)}</p></div>
+                <button aria-label={`移除 ${file.name}`} className="button ghost" disabled={uploadingPdfs} onClick={() => setSelectedPdfFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))} type="button"><Trash2 size={18} /></button>
+              </div>
+            ))}
+            {uploadingPdfs ? <div className="progress-bar" aria-label="PDF 上传进度"><span style={{ "--value": `${pdfUploadProgress}%` } as React.CSSProperties} /></div> : null}
+            <button className="button full" disabled={uploadingPdfs} onClick={() => void uploadPdfs()} type="button"><Upload size={18} />{uploadingPdfs ? `上传中 ${pdfUploadProgress}%` : `上传 ${selectedPdfFiles.length} 个 PDF`}</button>
+          </div>
+        ) : null}
+        {pdfs.length ? pdfs.map((pdf) => (
+          <div className="audio-box" key={pdf.id}>
+            <div className="row start">
+              <div><strong className="file-name">已上传 · {pdf.fileName}</strong><p>{formatFileSize(pdf.sizeBytes)}</p></div>
+              <button aria-label={`删除 ${pdf.fileName}`} className="button ghost" disabled={deletingPdfId === pdf.id} onClick={() => void deletePdf(pdf)} type="button"><Trash2 size={18} /></button>
+            </div>
+            {pdf.signedUrl ? <a className="button secondary full" href={pdf.signedUrl} rel="noreferrer" target="_blank"><ExternalLink size={17} />在线预览 PDF</a> : <p className="notice">预览链接暂时不可用，请刷新页面。</p>}
+          </div>
+        )) : <div className="item-card"><p style={{ margin: 0 }}>暂无 PDF 课件。</p></div>}
       </section>
 
       <section className="quiet-card stack">
@@ -495,7 +633,7 @@ export function TeacherCourseEditor({
             {course.status === "archived" ? (
               <button
                 className="button secondary"
-                disabled={lifecycleBusy || saving || uploading || uploadingVideo}
+                disabled={lifecycleBusy || saving || uploading || uploadingVideo || uploadingPdfs}
                 onClick={() => void runLifecycleAction(reactivateAction, false, "published")}
                 type="button"
               >
@@ -504,7 +642,7 @@ export function TeacherCourseEditor({
             ) : (
               <button
                 className="button secondary"
-                disabled={lifecycleBusy || saving || uploading || uploadingVideo}
+                disabled={lifecycleBusy || saving || uploading || uploadingVideo || uploadingPdfs}
                 onClick={() => void runLifecycleAction(archiveAction, false, "archived")}
                 type="button"
               >
@@ -513,7 +651,7 @@ export function TeacherCourseEditor({
             )}
             <button
               className="button ghost"
-              disabled={lifecycleBusy || saving || uploading || uploadingVideo || initialCourse.submissionCount > 0}
+              disabled={lifecycleBusy || saving || uploading || uploadingVideo || uploadingPdfs || initialCourse.submissionCount > 0}
               onClick={confirmPermanentDelete}
               type="button"
             >
@@ -528,8 +666,8 @@ export function TeacherCourseEditor({
         </section>
       ) : null}
 
-      <p className="notice">课程文字、示范音频和示范视频保存到 Supabase；学生录音仍只保存在当前浏览器和设备中。</p>
-      <button className="button full" disabled={saving || uploading || uploadingVideo} onClick={saveChanges} type="button">
+      <p className="notice">课程文字、媒体和作业配置保存到 Supabase；上传前的临时文件只保存在当前浏览器。</p>
+      <button className="button full" disabled={saving || uploading || uploadingVideo || uploadingPdfs} onClick={saveChanges} type="button">
         <Save size={18} /> {saving ? "正在保存..." : "保存课程"}
       </button>
     </div>

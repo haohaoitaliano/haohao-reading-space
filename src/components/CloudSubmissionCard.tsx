@@ -1,9 +1,11 @@
 "use client";
 
-import { LockKeyhole, RefreshCw, Trash2, Users } from "lucide-react";
+import { Download, LockKeyhole, RefreshCw, Trash2, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { CloudSubmission } from "@/lib/cloud-submission-data";
+import type { CloudPhotoSubmission } from "@/lib/photo-submission-data";
+import { formatFileSize } from "@/lib/audio-file";
 import { formatRecordingDuration } from "@/lib/recording-utils";
 import { SubmissionInteractions } from "./SubmissionInteractions";
 
@@ -21,16 +23,21 @@ export function CloudSubmissionCard({
   submission,
   manageable = false,
   showInteractions = false,
+  assignmentId,
+  photos = [],
 }: {
   submission: CloudSubmission;
   manageable?: boolean;
   showInteractions?: boolean;
+  assignmentId?: string;
+  photos?: CloudPhotoSubmission["photos"];
 }) {
   const router = useRouter();
+  const hasAudio = Boolean(submission.audioUrl);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
-  const [audioLoading, setAudioLoading] = useState(true);
+  const [audioLoading, setAudioLoading] = useState(hasAudio);
   const [audioProcessing, setAudioProcessing] = useState(false);
   const [audioError, setAudioError] = useState(false);
   const [audioReloadKey, setAudioReloadKey] = useState(0);
@@ -39,6 +46,7 @@ export function CloudSubmissionCard({
   const isPublic = submission.visibility === "public";
 
   useEffect(() => {
+    if (!hasAudio) return;
     audioRefreshAttemptsRef.current = 0;
     let pollTimeoutId: number | undefined;
     let fetchTimeoutId: number | undefined;
@@ -96,7 +104,7 @@ export function CloudSubmissionCard({
       controller?.abort();
       audioRequestRef.current += 1;
     };
-  }, [audioReloadKey, submission.audioUrl]);
+  }, [audioReloadKey, hasAudio, submission.audioUrl]);
 
   function handleAudioError() {
     if (audioRefreshAttemptsRef.current === 0) {
@@ -116,7 +124,9 @@ export function CloudSubmissionCard({
     )) return;
     setBusy(true);
     setMessage("");
-    const response = await fetch(`/api/student/submissions/${submission.id}`, { method: "DELETE" });
+    const response = await fetch(assignmentId
+      ? `/api/student/assignment-submissions/${assignmentId}`
+      : `/api/student/submissions/${submission.id}`, { method: "DELETE" });
     const result = await response.json() as { message?: string };
     setBusy(false);
     setMessage(result.message ?? (response.ok ? "此次提交已删除。" : "删除失败，请重试。"));
@@ -136,10 +146,11 @@ export function CloudSubmissionCard({
             Giorno {submission.dayNumber} · {submission.courseTitle}
           </p>
           <p className="submission-meta">
-            第 {submission.version} 次提交 · {formatSubmittedAt(submission.createdAt)} · {Math.round(submission.durationSeconds)} 秒
-            {submission.targetDurationSeconds && submission.durationSeconds <= submission.targetDurationSeconds ? " 🎯" : ""}
+            第 {submission.version} 次提交 · {formatSubmittedAt(submission.createdAt)}
+            {hasAudio ? ` · ${Math.round(submission.durationSeconds)} 秒` : ""}
+            {hasAudio && submission.targetDurationSeconds && submission.durationSeconds <= submission.targetDurationSeconds ? " 🎯" : ""}
           </p>
-          <audio
+          {hasAudio ? <audio
             aria-busy={audioLoading}
             controls
             onError={audioUrl ? handleAudioError : undefined}
@@ -152,13 +163,13 @@ export function CloudSubmissionCard({
             src={audioUrl || undefined}
           >
             当前浏览器不支持音频播放。
-          </audio>
-          {audioProcessing ? (
+          </audio> : null}
+          {hasAudio && audioProcessing ? (
             <p className="submission-audio-status" role="status">正在处理录音…完成后会自动显示播放器。</p>
           ) : audioLoading && !audioUrl ? (
             <p className="submission-audio-status" role="status">正在准备播放器…</p>
           ) : null}
-          {audioError ? (
+          {hasAudio && audioError ? (
             <div className="notice submission-audio-error" role="alert">
               <span>录音暂时无法播放，请重试；若仍失败，当前设备可能不支持此录音格式。</span>
               <button className="button ghost" onClick={() => {
@@ -172,21 +183,37 @@ export function CloudSubmissionCard({
               </button>
             </div>
           ) : null}
+          {photos.length ? (
+            <div className="photo-grid" style={{ marginTop: 12 }}>
+              {photos.map((photo) => (
+                <figure key={photo.id}>
+                  <a href={photo.signedUrl} rel="noreferrer" target="_blank">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img alt={`${submission.studentName}的作业照片 ${photo.position}`} src={photo.signedUrl} />
+                  </a>
+                  <figcaption>
+                    <span>{photo.fileName} · {formatFileSize(photo.sizeBytes)}</span>
+                    <a aria-label={`下载 ${photo.fileName}`} href={photo.downloadUrl}><Download size={15} /></a>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          ) : null}
           <div className="row" style={{ marginTop: 8 }}>
             <span className={`pill ${isPublic ? "sky" : "muted"}`}>
               {isPublic ? <Users size={13} /> : <LockKeyhole size={13} />}
-              {isPublic ? "公开录音" : "仅老师可见"}
+              {isPublic ? "训练营内公开" : "仅老师可见"}
             </span>
-            <span style={{ color: "var(--muted)", fontSize: 13 }}>
+            {hasAudio ? <span style={{ color: "var(--muted)", fontSize: 13 }}>
               {formatRecordingDuration(submission.durationSeconds)}
-            </span>
+            </span> : <span style={{ color: "var(--muted)", fontSize: 13 }}>{photos.length} 张照片</span>}
           </div>
           {manageable ? (
             <button className="button ghost full" disabled={busy} onClick={() => void deleteSubmission()} style={{ marginTop: 10 }} type="button">
               <Trash2 size={17} />删除此次提交
             </button>
           ) : null}
-          {showInteractions && isPublic ? <SubmissionInteractions submission={submission} /> : null}
+          {showInteractions && isPublic && hasAudio ? <SubmissionInteractions submission={submission} /> : null}
           {message ? <p className="notice" role="status">{message}</p> : null}
         </div>
       </div>

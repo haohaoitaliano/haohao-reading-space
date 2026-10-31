@@ -203,26 +203,35 @@ type ScheduleRow = {
   id: string; camp_id: string; day_number: number; italian_title: string;
   status: "draft" | "published" | "archived"; effective_unlock_at: string | null;
 };
+type AssignmentRow = {
+  course_id: string;
+  recording_assignment_enabled: boolean;
+  photo_assignment_enabled: boolean;
+};
 type SubmissionRow = { camp_id: string; user_id: string; course_id: string };
 
 export async function getAdminLearningProgress() {
   const supabase = await createSupabaseServerClient();
-  const [camps, membersResult, coursesResult, submissionsResult] = await Promise.all([
+  const [camps, membersResult, coursesResult, assignmentResult, submissionsResult, photoSubmissionsResult] = await Promise.all([
     getAdminCampOptions(),
     supabase
       .from("camp_members")
       .select("camp_id, user_id, profiles(display_name, role, status)")
       .eq("status", "active"),
     supabase.rpc("get_course_schedule", { target_camp_id: null }),
+    supabase.from("course_contents").select("course_id, recording_assignment_enabled, photo_assignment_enabled"),
     supabase.from("student_submissions").select("camp_id, user_id, course_id"),
+    supabase.from("student_photo_submissions").select("camp_id, user_id, course_id"),
   ]);
-  if (membersResult.error || coursesResult.error || submissionsResult.error) {
+  if (membersResult.error || coursesResult.error || assignmentResult.error || submissionsResult.error || photoSubmissionsResult.error) {
     return { camps: [] as Array<{ camp: CloudCamp; students: ReturnType<typeof buildLearningProgress> }>, error: true };
   }
 
   const members = (membersResult.data ?? []) as unknown as MemberRow[];
   const courses = (coursesResult.data ?? []) as unknown as ScheduleRow[];
+  const assignments = new Map(((assignmentResult.data ?? []) as AssignmentRow[]).map((row) => [row.course_id, row]));
   const submissions = (submissionsResult.data ?? []) as SubmissionRow[];
+  const photoSubmissions = (photoSubmissionsResult.data ?? []) as SubmissionRow[];
   return {
     error: false,
     camps: camps.map((camp) => ({
@@ -242,11 +251,21 @@ export async function getAdminLearningProgress() {
           title: row.italian_title,
           status: row.status,
           effectiveUnlockAt: row.effective_unlock_at,
+          recordingAssignmentEnabled: assignments.get(row.id)?.recording_assignment_enabled ?? true,
+          photoAssignmentEnabled: assignments.get(row.id)?.photo_assignment_enabled ?? false,
         })),
-        submissions: submissions.filter((row) => row.camp_id === camp.id).map((row) => ({
-          userId: row.user_id,
-          courseId: row.course_id,
-        })),
+        submissions: [
+          ...submissions.filter((row) => row.camp_id === camp.id).map((row) => ({
+            userId: row.user_id,
+            courseId: row.course_id,
+            kind: "recording" as const,
+          })),
+          ...photoSubmissions.filter((row) => row.camp_id === camp.id).map((row) => ({
+            userId: row.user_id,
+            courseId: row.course_id,
+            kind: "photo" as const,
+          })),
+        ],
       }),
     })),
   };

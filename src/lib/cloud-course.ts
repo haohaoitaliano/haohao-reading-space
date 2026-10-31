@@ -21,6 +21,8 @@ export type CourseEditorInput = {
   status: CloudCourseStatus;
   maxDurationSeconds: number;
   targetDurationSeconds: number | null;
+  recordingAssignmentEnabled: boolean;
+  photoAssignmentEnabled: boolean;
   vocabulary: CloudVocabularyItem[];
 };
 
@@ -58,12 +60,14 @@ export function validateCourseEditorInput(input: CourseEditorInput) {
     return "课程天数必须大于 0";
   }
   if (!input.italianTitle.trim()) return "请输入意大利语标题";
-  if (!input.readingText.trim()) return "请输入阅读材料";
   if (!(["draft", "published", "archived"] as string[]).includes(input.status)) {
     return "课程状态不正确";
   }
   if (!(["auto", "manual"] as string[]).includes(input.unlockMode)) {
     return "解锁方式不正确";
+  }
+  if (typeof input.recordingAssignmentEnabled !== "boolean" || typeof input.photoAssignmentEnabled !== "boolean") {
+    return "作业类型设置不正确";
   }
   if (input.unlockMode === "manual" && !input.unlockAtLocal) {
     return "请选择手动解锁时间";

@@ -1,9 +1,7 @@
 "use client";
 
-import { Mic, RotateCcw, Send, Square, Trash2, Upload, Volume2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Mic, RotateCcw, Square, Trash2, Upload, Volume2 } from "lucide-react";
 import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
-import { useAuthProfile } from "@/components/AuthProfileProvider";
 import {
   chooseRecordingMimeType,
   formatRecordingDuration,
@@ -16,56 +14,47 @@ import {
 import { validateManualStudentRecordingFile } from "@/lib/student-recording";
 import type { StudentCourseSubmissionSummary } from "@/lib/cloud-course-data";
 
-type RecorderState = "idle" | "requesting" | "recording" | "ready" | "submitting" | "submitted" | "error" | "submit_error";
+type RecorderState = "idle" | "requesting" | "recording" | "ready" | "error" | "submit_error";
 
 const stateLabels: Record<RecorderState, string> = {
   idle: "尚未录音",
   requesting: "正在请求权限",
   recording: "正在录音",
   ready: "可试听",
-  submitting: "正在提交",
-  submitted: "已提交",
   error: "录音失败",
   submit_error: "提交失败",
 };
 
-function extensionForMimeType(mimeType: string) {
-  if (mimeType.includes("mp4")) return "m4a";
-  if (mimeType.includes("ogg")) return "ogg";
-  if (mimeType.includes("wav")) return "wav";
-  if (mimeType.includes("mpeg")) return "mp3";
-  return "webm";
-}
+export type PreparedRecording = {
+  blob: Blob;
+  mimeType: string;
+  source: "browser_recording" | "manual_upload";
+  durationSeconds: number;
+};
 
 export function BrowserRecorder({
-  courseId,
   latestSubmission,
   maxDurationSeconds,
   targetDurationSeconds,
+  onPreparedChange,
 }: {
-  courseId: string;
   latestSubmission: StudentCourseSubmissionSummary | null;
   maxDurationSeconds: number;
   targetDurationSeconds: number | null;
+  onPreparedChange: (recording: PreparedRecording | null) => void;
 }) {
-  const router = useRouter();
-  const profile = useAuthProfile();
   const [state, setState] = useState<RecorderState>("idle");
-  const [visibility, setVisibility] = useState<"public" | "teacher_only">("public");
   const [duration, setDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState("");
-  const [mimeType, setMimeType] = useState("");
   const [recordingSource, setRecordingSource] = useState<"browser_recording" | "manual_upload">("browser_recording");
   const [message, setMessage] = useState("");
-  const [submittedVersion, setSubmittedVersion] = useState<number | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const startedAtRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const microphoneRequestIdRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -83,12 +72,12 @@ export function BrowserRecorder({
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl("");
     setAudioBlob(null);
-    setMimeType("");
     setRecordingSource("browser_recording");
     setDuration(0);
     setMessage("");
     chunksRef.current = [];
-  }, [audioUrl]);
+    onPreparedChange(null);
+  }, [audioUrl, onPreparedChange]);
 
   useEffect(() => {
     return () => {
@@ -96,7 +85,6 @@ export function BrowserRecorder({
       stopTimer();
       stopTracks();
       if (audioUrl) URL.revokeObjectURL(audioUrl);
-      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
     };
   }, [audioUrl, stopTimer, stopTracks]);
 
@@ -153,11 +141,16 @@ export function BrowserRecorder({
         }
         const objectUrl = URL.createObjectURL(blob);
         setDuration(recordedDuration);
-        setMimeType(recordedMimeType);
         setRecordingSource("browser_recording");
         setAudioBlob(blob);
         setAudioUrl(objectUrl);
         setState("ready");
+        onPreparedChange({
+          blob,
+          mimeType: recordedMimeType,
+          source: "browser_recording",
+          durationSeconds: recordedDuration,
+        });
       };
 
       startedAtRef.current = Date.now();
@@ -241,11 +234,16 @@ export function BrowserRecorder({
       clearRecording();
       setAudioBlob(file);
       setAudioUrl(objectUrl);
-      setMimeType(file.type || (file.name.toLowerCase().endsWith(".mp3") ? "audio/mpeg" : "audio/mp4"));
       setRecordingSource("manual_upload");
       setDuration(fileDuration);
       setState("ready");
       setMessage("音频已选择，可以试听后正式提交。");
+      onPreparedChange({
+        blob: file,
+        mimeType: file.type || (file.name.toLowerCase().endsWith(".mp3") ? "audio/mpeg" : "audio/mp4"),
+        source: "manual_upload",
+        durationSeconds: fileDuration,
+      });
     }, { once: true });
     media.addEventListener("error", () => {
       URL.revokeObjectURL(objectUrl);
@@ -263,59 +261,17 @@ export function BrowserRecorder({
     }
   };
 
-  const submitRecording = async () => {
-    if (!audioBlob || !mimeType || !profile) return;
-    setState("submitting");
-    setMessage("");
-    try {
-      const formData = new FormData();
-      formData.set("audio", new File(
-        [audioBlob],
-        `recording.${extensionForMimeType(mimeType)}`,
-        { type: mimeType },
-      ));
-      formData.set("durationSeconds", String(duration));
-      formData.set("visibility", visibility);
-      formData.set("source", recordingSource);
-      const response = await fetch(`/api/student/courses/${courseId}/submissions`, {
-        method: "POST",
-        body: formData,
-      });
-      const result = await response.json() as {
-        success: boolean;
-        message?: string;
-        submissionId?: string;
-        version?: number;
-      };
-      if (!response.ok || !result.success || !result.submissionId) {
-        throw new Error(result.message || "submit_failed");
-      }
-      setState("submitted");
-      setSubmittedVersion(result.version ?? null);
-      setMessage(`录音提交成功 · 第 ${result.version} 次提交`);
-      redirectTimerRef.current = setTimeout(() => {
-        router.push("/circle");
-      }, 900);
-    } catch (error) {
-      setState("submit_error");
-      setMessage(error instanceof Error && error.message !== "submit_failed"
-        ? error.message
-        : "录音提交失败，请检查网络后重试。");
-    }
-  };
-
-  const canUseRecording = state !== "recording" && state !== "requesting" && state !== "submitting";
+  const canUseRecording = state !== "recording" && state !== "requesting";
   const hasRecording = Boolean(audioBlob && audioUrl);
-  const persistedVersion = submittedVersion ?? latestSubmission?.version ?? null;
+  const showRecordingSuccess = hasRecording && recordingSource === "browser_recording";
+  const persistedVersion = latestSubmission?.version ?? null;
   const statusLabel = state === "idle" && persistedVersion
     ? `已提交 · 第 ${persistedVersion} 次提交`
-    : state === "submitted" && submittedVersion
-      ? `已提交 · 第 ${submittedVersion} 次提交`
-      : stateLabels[state];
+    : stateLabels[state];
   const statusDuration = state === "idle" && latestSubmission
     ? latestSubmission.durationSeconds
     : duration;
-  const hasSubmitted = state === "submitted" || (state === "idle" && Boolean(persistedVersion));
+  const hasSubmitted = state === "idle" && Boolean(persistedVersion);
   const targetFeedback = hasRecording
     ? getRecordingTargetFeedback(duration, targetDurationSeconds)
     : null;
@@ -356,6 +312,10 @@ export function BrowserRecorder({
         </audio>
       ) : null}
 
+      {showRecordingSuccess ? (
+        <p className="success-notice" role="status">✓ 录音成功 · {Math.round(duration)} 秒</p>
+      ) : null}
+
       {state === "recording" ? (
         <button className="button danger full recorder-primary" onClick={stopRecording} type="button">
           <Square size={19} />
@@ -368,7 +328,7 @@ export function BrowserRecorder({
         </button>
       )}
 
-      {message ? <p className={state === "submitted" ? "success-notice" : "notice"} role="status">{message}</p> : null}
+      {message ? <p className="notice" role="status">{message}</p> : null}
       {targetFeedback ? (
         <p className={targetFeedback.reached ? "success-notice" : "notice"} role="status">
           {targetFeedback.message}
@@ -376,18 +336,18 @@ export function BrowserRecorder({
       ) : null}
 
       <div className="grid-two">
-        <button className="button secondary" disabled={!hasRecording || state === "submitting"} onClick={replayRecording} type="button">
+        <button className="button secondary" disabled={!hasRecording} onClick={replayRecording} type="button">
           <Volume2 size={18} />
           试听
         </button>
-        <button className="button ghost" disabled={!hasRecording || state === "submitting"} onClick={deleteRecording} type="button">
+        <button className="button ghost" disabled={!hasRecording} onClick={deleteRecording} type="button">
           <Trash2 size={18} />
           删除
         </button>
       </div>
 
       {hasRecording ? (
-        <button className="button ghost full" disabled={state === "submitting"} onClick={startRecording} type="button">
+        <button className="button ghost full" onClick={startRecording} type="button">
           <RotateCcw size={18} />
           重录
         </button>
@@ -415,34 +375,6 @@ export function BrowserRecorder({
         </div>
       </details>
 
-      <div className="privacy-options">
-        <p className="kicker">公开设置</p>
-        <label className="privacy-option">
-          <input
-            checked={visibility === "public"}
-            disabled={state === "recording" || state === "submitting"}
-            name="visibility"
-            onChange={() => setVisibility("public")}
-            type="radio"
-          />
-          <span><strong>对同学公开</strong><small>同班同学可以收听、点赞和评论</small></span>
-        </label>
-        <label className="privacy-option">
-          <input
-            checked={visibility === "teacher_only"}
-            disabled={state === "recording" || state === "submitting"}
-            name="visibility"
-            onChange={() => setVisibility("teacher_only")}
-            type="radio"
-          />
-          <span><strong>仅老师可见</strong><small>只会出现在本人的“我的作业”中</small></span>
-        </label>
-      </div>
-
-      <button className="button full" disabled={!profile || !hasRecording || state === "submitting" || state === "submitted"} onClick={submitRecording} type="button">
-        <Send size={18} />
-          {state === "submitting" ? "正在上传..." : "提交录音"}
-      </button>
     </section>
   );
 }

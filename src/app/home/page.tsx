@@ -16,6 +16,9 @@ export default async function HomePage() {
   const {
     courseResult: result,
     submissionResult: ownSubmissionResult,
+    photoSubmissionResult,
+    unifiedResult,
+    submissionError,
     stats,
   } = await getStudentCampProgress(profile.id);
   const today = result.courses.filter((course) => course.isUnlocked).at(-1) ?? null;
@@ -24,11 +27,19 @@ export default async function HomePage() {
     : { submissions: [], error: result.state === "database_error" };
   const todaySubmitted = today
     ? ownSubmissionResult.submissions.some((submission) => submission.courseId === today.id)
+      || unifiedResult.assignments.some((assignment) => assignment.courseId === today.id && assignment.hasRecording)
+    : false;
+  const todayPhotoSubmitted = today
+    ? photoSubmissionResult.submissions.some((submission) => submission.courseId === today.id)
+      || unifiedResult.assignments.some((assignment) => assignment.courseId === today.id && assignment.photos.length > 0)
     : false;
   const todayTaskStatus = getTodayTaskStatus({
     hasTask: Boolean(today),
-    hasSubmission: todaySubmitted,
-    submissionError: ownSubmissionResult.error,
+    recordingRequired: today?.recordingAssignmentEnabled ?? false,
+    photoRequired: today?.photoAssignmentEnabled ?? false,
+    hasRecordingSubmission: todaySubmitted,
+    hasPhotoSubmission: todayPhotoSubmitted,
+    submissionError,
   });
 
   return (
@@ -76,19 +87,19 @@ export default async function HomePage() {
               aria-label="查看今天的任务"
             >
               <CalendarCheck size={20} color="var(--olive)" />
-              <strong>{ownSubmissionResult.error ? "—" : stats.pendingTasks}</strong>
+              <strong>{submissionError ? "—" : stats.pendingTasks}</strong>
               <span>待完成任务</span>
             </Link>
           ) : (
             <div className="metric">
               <CalendarCheck size={20} color="var(--olive)" />
-              <strong>{ownSubmissionResult.error ? "—" : stats.pendingTasks}</strong>
+              <strong>{submissionError ? "—" : stats.pendingTasks}</strong>
               <span>待完成任务</span>
             </div>
           )}
           <div className="metric">
             <Mic2 size={20} color="var(--accent)" />
-            <strong>{ownSubmissionResult.error ? "—" : stats.completedOutputs}</strong>
+            <strong>{submissionError ? "—" : stats.completedOutputs}</strong>
             <span>已完成输出</span>
           </div>
         </section>
@@ -99,7 +110,7 @@ export default async function HomePage() {
             <Headphones color="var(--sky)" />
           </div>
           <p style={{ margin: 0 }}>听示范、阅读文本、完成录音，并和同学交流。</p>
-          <p style={{ margin: 0 }}>今日录音：{todayTaskStatus}</p>
+          <p style={{ margin: 0 }}>今日作业：{todayTaskStatus}</p>
         </section>
 
         <section style={{ marginTop: 18 }}>

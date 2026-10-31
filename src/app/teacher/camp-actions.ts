@@ -5,7 +5,9 @@ import { requireAdmin } from "@/lib/auth";
 import { normalizeCampTimeZone } from "@/lib/course-schedule";
 import { COURSE_AUDIO_BUCKET } from "@/lib/course-audio";
 import { COURSE_VIDEO_BUCKET } from "@/lib/course-video";
+import { COURSE_PDF_BUCKET } from "@/lib/course-pdf";
 import { STUDENT_RECORDING_BUCKET } from "@/lib/student-recording";
+import { STUDENT_PHOTO_BUCKET } from "@/lib/student-photo";
 import { getCampMemberCount } from "@/lib/teacher-operations-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -126,25 +128,31 @@ export async function permanentlyDeleteCamp(campId: string): Promise<CampSchedul
   }
 
   const supabase = await createSupabaseServerClient();
-  const [coursesResult, submissionsResult] = await Promise.all([
+  const [coursesResult, submissionsResult, photoSubmissionsResult] = await Promise.all([
     supabase.from("courses").select("id").eq("camp_id", campId),
     supabase
       .from("student_submissions")
       .select("storage_path, playback_storage_path")
       .eq("camp_id", campId),
+    supabase.from("student_photo_submissions").select("id").eq("camp_id", campId),
   ]);
-  if (coursesResult.error || submissionsResult.error) {
+  if (coursesResult.error || submissionsResult.error || photoSubmissionsResult.error) {
     return { success: false, message: "无法确认训练营关联文件，请稍后重试。" };
   }
 
   const courseIds = (coursesResult.data ?? []).map((course) => course.id);
-  const [audioResult, videoResult] = courseIds.length
+  const [audioResult, videoResult, pdfResult] = courseIds.length
     ? await Promise.all([
         supabase.from("course_audio").select("storage_path").in("course_id", courseIds),
         supabase.from("course_videos").select("storage_path").in("course_id", courseIds),
+        supabase.from("course_pdfs").select("storage_path").in("course_id", courseIds),
       ])
-    : [{ data: [], error: null }, { data: [], error: null }];
-  if (audioResult.error || videoResult.error) {
+    : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
+  const photoSubmissionIds = (photoSubmissionsResult.data ?? []).map((submission) => submission.id);
+  const photoResult = photoSubmissionIds.length
+    ? await supabase.from("student_submission_photos").select("storage_path").in("submission_id", photoSubmissionIds)
+    : { data: [], error: null };
+  if (audioResult.error || videoResult.error || pdfResult.error || photoResult.error) {
     return { success: false, message: "无法确认训练营课程文件，请稍后重试。" };
   }
 
@@ -168,10 +176,18 @@ export async function permanentlyDeleteCamp(campId: string): Promise<CampSchedul
       paths: (videoResult.data ?? []).map((row) => row.storage_path),
     },
     {
+      bucket: COURSE_PDF_BUCKET,
+      paths: (pdfResult.data ?? []).map((row) => row.storage_path),
+    },
+    {
       bucket: STUDENT_RECORDING_BUCKET,
       paths: (submissionsResult.data ?? []).flatMap((row) =>
         [row.storage_path, row.playback_storage_path].filter((path): path is string => Boolean(path)),
       ),
+    },
+    {
+      bucket: STUDENT_PHOTO_BUCKET,
+      paths: (photoResult.data ?? []).map((row) => row.storage_path),
     },
   ];
 

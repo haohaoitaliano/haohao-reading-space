@@ -7,8 +7,8 @@ import { getStudentCampProgress } from "@/lib/student-camp-progress";
 
 export default async function ProgressPage() {
   const { profile } = await requireAuthenticatedUser();
-  const { courseResult, submissionResult, stats } = await getStudentCampProgress(profile.id);
-  const value = (number: number) => submissionResult.error ? "—" : number;
+  const { courseResult, submissionError, stats } = await getStudentCampProgress(profile.id);
+  const value = (number: number) => submissionError ? "—" : number;
 
   return (
     <AppFrame active="progress">
@@ -24,13 +24,13 @@ export default async function ProgressPage() {
         {courseResult.state === "no_selected_camp" ? <p className="notice">请先在<Link href="/spaces">我的学习空间</Link>选择当前训练营。</p> : null}
         {courseResult.state === "no_membership" ? <p className="notice">尚未加入训练营。</p> : null}
         {courseResult.state === "empty" ? <p className="notice">训练营暂时没有课程。</p> : null}
-        {submissionResult.error ? <p className="notice" role="alert">提交记录暂时无法读取。</p> : null}
+        {submissionError ? <p className="notice" role="alert">提交记录暂时无法读取。</p> : null}
 
         <section className="quiet-card stack">
           <div className="row"><h2>已开放任务完成情况</h2><ChartNoAxesColumnIncreasing color="var(--olive)" /></div>
           <div className="progress-bar"><span style={{ "--value": `${stats.completionPercent}%` } as React.CSSProperties} /></div>
           <p style={{ margin: 0 }}>
-            {submissionResult.error
+            {submissionError
               ? "提交记录暂时无法读取"
               : `${stats.completionPercent}% · 已完成 ${stats.completedTasks} / ${stats.openedTasks} 个已开放任务`}
           </p>
