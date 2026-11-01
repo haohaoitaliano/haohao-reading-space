@@ -14,6 +14,11 @@ import { validateCourseVideoFile } from "@/lib/course-video";
 import { validateCoursePdfFile } from "@/lib/course-pdf";
 import type { CloudCourseAudio, CloudCourseDetail, CloudCoursePdf, CloudCourseVideo } from "@/lib/cloud-course-data";
 import { formatDateTimeLocalInZone, formatUnlockDateTime } from "@/lib/course-schedule";
+import {
+  readJsonResponse,
+  uploadFileDirectly,
+  type DirectUploadTicket,
+} from "@/lib/direct-storage-upload";
 
 type SaveAction = (input: CourseEditorInput) => Promise<CourseActionResult>;
 type LifecycleAction = () => Promise<CourseActionResult>;
@@ -226,49 +231,48 @@ export function TeacherCourseEditor({
     setError("");
     setMessage("");
 
-    const result = await new Promise<{ success: boolean; message: string; video?: CloudCourseVideo }>((resolve) => {
-      const request = new XMLHttpRequest();
-      request.open("POST", `/api/teacher/courses/${initialCourse.id}/video`);
-      request.upload.onprogress = (event) => {
-        if (event.lengthComputable) setVideoUploadProgress(Math.round((event.loaded / event.total) * 100));
+    try {
+      const uploadInfo = {
+        fileName: selectedVideoFile.name,
+        mimeType: selectedVideoFile.type,
+        size: selectedVideoFile.size,
       };
-      request.onload = () => {
-        let payload: { success?: boolean; message?: string; video?: CloudCourseVideo } = {};
-        try {
-          payload = JSON.parse(request.responseText);
-        } catch {
-          resolve({ success: false, message: `视频上传失败（${request.status || "未知状态"}），请稍后重试。` });
-          return;
-        }
-        if (request.status < 200 || request.status >= 300) {
-          resolve({ success: false, message: payload.message || `视频上传失败（${request.status}），请稍后重试。` });
-          return;
-        }
-        resolve({
-          success: Boolean(payload.success),
-          message: payload.message || "视频上传失败，请稍后重试。",
-          video: payload.video,
-        });
-      };
-      request.onerror = () => resolve({ success: false, message: "网络错误，视频上传失败。" });
-      const formData = new FormData();
-      formData.set("video", selectedVideoFile);
-      if (selectedVideoDuration !== null) formData.set("durationSeconds", String(selectedVideoDuration));
-      request.send(formData);
-    });
-
-    if (result.success && result.video) {
+      const prepareResponse = await fetch(`/api/teacher/courses/${initialCourse.id}/video`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "prepare", ...uploadInfo }),
+      });
+      const prepared = await readJsonResponse<{ upload: DirectUploadTicket }>(prepareResponse, "无法创建视频上传授权，请重试。");
+      await uploadFileDirectly({
+        file: selectedVideoFile,
+        ticket: prepared.upload,
+        onProgress: setVideoUploadProgress,
+      });
+      const completeResponse = await fetch(`/api/teacher/courses/${initialCourse.id}/video`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "complete",
+          path: prepared.upload.path,
+          durationSeconds: selectedVideoDuration,
+          ...uploadInfo,
+        }),
+      });
+      const result = await readJsonResponse<{ success: boolean; message: string; video?: CloudCourseVideo }>(
+        completeResponse,
+        "视频已传到云端，但课程信息确认失败；请保留文件并重试。",
+      );
+      if (!result.video) throw new Error(result.message || "视频上传状态异常，请刷新页面确认。");
       setVideo(result.video);
       setSelectedVideoFile(null);
       setVideoUploadProgress(100);
       setMessage(result.message);
       router.refresh();
-    } else if (result.success) {
-      setError(result.message || "视频上传状态异常，请刷新页面确认。");
-    } else {
-      setError(result.message);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "视频上传失败，请保留文件并重试。");
+    } finally {
+      setUploadingVideo(false);
     }
-    setUploadingVideo(false);
   }
 
   async function deleteVideo() {
@@ -299,40 +303,48 @@ export function TeacherCourseEditor({
     const uploaded: CloudCoursePdf[] = [];
 
     for (const [index, file] of selectedPdfFiles.entries()) {
-      const result = await new Promise<{ success: boolean; message: string; pdf?: CloudCoursePdf }>((resolve) => {
-        const request = new XMLHttpRequest();
-        request.open("POST", `/api/teacher/courses/${initialCourse.id}/pdfs`);
-        request.upload.onprogress = (event) => {
-          if (!event.lengthComputable) return;
-          const fileProgress = event.loaded / event.total;
-          setPdfUploadProgress(Math.round(((index + fileProgress) / selectedPdfFiles.length) * 100));
-        };
-        request.onload = () => {
-          try {
-            const payload = JSON.parse(request.responseText) as { success?: boolean; message?: string; pdf?: CloudCoursePdf };
-            resolve({
-              success: request.status >= 200 && request.status < 300 && Boolean(payload.success),
-              message: payload.message ?? "PDF 上传失败，请重试。",
-              pdf: payload.pdf,
-            });
-          } catch {
-            resolve({ success: false, message: "PDF 上传失败，请稍后重试。" });
-          }
-        };
-        request.onerror = () => resolve({ success: false, message: "网络错误，PDF 上传失败。" });
-        const formData = new FormData();
-        formData.set("pdf", file);
-        request.send(formData);
-      });
-      if (!result.success || !result.pdf) {
+      try {
+        const uploadInfo = { fileName: file.name, mimeType: file.type, size: file.size };
+        const prepareResponse = await fetch(`/api/teacher/courses/${initialCourse.id}/pdfs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "prepare", ...uploadInfo }),
+        });
+        const prepared = await readJsonResponse<{ pdfId: string; upload: DirectUploadTicket }>(
+          prepareResponse,
+          "无法创建 PDF 上传授权，请重试。",
+        );
+        await uploadFileDirectly({
+          file,
+          ticket: prepared.upload,
+          onProgress: (percentage) => {
+            setPdfUploadProgress(Math.round(((index + percentage / 100) / selectedPdfFiles.length) * 100));
+          },
+        });
+        const completeResponse = await fetch(`/api/teacher/courses/${initialCourse.id}/pdfs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "complete",
+            pdfId: prepared.pdfId,
+            path: prepared.upload.path,
+            ...uploadInfo,
+          }),
+        });
+        const result = await readJsonResponse<{ success: boolean; message: string; pdf?: CloudCoursePdf }>(
+          completeResponse,
+          "PDF 已传到云端，但课程信息确认失败；请重试。",
+        );
+        if (!result.pdf) throw new Error(result.message || "PDF 上传状态异常，请刷新页面确认。");
+        uploaded.push(result.pdf);
+      } catch (uploadError) {
         setPdfs((current) => [...current, ...uploaded]);
         setSelectedPdfFiles((current) => current.slice(index));
-        setError(`${file.name}：${result.message}；尚未上传的文件已保留，可直接重试。`);
+        setError(`${file.name}：${uploadError instanceof Error ? uploadError.message : "上传失败"}；尚未上传的文件已保留，可直接重试。`);
         setUploadingPdfs(false);
         router.refresh();
         return;
       }
-      uploaded.push(result.pdf);
     }
     setPdfs((current) => [...current, ...uploaded]);
     setSelectedPdfFiles([]);

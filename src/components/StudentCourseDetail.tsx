@@ -15,7 +15,13 @@ import type {
   CloudCoursePdf,
   StudentCourseSubmissionSummary,
 } from "@/lib/cloud-course-data";
+import {
+  readJsonResponse,
+  uploadFileDirectly,
+  type DirectUploadTicket,
+} from "@/lib/direct-storage-upload";
 import type { CloudPhotoSubmission } from "@/lib/photo-submission-data";
+import { hasStudentPhotoSignature, getStudentPhotoMimeType } from "@/lib/student-photo";
 
 function CloudCourseAudioPlayer({ audio }: { audio: CloudCourseAudio }) {
   return (
@@ -90,49 +96,113 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
   ), [course.photoAssignmentEnabled, course.recordingAssignmentEnabled, preparedPhotos.length, preparedRecording]);
   const hasAssignment = course.recordingAssignmentEnabled || course.photoAssignmentEnabled;
 
-  function submitAssignment() {
+  async function submitAssignment() {
     if (!allRequiredMaterialsReady || submissionState === "submitting") return;
     if (!assignmentIdRef.current) assignmentIdRef.current = crypto.randomUUID();
-    const formData = new FormData();
-    formData.set("assignmentId", assignmentIdRef.current);
-    if (course.recordingAssignmentEnabled && preparedRecording) {
-      const extension = preparedRecording.mimeType.includes("mpeg") ? "mp3"
-        : preparedRecording.mimeType.includes("wav") ? "wav"
-          : preparedRecording.mimeType.includes("mp4") ? "m4a" : "webm";
-      formData.set("audio", preparedRecording.blob, `recording.${extension}`);
-      formData.set("source", preparedRecording.source);
-      formData.set("durationSeconds", String(preparedRecording.durationSeconds));
-    }
-    for (const photo of preparedPhotos) {
-      formData.append("photos", photo.file, photo.file.name);
-      formData.append("photoIds", photo.id);
-    }
-
     setSubmissionState("submitting");
     setSubmissionMessage("");
     setUploadProgress(0);
-    const request = new XMLHttpRequest();
-    request.open("POST", `/api/student/courses/${course.id}/assignment-submissions`);
-    request.upload.addEventListener("progress", (event) => {
-      if (event.lengthComputable) setUploadProgress(Math.round((event.loaded / event.total) * 100));
-    });
-    request.addEventListener("load", () => {
-      let result: { message?: string } = {};
-      try { result = JSON.parse(request.responseText) as { message?: string }; } catch { /* use fallback */ }
-      if (request.status >= 200 && request.status < 300) {
-        setUploadProgress(100);
-        setSubmissionState("success");
-        setSubmissionMessage("");
-        return;
+    try {
+      for (const photo of preparedPhotos) {
+        const mimeType = getStudentPhotoMimeType(photo.file);
+        if (!mimeType || !(await hasStudentPhotoSignature(photo.file, mimeType))) {
+          throw new Error(`${photo.file.name || "所选文件"}的内容不是有效照片，请重新选择。`);
+        }
       }
+
+      type PreparedPhotoUpload = {
+        id: string;
+        fileName: string;
+        size: number;
+        upload: DirectUploadTicket;
+      };
+      let uploadedPhotos: PreparedPhotoUpload[] = [];
+      const totalPhotoBytes = preparedPhotos.reduce((total, photo) => total + photo.file.size, 0);
+      const audioBytes = preparedRecording?.blob.size ?? 0;
+      const totalUploadBytes = Math.max(1, totalPhotoBytes + audioBytes);
+      let completedPhotoBytes = 0;
+
+      if (preparedPhotos.length) {
+        const prepareResponse = await fetch(`/api/student/courses/${course.id}/assignment-submissions/uploads`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            assignmentId: assignmentIdRef.current,
+            photos: preparedPhotos.map((photo) => ({
+              id: photo.id,
+              fileName: photo.file.name,
+              mimeType: photo.file.type,
+              size: photo.file.size,
+            })),
+          }),
+        });
+        const prepared = await readJsonResponse<{ photos: PreparedPhotoUpload[] }>(
+          prepareResponse,
+          "无法创建照片上传授权，请保留材料并重试。",
+        );
+        uploadedPhotos = prepared.photos;
+        for (const [index, photo] of preparedPhotos.entries()) {
+          const ticket = uploadedPhotos.find((item) => item.id === photo.id);
+          if (!ticket) throw new Error("照片上传信息不完整，请重试。");
+          await uploadFileDirectly({
+            file: photo.file,
+            ticket: ticket.upload,
+            onProgress: (percentage) => {
+              const currentBytes = photo.file.size * (percentage / 100);
+              setUploadProgress(Math.round(((completedPhotoBytes + currentBytes) / totalUploadBytes) * 100));
+            },
+          });
+          completedPhotoBytes += preparedPhotos[index].file.size;
+        }
+      }
+
+      const formData = new FormData();
+      formData.set("assignmentId", assignmentIdRef.current);
+      formData.set("photosMetadata", JSON.stringify(uploadedPhotos.map((photo) => ({
+        id: photo.id,
+        path: photo.upload.path,
+        fileName: photo.fileName,
+        mimeType: photo.upload.mimeType,
+        size: photo.size,
+      }))));
+      if (course.recordingAssignmentEnabled && preparedRecording) {
+        const extension = preparedRecording.mimeType.includes("mpeg") ? "mp3"
+          : preparedRecording.mimeType.includes("wav") ? "wav"
+            : preparedRecording.mimeType.includes("mp4") ? "m4a" : "webm";
+        formData.set("audio", preparedRecording.blob, `recording.${extension}`);
+        formData.set("source", preparedRecording.source);
+        formData.set("durationSeconds", String(preparedRecording.durationSeconds));
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        const request = new XMLHttpRequest();
+        request.open("POST", `/api/student/courses/${course.id}/assignment-submissions`);
+        request.upload.addEventListener("progress", (event) => {
+          if (!event.lengthComputable || audioBytes === 0) return;
+          const uploadedBytes = completedPhotoBytes + Math.min(audioBytes, event.loaded);
+          setUploadProgress(Math.round((uploadedBytes / totalUploadBytes) * 100));
+        });
+        request.addEventListener("load", () => {
+          let result: { message?: string } = {};
+          try { result = JSON.parse(request.responseText) as { message?: string }; } catch { /* use fallback */ }
+          if (request.status >= 200 && request.status < 300) {
+            resolve();
+          } else {
+            reject(new Error(result.message ?? "提交失败，材料仍保留在本页，请直接重试。"));
+          }
+        });
+        request.addEventListener("error", () => reject(new Error("网络中断，材料仍保留在本页，请直接重试。")));
+        request.send(formData);
+      });
+      setUploadProgress(100);
+      setSubmissionState("success");
+      setSubmissionMessage("");
+    } catch (submissionError) {
       setSubmissionState("error");
-      setSubmissionMessage(result.message ?? "提交失败，材料仍保留在本页，请直接重试。");
-    });
-    request.addEventListener("error", () => {
-      setSubmissionState("error");
-      setSubmissionMessage("网络中断，材料仍保留在本页，请直接重试。");
-    });
-    request.send(formData);
+      setSubmissionMessage(submissionError instanceof Error
+        ? submissionError.message
+        : "提交失败，材料仍保留在本页，请直接重试。");
+    }
   }
 
   return (
@@ -257,7 +327,7 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
                   <Link className="button full" href="/circle">去作业圈看看</Link>
                 </div>
               ) : (
-                <button className="button full" disabled={!allRequiredMaterialsReady || submissionState === "submitting"} onClick={submitAssignment} type="button">
+                <button className="button full" disabled={!allRequiredMaterialsReady || submissionState === "submitting"} onClick={() => void submitAssignment()} type="button">
                   <Send size={18} />{submissionState === "submitting" ? `正在提交${uploadProgress ? ` · ${uploadProgress}%` : "…"}` : submissionState === "error" ? "重试提交作业" : "提交作业"}
                 </button>
               )}

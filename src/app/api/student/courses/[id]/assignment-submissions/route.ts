@@ -3,7 +3,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getAuthContext } from "@/lib/auth";
 import { getCurrentLearningSpace } from "@/lib/learning-space";
 import {
-  buildStudentPhotoPath,
   getStudentPhotoExtension,
   getStudentPhotoMimeType,
   hasStudentPhotoSignature,
@@ -20,6 +19,7 @@ import {
   validateStudentRecordingFile,
 } from "@/lib/student-recording";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { verifyStorageObject } from "@/lib/storage-object-verification";
 import { dispatchStudentRecordingTranscode } from "@/lib/student-transcode-dispatch";
 
 type RouteProps = { params: Promise<{ id: string }> };
@@ -95,13 +95,27 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
     return failure(requirements.recording_assignment_enabled ? "请先完成录音。" : "本课不需要录音。", 400);
   }
 
-  const photos = formData.getAll("photos").filter((item): item is File => item instanceof File);
-  const photoIds = formData.getAll("photoIds").map(String);
-  if (requirements.photo_assignment_enabled && (photos.length < 1 || photos.length > STUDENT_PHOTO_MAX_COUNT)) {
+  let uploadedPhotos: Array<{
+    id?: string;
+    path?: string;
+    fileName?: string;
+    mimeType?: string;
+    size?: number;
+  }> = [];
+  try {
+    const rawPhotos = String(formData.get("photosMetadata") ?? "[]");
+    const parsedPhotos: unknown = JSON.parse(rawPhotos);
+    if (!Array.isArray(parsedPhotos)) throw new Error("invalid photos");
+    uploadedPhotos = parsedPhotos;
+  } catch {
+    return failure("无法读取照片上传结果，请重新上传照片。", 400);
+  }
+  if (requirements.photo_assignment_enabled && (uploadedPhotos.length < 1 || uploadedPhotos.length > STUDENT_PHOTO_MAX_COUNT)) {
     return failure("请先选择 1 至 3 张照片。", 400);
   }
-  if (!requirements.photo_assignment_enabled && photos.length) return failure("本课不需要照片作业。", 400);
-  if (photos.length !== photoIds.length || new Set(photoIds).size !== photoIds.length || photoIds.some((id) => !uuidPattern.test(id))) {
+  if (!requirements.photo_assignment_enabled && uploadedPhotos.length) return failure("本课不需要照片作业。", 400);
+  const photoIds = uploadedPhotos.map((photo) => String(photo.id ?? ""));
+  if (new Set(photoIds).size !== photoIds.length || photoIds.some((id) => !uuidPattern.test(id))) {
     return failure("照片提交标识无效，请重新选择照片。", 400);
   }
 
@@ -138,21 +152,35 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
   }
 
   const photoMetadata: Array<Record<string, string | number>> = [];
-  for (const [index, photo] of photos.entries()) {
+  for (const [index, uploadedPhoto] of uploadedPhotos.entries()) {
+    const photo = {
+      name: String(uploadedPhoto.fileName ?? ""),
+      type: String(uploadedPhoto.mimeType ?? ""),
+      size: Number(uploadedPhoto.size),
+    };
     const validationError = validateStudentPhotoFile(photo);
     if (validationError) return failure(validationError, 400);
     const mimeType = getStudentPhotoMimeType(photo);
-    if (!mimeType || !(await hasStudentPhotoSignature(photo, mimeType))) {
-      return failure(`${photo.name || "所选文件"}的内容不是有效照片。`, 400);
+    const storagePath = String(uploadedPhoto.path ?? "");
+    const expectedPrefix = `${course.camp_id}/${auth.profile.id}/${course.id}/${assignmentId}/`;
+    const expectedExtension = getStudentPhotoExtension(photo);
+    const objectName = storagePath.slice(expectedPrefix.length);
+    if (
+      !mimeType
+      || !storagePath.startsWith(expectedPrefix)
+      || !new RegExp(`^[0-9a-f-]{36}\\.${expectedExtension}$`, "i").test(objectName)
+    ) {
+      return failure("照片上传路径与当前用户、训练营或课程不一致。", 403);
     }
-    const storagePath = buildStudentPhotoPath({
-      campId: course.camp_id,
-      userId: auth.profile.id,
-      courseId: course.id,
-      submissionId: assignmentId,
-      photoId: photoIds[index],
-      extension: getStudentPhotoExtension(photo),
+    const verification = await verifyStorageObject(supabase, STUDENT_PHOTO_BUCKET, storagePath, {
+      size: photo.size,
+      mimeType,
     });
+    if (!verification.object) return failure(verification.error || `无法核对第 ${index + 1} 张照片。`, 400);
+    if (!(await hasStudentPhotoSignature(new Blob([verification.object.firstBytes]), mimeType))) {
+      await supabase.storage.from(STUDENT_PHOTO_BUCKET).remove([storagePath]);
+      return failure(`${photo.name || "所选文件"}的内容不是有效照片，请重新选择。`, 400);
+    }
     photoMetadata.push({
       id: photoIds[index],
       storage_path: storagePath,
@@ -166,31 +194,19 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
   const intendedAudioPaths = audioPath ? [audioPath] : [];
   const intendedPhotoPaths = photoMetadata.map((photo) => String(photo.storage_path));
   if (intendedAudioPaths.length) await supabase.storage.from(STUDENT_RECORDING_BUCKET).remove(intendedAudioPaths);
-  if (intendedPhotoPaths.length) await supabase.storage.from(STUDENT_PHOTO_BUCKET).remove(intendedPhotoPaths);
 
   const uploadedAudioPaths: string[] = [];
-  const uploadedPhotoPaths: string[] = [];
+  const uploadedPhotoPaths = [...intendedPhotoPaths];
   if (hasAudio && audioMetadata) {
     const { error } = await supabase.storage.from(STUDENT_RECORDING_BUCKET).upload(audioPath, audio, {
       contentType: String(audioMetadata.mime_type),
       upsert: false,
     });
-    if (error) return failure("录音上传失败，请保留当前材料后重试。", 500);
-    uploadedAudioPaths.push(audioPath);
-  }
-
-  for (const [index, photo] of photos.entries()) {
-    const metadata = photoMetadata[index];
-    const { error } = await supabase.storage.from(STUDENT_PHOTO_BUCKET).upload(String(metadata.storage_path), photo, {
-      contentType: String(metadata.mime_type),
-      upsert: false,
-    });
     if (error) {
-      if (uploadedAudioPaths.length) await supabase.storage.from(STUDENT_RECORDING_BUCKET).remove(uploadedAudioPaths);
       if (uploadedPhotoPaths.length) await supabase.storage.from(STUDENT_PHOTO_BUCKET).remove(uploadedPhotoPaths);
-      return failure(`第 ${index + 1} 张照片上传失败；已清理本次文件，可以直接重试。`, 500);
+      return failure("录音上传失败，照片材料仍保留在本页，请直接重试。", 500);
     }
-    uploadedPhotoPaths.push(String(metadata.storage_path));
+    uploadedAudioPaths.push(audioPath);
   }
 
   const { data: completed, error: completionError } = await supabase.rpc("complete_student_assignment", {

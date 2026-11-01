@@ -3,7 +3,7 @@ export const COURSE_PDF_MAX_BYTES = 20 * 1024 * 1024;
 export const COURSE_PDF_SIGNED_URL_SECONDS = 60 * 60;
 
 export function validateCoursePdfFile(file: Pick<File, "name" | "size" | "type">) {
-  if (file.size <= 0) return "PDF 文件为空，请重新选择。";
+  if (!Number.isFinite(file.size) || file.size <= 0) return "PDF 文件为空，请重新选择。";
   if (file.size > COURSE_PDF_MAX_BYTES) return "PDF 文件不能超过 20 MB。";
   const hasPdfExtension = file.name.toLowerCase().endsWith(".pdf");
   if (file.type !== "application/pdf" && !(file.type === "" && hasPdfExtension)) {

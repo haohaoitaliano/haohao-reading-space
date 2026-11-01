@@ -21,7 +21,7 @@ export function getCourseVideoExtension(fileName: string, mimeType: string) {
 }
 
 export function validateCourseVideoFile(file: VideoFileLike) {
-  if (file.size <= 0) return "视频文件不能为空";
+  if (!Number.isFinite(file.size) || file.size <= 0) return "视频文件不能为空";
   if (file.size > COURSE_VIDEO_MAX_BYTES) return "视频文件不能超过 100 MB";
   if (!getCourseVideoExtension(file.name, file.type)) {
     return "请选择 MP4、MOV 或 WebM 视频文件";

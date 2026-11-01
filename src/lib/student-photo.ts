@@ -33,7 +33,7 @@ export function getStudentPhotoExtension(file: Pick<File, "name" | "type">) {
 }
 
 export function validateStudentPhotoFile(file: Pick<File, "name" | "size" | "type">) {
-  if (file.size <= 0) return `${file.name || "照片"}为空，请重新选择。`;
+  if (!Number.isFinite(file.size) || file.size <= 0) return `${file.name || "照片"}为空，请重新选择。`;
   if (file.size > STUDENT_PHOTO_MAX_BYTES) return `${file.name || "照片"}超过 5 MB。`;
   if (!getStudentPhotoMimeType(file)) return `${file.name || "所选文件"}不是支持的 JPG、PNG 或 HEIC 照片。`;
   return null;

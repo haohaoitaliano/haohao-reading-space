@@ -10,6 +10,7 @@ import {
   getCourseVideoMimeType,
   validateCourseVideoFile,
 } from "@/lib/course-video";
+import { verifyStorageObject } from "@/lib/storage-object-verification";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type RouteProps = { params: Promise<{ id: string }> };
@@ -54,30 +55,66 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
       : errorResponse("课程不存在。", 404);
   }
 
-  let formData: FormData;
+  let body: {
+    action?: string;
+    path?: string;
+    fileName?: string;
+    mimeType?: string;
+    size?: number;
+    durationSeconds?: number | null;
+  };
   try {
-    formData = await request.formData();
+    body = await request.json();
   } catch {
-    return errorResponse("无法读取上传文件。", 400);
+    return errorResponse("无法读取视频上传信息。", 400);
   }
 
-  const file = formData.get("video");
-  if (!(file instanceof File)) return errorResponse("请选择视频文件。", 400);
+  const file = {
+    name: String(body.fileName ?? ""),
+    type: String(body.mimeType ?? ""),
+    size: Number(body.size),
+  };
   const validationError = validateCourseVideoFile(file);
   if (validationError) return errorResponse(validationError, 400);
+  const extension = getCourseVideoExtension(file.name, file.type);
+  const mimeType = getCourseVideoMimeType(extension);
 
-  const durationValue = Number(formData.get("durationSeconds"));
+  if (body.action === "prepare") {
+    const storagePath = buildCourseVideoPath(
+      context.course.camp_id,
+      context.course.id,
+      extension,
+      `${Date.now()}-${crypto.randomUUID()}`,
+    );
+    const { data, error } = await context.supabase.storage
+      .from(COURSE_VIDEO_BUCKET)
+      .createSignedUploadUrl(storagePath);
+    if (error || !data?.token) {
+      logVideoUploadFailure("create signed upload failed", error);
+      return errorResponse("无法创建视频上传授权，请确认 Storage bucket 和大小限制配置。", 500);
+    }
+    return NextResponse.json({
+      success: true,
+      upload: { bucket: COURSE_VIDEO_BUCKET, path: storagePath, token: data.token, mimeType },
+    });
+  }
+
+  if (body.action !== "complete" || !body.path) return errorResponse("视频上传步骤无效，请重新上传。", 400);
+  const storagePath = String(body.path);
+  const expectedPrefix = `${context.course.camp_id}/${context.course.id}/demonstration-video-`;
+  if (!storagePath.startsWith(expectedPrefix) || !storagePath.endsWith(`.${extension}`)) {
+    return errorResponse("视频上传路径与当前课程不一致。", 403);
+  }
+  const verification = await verifyStorageObject(context.supabase, COURSE_VIDEO_BUCKET, storagePath, {
+    size: file.size,
+    mimeType,
+  });
+  if (!verification.object) return errorResponse(verification.error || "无法核对云端视频。", 400);
+
+  const durationValue = Number(body.durationSeconds);
   const durationSeconds = Number.isFinite(durationValue) && durationValue >= 0 && durationValue <= 86400
     ? durationValue
     : null;
-  const extension = getCourseVideoExtension(file.name, file.type);
-  const mimeType = getCourseVideoMimeType(extension);
-  const storagePath = buildCourseVideoPath(
-    context.course.camp_id,
-    context.course.id,
-    extension,
-    `${Date.now()}-${crypto.randomUUID()}`,
-  );
 
   const { data: previousVideo, error: previousError } = await context.supabase
     .from("course_videos")
@@ -87,14 +124,6 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
   if (previousError) {
     logVideoUploadFailure("read existing metadata failed", previousError);
     return errorResponse("无法读取当前视频信息，请确认视频数据库迁移已执行。", 500);
-  }
-
-  const { error: uploadError } = await context.supabase.storage
-    .from(COURSE_VIDEO_BUCKET)
-    .upload(storagePath, file, { contentType: mimeType, upsert: false });
-  if (uploadError) {
-    logVideoUploadFailure("storage upload failed", uploadError);
-    return errorResponse("视频上传失败，请确认视频 Storage bucket 已创建并稍后重试。", 500);
   }
 
   const { error: metadataError } = await context.supabase.from("course_videos").upsert({

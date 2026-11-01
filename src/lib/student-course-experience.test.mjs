@@ -104,18 +104,22 @@ test("course assignments use warm beginner guidance without changing assignment 
   assert.match(uploader, /multiple onChange=\{handleFiles\}/);
 });
 
-test("photo submission route checks active camp and cleans partial uploads", async () => {
+test("photo uploads use active-camp signed storage tickets and retire the server-upload route", async () => {
   const route = await readFile(
+    new URL("../app/api/student/courses/[id]/assignment-submissions/uploads/route.ts", import.meta.url),
+    "utf8",
+  );
+  const legacyRoute = await readFile(
     new URL("../app/api/student/courses/[id]/photo-submissions/route.ts", import.meta.url),
     "utf8",
   );
   assert.match(route, /getCurrentLearningSpace\(auth\.profile\.id\)/);
   assert.match(route, /course\.camp_id !== campResult\.camp\.id/);
   assert.match(route, /photo_assignment_enabled/);
-  assert.match(route, /hasStudentPhotoSignature/);
-  assert.match(route, /\.remove\(uploadedPaths\)/);
-  assert.match(route, /student_photo_submissions/);
-  assert.match(route, /student_submission_photos/);
+  assert.match(route, /buildStudentPhotoPath/);
+  assert.match(route, /createSignedUploadUrl\(item\.upload\.path\)/);
+  assert.doesNotMatch(route, /\.upload\(/);
+  assert.match(legacyRoute, /status: 410/);
 });
 
 test("unified assignment route is idempotent and cleans partial uploads before retry", async () => {
@@ -127,9 +131,31 @@ test("unified assignment route is idempotent and cleans partial uploads before r
   assert.match(route, /if \(existing\)/);
   assert.match(route, /retryRecovered: true/);
   assert.match(route, /complete_student_assignment/);
+  assert.match(route, /verifyStorageObject\(supabase, STUDENT_PHOTO_BUCKET/);
+  assert.doesNotMatch(route, /from\(STUDENT_PHOTO_BUCKET\)\.upload/);
   assert.match(route, /remove\(uploadedAudioPaths\)/);
   assert.match(route, /remove\(uploadedPhotoPaths\)/);
   assert.match(route, /dispatchStudentRecordingTranscode\(completed\.audio_submission_id\)/);
+});
+
+test("large course media and photos use signed TUS progress instead of Vercel request bodies", async () => {
+  const uploader = await readFile(new URL("./direct-storage-upload.ts", import.meta.url), "utf8");
+  const editor = await readFile(new URL("../components/TeacherCourseEditor.tsx", import.meta.url), "utf8");
+  const detail = await readFile(new URL("../components/StudentCourseDetail.tsx", import.meta.url), "utf8");
+  const pdfRoute = await readFile(
+    new URL("../app/api/teacher/courses/[id]/pdfs/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(uploader, /new Upload\(file/);
+  assert.match(uploader, /storage\/v1\/upload\/resumable/);
+  assert.match(uploader, /"x-signature": ticket\.token/);
+  assert.match(uploader, /onProgress\(bytesUploaded, bytesTotal\)/);
+  assert.match(editor, /uploadFileDirectly/);
+  assert.match(detail, /assignment-submissions\/uploads/);
+  assert.match(detail, /photosMetadata/);
+  assert.match(pdfRoute, /createSignedUploadUrl\(storagePath\)/);
+  assert.doesNotMatch(pdfRoute, /\.upload\(storagePath, file/);
 });
 
 test("unified photo relationships accept Supabase one-to-one object results", async () => {
