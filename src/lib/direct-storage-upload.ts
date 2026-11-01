@@ -1,7 +1,6 @@
 "use client";
 
-import { DetailedError, Upload } from "tus-js-client";
-import { getSupabaseConfig } from "@/lib/supabase/config";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export type DirectUploadTicket = {
   bucket: string;
@@ -13,63 +12,27 @@ export type DirectUploadTicket = {
 type UploadOptions = {
   file: File | Blob;
   ticket: DirectUploadTicket;
-  onProgress: (percentage: number) => void;
 };
 
-function getResumableEndpoint() {
-  const projectUrl = new URL(getSupabaseConfig().url);
-  if (projectUrl.hostname.endsWith(".supabase.co") && !projectUrl.hostname.endsWith(".storage.supabase.co")) {
-    projectUrl.hostname = projectUrl.hostname.replace(/\.supabase\.co$/, ".storage.supabase.co");
-  }
-  projectUrl.pathname = "/storage/v1/upload/resumable";
-  projectUrl.search = "";
-  projectUrl.hash = "";
-  return projectUrl.toString();
+function signedUploadErrorMessage(message: string) {
+  if (/already exists|duplicate/i.test(message)) return "云端已存在同名文件，请重新选择文件后上传。";
+  if (/unauthorized|forbidden|jwt|token|signature/i.test(message)) return "视频上传授权无效或已过期，请重新点击上传。";
+  if (/too large|exceeded|maximum|size/i.test(message)) return "视频超过云端存储允许的大小，请联系管理员检查限制。";
+  return "视频上传到云端失败，请保留当前文件并重试。";
 }
 
-function uploadErrorMessage(error: Error) {
-  const status = error instanceof DetailedError ? error.originalResponse?.getStatus() : undefined;
-  if (status === 401 || status === 403) return "上传授权已失效或当前账号没有权限，请重新点击上传。";
-  if (status === 409) return "云端已存在同名文件，请保留当前材料并重新点击上传。";
-  if (status === 413) return "文件超过 Supabase Storage 允许的大小，请联系管理员检查 bucket 和项目全局限制。";
-  if (typeof navigator !== "undefined" && !navigator.onLine) return "网络已断开，请恢复网络后重新上传。";
-  return "连接云端存储失败，请保留当前材料并重新上传。";
-}
-
-export function uploadFileDirectly({ file, ticket, onProgress }: UploadOptions) {
-  return new Promise<void>((resolve, reject) => {
-    const upload = new Upload(file, {
-      endpoint: getResumableEndpoint(),
-      headers: { "x-signature": ticket.token },
-      metadata: {
-        bucketName: ticket.bucket,
-        objectName: ticket.path,
-        contentType: ticket.mimeType,
-        cacheControl: "3600",
-      },
-      chunkSize: 6 * 1024 * 1024,
-      retryDelays: [0, 3_000, 5_000, 10_000, 20_000],
-      uploadDataDuringCreation: true,
-      removeFingerprintOnSuccess: true,
-      onProgress(bytesUploaded, bytesTotal) {
-        const percentage = bytesTotal > 0 ? Math.round((bytesUploaded / bytesTotal) * 100) : 0;
-        onProgress(Math.min(100, Math.max(0, percentage)));
-      },
-      onError(error) {
-        reject(new Error(uploadErrorMessage(error)));
-      },
-      onSuccess() {
-        onProgress(100);
-        resolve();
-      },
+export async function uploadFileDirectly({ file, ticket }: UploadOptions) {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.storage
+    .from(ticket.bucket)
+    .uploadToSignedUrl(ticket.path, ticket.token, file, {
+      cacheControl: "3600",
+      contentType: ticket.mimeType,
+      upsert: false,
     });
-
-    void upload.findPreviousUploads().then((previousUploads) => {
-      const previous = previousUploads.find((item) => item.uploadUrl);
-      if (previous) upload.resumeFromPreviousUpload(previous);
-      upload.start();
-    }).catch(() => upload.start());
-  });
+  if (error) {
+    throw new Error(signedUploadErrorMessage(error.message));
+  }
 }
 
 export async function readJsonResponse<T>(response: Response, fallback: string) {

@@ -69,7 +69,6 @@ export function TeacherCourseEditor({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadingVideo, setUploadingVideo] = useState(false);
-  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
   const [uploadingPdfs, setUploadingPdfs] = useState(false);
   const [pdfUploadProgress, setPdfUploadProgress] = useState(0);
   const [deletingAudio, setDeletingAudio] = useState(false);
@@ -141,7 +140,6 @@ export function TeacherCourseEditor({
     }
     setSelectedVideoFile(file);
     setSelectedVideoDuration(null);
-    setVideoUploadProgress(0);
     setError("");
     const objectUrl = URL.createObjectURL(file);
     const media = document.createElement("video");
@@ -227,7 +225,6 @@ export function TeacherCourseEditor({
   async function uploadVideo() {
     if (!selectedVideoFile || !initialCourse.id) return;
     setUploadingVideo(true);
-    setVideoUploadProgress(0);
     setError("");
     setMessage("");
 
@@ -246,7 +243,6 @@ export function TeacherCourseEditor({
       await uploadFileDirectly({
         file: selectedVideoFile,
         ticket: prepared.upload,
-        onProgress: setVideoUploadProgress,
       });
       const completeResponse = await fetch(`/api/teacher/courses/${initialCourse.id}/video`, {
         method: "POST",
@@ -265,7 +261,6 @@ export function TeacherCourseEditor({
       if (!result.video) throw new Error(result.message || "视频上传状态异常，请刷新页面确认。");
       setVideo(result.video);
       setSelectedVideoFile(null);
-      setVideoUploadProgress(100);
       setMessage(result.message);
       router.refresh();
     } catch (uploadError) {
@@ -303,48 +298,40 @@ export function TeacherCourseEditor({
     const uploaded: CloudCoursePdf[] = [];
 
     for (const [index, file] of selectedPdfFiles.entries()) {
-      try {
-        const uploadInfo = { fileName: file.name, mimeType: file.type, size: file.size };
-        const prepareResponse = await fetch(`/api/teacher/courses/${initialCourse.id}/pdfs`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "prepare", ...uploadInfo }),
-        });
-        const prepared = await readJsonResponse<{ pdfId: string; upload: DirectUploadTicket }>(
-          prepareResponse,
-          "无法创建 PDF 上传授权，请重试。",
-        );
-        await uploadFileDirectly({
-          file,
-          ticket: prepared.upload,
-          onProgress: (percentage) => {
-            setPdfUploadProgress(Math.round(((index + percentage / 100) / selectedPdfFiles.length) * 100));
-          },
-        });
-        const completeResponse = await fetch(`/api/teacher/courses/${initialCourse.id}/pdfs`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "complete",
-            pdfId: prepared.pdfId,
-            path: prepared.upload.path,
-            ...uploadInfo,
-          }),
-        });
-        const result = await readJsonResponse<{ success: boolean; message: string; pdf?: CloudCoursePdf }>(
-          completeResponse,
-          "PDF 已传到云端，但课程信息确认失败；请重试。",
-        );
-        if (!result.pdf) throw new Error(result.message || "PDF 上传状态异常，请刷新页面确认。");
-        uploaded.push(result.pdf);
-      } catch (uploadError) {
+      const result = await new Promise<{ success: boolean; message: string; pdf?: CloudCoursePdf }>((resolve) => {
+        const request = new XMLHttpRequest();
+        request.open("POST", `/api/teacher/courses/${initialCourse.id}/pdfs`);
+        request.upload.onprogress = (event) => {
+          if (!event.lengthComputable) return;
+          const fileProgress = event.loaded / event.total;
+          setPdfUploadProgress(Math.round(((index + fileProgress) / selectedPdfFiles.length) * 100));
+        };
+        request.onload = () => {
+          try {
+            const payload = JSON.parse(request.responseText) as { success?: boolean; message?: string; pdf?: CloudCoursePdf };
+            resolve({
+              success: request.status >= 200 && request.status < 300 && Boolean(payload.success),
+              message: payload.message ?? "PDF 上传失败，请重试。",
+              pdf: payload.pdf,
+            });
+          } catch {
+            resolve({ success: false, message: "PDF 上传失败，请稍后重试。" });
+          }
+        };
+        request.onerror = () => resolve({ success: false, message: "网络错误，PDF 上传失败。" });
+        const formData = new FormData();
+        formData.set("pdf", file);
+        request.send(formData);
+      });
+      if (!result.success || !result.pdf) {
         setPdfs((current) => [...current, ...uploaded]);
         setSelectedPdfFiles((current) => current.slice(index));
-        setError(`${file.name}：${uploadError instanceof Error ? uploadError.message : "上传失败"}；尚未上传的文件已保留，可直接重试。`);
+        setError(`${file.name}：${result.message}；尚未上传的文件已保留，可直接重试。`);
         setUploadingPdfs(false);
         router.refresh();
         return;
       }
+      uploaded.push(result.pdf);
     }
     setPdfs((current) => [...current, ...uploaded]);
     setSelectedPdfFiles([]);
@@ -610,8 +597,7 @@ export function TeacherCourseEditor({
               <button aria-label="取消选择视频" className="button ghost" onClick={() => setSelectedVideoFile(null)} type="button"><Trash2 size={18} /></button>
             </div>
             <video controls preload="metadata" src={videoPreviewUrl} style={{ width: "100%", borderRadius: 8 }} />
-            {uploadingVideo ? <div className="progress-bar" aria-label="视频上传进度"><span style={{ "--value": `${videoUploadProgress}%` } as React.CSSProperties} /></div> : null}
-            <button className="button full" disabled={uploadingVideo} onClick={uploadVideo} type="button"><Upload size={18} /> {uploadingVideo ? `上传中 ${videoUploadProgress}%` : "上传视频到云端"}</button>
+            <button className="button full" disabled={uploadingVideo} onClick={uploadVideo} type="button"><Upload size={18} /> {uploadingVideo ? "正在上传" : "上传视频到云端"}</button>
           </div>
         ) : null}
 
