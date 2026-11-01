@@ -30,3 +30,17 @@ test("camp lifecycle UI uses member count only and keeps a confirmation dialog",
   assert.match(source, /请先移除所有成员后再永久删除训练营/);
   assert.doesNotMatch(source, /totalUsage/);
 });
+
+test("camp info editing is admin-gated and leaves course unlock logic untouched", async () => {
+  const actions = await readFile(new URL("./camp-actions.ts", import.meta.url), "utf8");
+  const manager = await readFile(new URL("../../components/CampLifecycleManager.tsx", import.meta.url), "utf8");
+  const editor = await readFile(new URL("../../components/EditCampForm.tsx", import.meta.url), "utf8");
+
+  assert.match(actions, /export async function updateCampInfo/);
+  assert.match(actions, /await requireAdmin\(\)/);
+  assert.match(actions, /update_camp_info_admin/);
+  assert.match(actions, /结束时间必须晚于开始时间/);
+  assert.match(manager, /编辑训练营信息/);
+  assert.match(editor, /现有解锁算法不会改变/);
+  assert.match(editor, /不会自动停用训练营，也不会限制学生提交作业/);
+});

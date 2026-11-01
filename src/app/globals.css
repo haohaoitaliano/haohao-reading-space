@@ -517,6 +517,12 @@ p {
   text-underline-offset: 2px;
 }
 
+.camp-description {
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .audio-box {
   display: grid;
   gap: 12px;

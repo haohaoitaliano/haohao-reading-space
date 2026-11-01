@@ -1,10 +1,11 @@
 "use client";
 
-import { Archive, RotateCcw, Trash2 } from "lucide-react";
+import { Archive, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { permanentlyDeleteCamp, updateCampStatus } from "@/app/teacher/camp-actions";
+import { formatUnlockDateTime } from "@/lib/course-schedule";
 import type { ManagedCamp } from "@/lib/teacher-operations-data";
 
 export function CampLifecycleManager({ camps }: { camps: ManagedCamp[] }) {
@@ -58,6 +59,8 @@ export function CampLifecycleManager({ camps }: { camps: ManagedCamp[] }) {
                 <p className="kicker">{camp.slug}</p>
                 <h3>{camp.name}</h3>
                 <p style={{ margin: 0 }}>{camp.timezone} · 人数上限 {camp.maxStudents}</p>
+                <p style={{ margin: 0 }}>开始：{formatUnlockDateTime(camp.startsAt, camp.timezone)}</p>
+                <p style={{ margin: 0 }}>结束：{camp.endsAt ? formatUnlockDateTime(camp.endsAt, camp.timezone) : "未设置"}</p>
               </div>
               <span className={`pill ${camp.status === "active" ? "olive" : "muted"}`}>
                 {camp.status === "active" ? "开放中" : camp.status === "draft" ? "草稿" : "已停用"}
@@ -70,6 +73,10 @@ export function CampLifecycleManager({ camps }: { camps: ManagedCamp[] }) {
               <div className="metric"><strong>{camp.counts.submissions}</strong><span>提交</span></div>
             </div>
             {camp.counts.meetings ? <p className="notice">包含 {camp.counts.meetings} 场线上会议。</p> : null}
+            {camp.description ? <p className="camp-description">{camp.description}</p> : null}
+            <Link className="button ghost full" href={`/teacher/camps/${camp.id}/edit`}>
+              <Pencil size={18} /> 编辑训练营信息
+            </Link>
             {camp.status === "active" ? (
               <button className="button secondary full" disabled={isBusy} onClick={() => setStatus(camp.id, "archived")} type="button">
                 <Archive size={18} /> 停用训练营

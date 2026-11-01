@@ -86,6 +86,41 @@ function revalidateCampViews() {
   revalidatePath("/weekly");
 }
 
+export async function updateCampInfo(input: {
+  campId: string;
+  name: string;
+  maxStudents: number;
+  startsAtLocal: string;
+  endsAtLocal: string;
+  description: string;
+}): Promise<CampScheduleActionResult> {
+  await requireAdmin();
+  if (!input.name.trim()) return { success: false, message: "请输入训练营名称。" };
+  if (input.name.trim().length > 120) return { success: false, message: "训练营名称不能超过 120 个字符。" };
+  if (!Number.isInteger(input.maxStudents) || input.maxStudents < 1) {
+    return { success: false, message: "人数上限必须大于 0。" };
+  }
+  if (!input.startsAtLocal) return { success: false, message: "请选择训练营开始时间。" };
+  if (input.endsAtLocal && input.endsAtLocal <= input.startsAtLocal) {
+    return { success: false, message: "结束时间必须晚于开始时间。" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("update_camp_info_admin", {
+    target_camp_id: input.campId,
+    camp_name: input.name.trim(),
+    student_limit: input.maxStudents,
+    local_starts_at: input.startsAtLocal,
+    local_ends_at: input.endsAtLocal || null,
+    camp_description: input.description.trim(),
+  });
+  if (error) return { success: false, message: "训练营信息保存失败，请稍后重试。" };
+
+  revalidateCampViews();
+  revalidatePath(`/teacher/camps/${input.campId}/edit`);
+  return { success: true, message: "训练营信息已保存。" };
+}
+
 async function removeStoragePaths(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   bucket: string,
