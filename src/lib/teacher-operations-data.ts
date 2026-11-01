@@ -38,6 +38,7 @@ export type WeeklyMeeting = {
   title: string;
   scheduledAt: string;
   meetingUrl: string;
+  meetingNumber: string;
   description: string;
 };
 
@@ -49,7 +50,7 @@ type InviteRow = {
 
 type MeetingRow = {
   id: string; camp_id: string; title: string; scheduled_at: string;
-  meeting_url: string; description: string | null;
+  meeting_url: string | null; meeting_number: string | null; description: string | null;
   camps: { name: string; timezone: string } | null;
 };
 
@@ -61,7 +62,8 @@ function mapMeeting(row: MeetingRow): WeeklyMeeting {
     timezone: row.camps?.timezone ?? "Europe/Rome",
     title: row.title,
     scheduledAt: row.scheduled_at,
-    meetingUrl: row.meeting_url,
+    meetingUrl: row.meeting_url ?? "",
+    meetingNumber: row.meeting_number ?? "",
     description: row.description ?? "",
   };
 }
@@ -167,7 +169,7 @@ export async function getAdminMeetingData() {
     getAdminCampOptions(),
     supabase
       .from("weekly_meetings")
-      .select("id, camp_id, title, scheduled_at, meeting_url, description, camps(name, timezone)")
+      .select("id, camp_id, title, scheduled_at, meeting_url, meeting_number, description, camps(name, timezone)")
       .order("scheduled_at", { ascending: false }),
   ]);
   return {
@@ -183,7 +185,7 @@ export async function getStudentMeetingData(userId: string) {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("weekly_meetings")
-    .select("id, camp_id, title, scheduled_at, meeting_url, description, camps(name, timezone)")
+    .select("id, camp_id, title, scheduled_at, meeting_url, meeting_number, description, camps(name, timezone)")
     .eq("camp_id", campResult.camp.id)
     .order("scheduled_at", { ascending: true });
   if (error) return { state: "database_error" as const, camp: campResult.camp, meetings: [] };

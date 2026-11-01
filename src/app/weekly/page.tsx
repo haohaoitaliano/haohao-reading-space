@@ -1,8 +1,10 @@
 import { CalendarDays, ExternalLink } from "lucide-react";
 import { AppFrame } from "@/components/AppFrame";
 import { Header } from "@/components/Header";
+import { MeetingNumber } from "@/components/MeetingNumber";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { formatUnlockDateTime } from "@/lib/course-schedule";
+import { splitMeetingDescription } from "@/lib/meeting-details";
 import { getStudentMeetingData } from "@/lib/teacher-operations-data";
 
 export default async function WeeklyPage() {
@@ -18,8 +20,11 @@ export default async function WeeklyPage() {
     <div className="stack">{result.meetings.map((meeting) => <article className="quiet-card stack" key={meeting.id}>
       <div className="row start"><div><p className="kicker">Weekly Meeting</p><h2>{meeting.title}</h2></div><CalendarDays color="var(--sky)" /></div>
       <p>{formatUnlockDateTime(meeting.scheduledAt, meeting.timezone)}（{meeting.timezone}）</p>
-      {meeting.description ? <p>{meeting.description}</p> : null}
-      <a className="button full" href={meeting.meetingUrl} rel="noreferrer" target="_blank"><ExternalLink size={18} /> 打开会议链接</a>
+      {meeting.description ? <p className="meeting-description">{splitMeetingDescription(meeting.description).map((part, index) => part.type === "link"
+        ? <a href={part.value} key={`${part.value}-${index}`} rel="noreferrer" target="_blank">{part.value}</a>
+        : part.value)}</p> : null}
+      {meeting.meetingNumber ? <MeetingNumber value={meeting.meetingNumber} /> : null}
+      {meeting.meetingUrl ? <a className="button full" href={meeting.meetingUrl} rel="noreferrer" target="_blank"><ExternalLink size={18} /> 加入会议</a> : null}
     </article>)}</div>
   </section></AppFrame>;
 }

@@ -500,6 +500,23 @@ p {
   white-space: pre-wrap;
 }
 
+.meeting-description,
+.meeting-number p,
+.copy-status {
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+}
+
+.meeting-description {
+  white-space: pre-wrap;
+}
+
+.meeting-description a {
+  color: var(--accent-deep);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .audio-box {
   display: grid;
   gap: 12px;

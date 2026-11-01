@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
+import { getMeetingConnectionError } from "@/lib/meeting-details";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type MeetingActionResult = { success: boolean; message: string };
@@ -12,17 +13,14 @@ export async function saveWeeklyMeeting(input: {
   title: string;
   scheduledAtLocal: string;
   meetingUrl: string;
+  meetingNumber: string;
   description: string;
 }): Promise<MeetingActionResult> {
   await requireAdmin();
   if (!input.title.trim()) return { success: false, message: "请输入会议标题。" };
   if (!input.scheduledAtLocal) return { success: false, message: "请选择会议时间。" };
-  try {
-    const url = new URL(input.meetingUrl);
-    if (!(["http:", "https:"] as string[]).includes(url.protocol)) throw new Error();
-  } catch {
-    return { success: false, message: "请输入有效的会议链接。" };
-  }
+  const connectionError = getMeetingConnectionError(input.meetingUrl, input.meetingNumber);
+  if (connectionError) return { success: false, message: connectionError };
 
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("save_weekly_meeting_admin", {
@@ -30,8 +28,9 @@ export async function saveWeeklyMeeting(input: {
     target_camp_id: input.campId,
     meeting_title: input.title.trim(),
     local_scheduled_at: input.scheduledAtLocal,
-    target_meeting_url: input.meetingUrl.trim(),
+    target_meeting_url: input.meetingUrl.trim() || null,
     meeting_description: input.description.trim(),
+    target_meeting_number: input.meetingNumber.trim() || null,
   });
   if (error) return { success: false, message: "会议保存失败，请稍后重试。" };
   revalidatePath("/teacher/meetings");

@@ -17,6 +17,7 @@ function MeetingEditor({ camps, meeting }: { camps: CloudCamp[]; meeting?: Weekl
     meeting ? formatDateTimeLocalInZone(meeting.scheduledAt, meeting.timezone) : "",
   );
   const [meetingUrl, setMeetingUrl] = useState(meeting?.meetingUrl ?? "");
+  const [meetingNumber, setMeetingNumber] = useState(meeting?.meetingNumber ?? "");
   const [description, setDescription] = useState(meeting?.description ?? "");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -24,7 +25,7 @@ function MeetingEditor({ camps, meeting }: { camps: CloudCamp[]; meeting?: Weekl
 
   async function save() {
     setBusy(true); setMessage(""); setError("");
-    const result = await saveWeeklyMeeting({ id: meeting?.id ?? null, campId, title, scheduledAtLocal, meetingUrl, description });
+    const result = await saveWeeklyMeeting({ id: meeting?.id ?? null, campId, title, scheduledAtLocal, meetingUrl, meetingNumber, description });
     if (result.success) { setMessage(result.message); router.refresh(); }
     else setError(result.message);
     setBusy(false);
@@ -45,7 +46,8 @@ function MeetingEditor({ camps, meeting }: { camps: CloudCamp[]; meeting?: Weekl
       </label>
       <label className="field">会议标题<input onChange={(event) => setTitle(event.target.value)} value={title} /></label>
       <label className="field">会议时间（训练营当地时间）<input onChange={(event) => setScheduledAtLocal(event.target.value)} type="datetime-local" value={scheduledAtLocal} /></label>
-      <label className="field">会议链接<input inputMode="url" onChange={(event) => setMeetingUrl(event.target.value)} placeholder="https://..." value={meetingUrl} /></label>
+      <label className="field">会议链接（选填）<input inputMode="url" onChange={(event) => setMeetingUrl(event.target.value)} placeholder="https://..." value={meetingUrl} /></label>
+      <label className="field">腾讯会议 / VOOV 会议号（选填）<input onChange={(event) => setMeetingNumber(event.target.value)} value={meetingNumber} /></label>
       <label className="field">说明<textarea onChange={(event) => setDescription(event.target.value)} rows={4} value={description} /></label>
       {error ? <p className="notice" role="alert">{error}</p> : null}
       {message ? <p className="success-notice" role="status">{message}</p> : null}
