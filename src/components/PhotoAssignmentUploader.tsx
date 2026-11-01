@@ -56,11 +56,10 @@ export function PhotoAssignmentUploader({ onPreparedChange }: {
   }
 
   return (
-    <section className="quiet-card stack" aria-label="照片作业">
+    <section className="quiet-card assignment-panel handwriting-assignment stack" aria-labelledby="handwriting-assignment-title">
       <div>
-        <p className="kicker">照片作业</p>
-        <h2 style={{ marginBottom: 4 }}>准备手写作业照片</h2>
-        <p style={{ margin: 0 }}>选择后先预览；最后使用页面底部的“提交作业”。</p>
+        <h2 id="handwriting-assignment-title">手写输出</h2>
+        <p className="assignment-guidance">拿出纸和笔，写下今天学到的意大利语，再拍照上传吧！</p>
       </div>
       <div className="grid-two photo-picker-actions">
         <label className="button secondary upload-picker">

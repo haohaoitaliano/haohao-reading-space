@@ -568,6 +568,62 @@ p {
   gap: 12px;
 }
 
+.assignment-transition {
+  padding: 18px 16px;
+  overflow-wrap: anywhere;
+  background: linear-gradient(135deg, #f7eddf 0%, #f1f0df 100%);
+  border: 1px solid #ded9bd;
+  border-radius: 8px;
+  box-shadow: 0 10px 26px rgba(83, 62, 42, 0.07);
+}
+
+.assignment-transition h2 {
+  margin-bottom: 8px;
+}
+
+.assignment-transition p:not(.kicker) {
+  margin-bottom: 2px;
+  line-height: 1.55;
+}
+
+.assignment-transition p:last-child {
+  margin-bottom: 0;
+}
+
+.assignment-panel {
+  position: relative;
+  overflow: hidden;
+  border-left: 4px solid var(--accent);
+}
+
+.handwriting-assignment {
+  border-left-color: var(--olive);
+}
+
+.assignment-panel-heading {
+  align-items: flex-start;
+}
+
+.assignment-panel-heading > div {
+  min-width: 0;
+}
+
+.assignment-panel h2 {
+  margin-bottom: 6px;
+}
+
+.assignment-guidance {
+  margin: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+
+.assignment-limit {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .record-status {
   display: flex;
   align-items: center;

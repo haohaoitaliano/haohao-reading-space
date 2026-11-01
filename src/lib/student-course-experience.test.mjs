@@ -78,6 +78,32 @@ test("photo homework accepts camera and gallery input while unified submission r
   assert.match(detail, /材料仍保留在本页，请直接重试/);
 });
 
+test("course assignments use warm beginner guidance without changing assignment capabilities", async () => {
+  const recorder = await readFile(new URL("../components/BrowserRecorder.tsx", import.meta.url), "utf8");
+  const uploader = await readFile(new URL("../components/PhotoAssignmentUploader.tsx", import.meta.url), "utf8");
+  const detail = await readFile(new URL("../components/StudentCourseDetail.tsx", import.meta.url), "utf8");
+
+  assert.match(detail, /Tocca a te!/);
+  assert.match(detail, /现在轮到你啦！🌱/);
+  assert.match(detail, /听完老师的示范，试着自己读一读、写一写吧。/);
+  assert.match(detail, /不用担心不够完美，我们一步一步来。/);
+  assert.match(detail, /hasAssignment \? \(/);
+
+  assert.match(recorder, />口语输出</);
+  assert.match(recorder, /跟着老师的示范，大声读出来吧！可以反复练习，选择满意的一次提交。/);
+  assert.doesNotMatch(recorder, /主要方式 · 网页直接录音/);
+  assert.doesNotMatch(recorder, /录一次，也可以再来一次/);
+  assert.match(recorder, /state !== "idle" \|\| hasSubmitted/);
+  assert.match(recorder, /无法直接录音？上传已有音频/);
+
+  assert.match(uploader, />手写输出</);
+  assert.match(uploader, /拿出纸和笔，写下今天学到的意大利语，再拍照上传吧！/);
+  assert.doesNotMatch(uploader, /照片作业/);
+  assert.doesNotMatch(uploader, /准备手写作业照片/);
+  assert.match(uploader, /capture="environment"/);
+  assert.match(uploader, /multiple onChange=\{handleFiles\}/);
+});
+
 test("photo submission route checks active camp and cleans partial uploads", async () => {
   const route = await readFile(
     new URL("../app/api/student/courses/[id]/photo-submissions/route.ts", import.meta.url),
@@ -147,7 +173,7 @@ test("recorder enforces the task maximum while target duration remains feedback"
   assert.match(recorder, /elapsed >= maxDurationSeconds/);
   assert.match(recorder, /录音已自动停止/);
   assert.match(recorder, /getRecordingTargetFeedback\(duration, targetDurationSeconds\)/);
-  assert.match(recorder, /主要方式 · 网页直接录音/);
+  assert.match(recorder, />口语输出</);
   assert.match(recorder, /无法直接录音？上传已有音频/);
   assert.match(recorder, /仅支持 M4A \/ MP3，最大 3 MB/);
   assert.match(route, /source === "manual_upload"[\s\S]*validateManualStudentRecordingFile/);

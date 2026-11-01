@@ -277,12 +277,12 @@ export function BrowserRecorder({
     : null;
 
   return (
-    <section className={`quiet-card record-panel recorder-${state}`}>
-      <div className="row">
+    <section className={`quiet-card assignment-panel oral-assignment record-panel recorder-${state}`} aria-labelledby="oral-assignment-title">
+      <div className="row assignment-panel-heading">
         <div>
-          <p className="kicker">主要方式 · 网页直接录音</p>
-          <h2 style={{ marginBottom: 0 }}>录一次，也可以再来一次</h2>
-          <p style={{ margin: "6px 0 0" }}>
+          <h2 id="oral-assignment-title">口语输出</h2>
+          <p className="assignment-guidance">跟着老师的示范，大声读出来吧！可以反复练习，选择满意的一次提交。</p>
+          <p className="assignment-limit">
             最大录制时长：{formatRecordingDuration(maxDurationSeconds)}
             {targetDurationSeconds ? ` · 🎯 目标：${targetDurationSeconds} 秒以内` : ""}
           </p>
@@ -290,9 +290,11 @@ export function BrowserRecorder({
             <small>在保持发音准确、清晰、自然的同时完成挑战，不是越快越好。</small>
           ) : null}
         </div>
-        <span className={`pill ${state === "recording" ? "recording-pill" : hasSubmitted ? "olive" : "sky"}`}>
-          {statusLabel}
-        </span>
+        {state !== "idle" || hasSubmitted ? (
+          <span className={`pill ${state === "recording" ? "recording-pill" : hasSubmitted ? "olive" : "sky"}`}>
+            {statusLabel}
+          </span>
+        ) : null}
       </div>
 
       <div className={`record-status ${state === "recording" ? "is-recording" : ""}`} aria-live="polite">

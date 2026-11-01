@@ -206,6 +206,15 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
             </section>
           ) : null}
 
+          {hasAssignment ? (
+            <section className="assignment-transition" aria-labelledby="assignment-transition-title">
+              <p className="kicker" lang="it">Tocca a te!</p>
+              <h2 id="assignment-transition-title">现在轮到你啦！🌱</h2>
+              <p>听完老师的示范，试着自己读一读、写一写吧。</p>
+              <p>不用担心不够完美，我们一步一步来。</p>
+            </section>
+          ) : null}
+
           {course.recordingAssignmentEnabled ? (
             <BrowserRecorder
               latestSubmission={latestSubmission}
