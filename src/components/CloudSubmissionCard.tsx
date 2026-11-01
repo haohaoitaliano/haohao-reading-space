@@ -24,12 +24,14 @@ export function CloudSubmissionCard({
   manageable = false,
   showInteractions = false,
   assignmentId,
+  focusCommentId,
   photos = [],
 }: {
   submission: CloudSubmission;
   manageable?: boolean;
   showInteractions?: boolean;
   assignmentId?: string;
+  focusCommentId?: string;
   photos?: CloudPhotoSubmission["photos"];
 }) {
   const router = useRouter();
@@ -213,7 +215,7 @@ export function CloudSubmissionCard({
               <Trash2 size={17} />删除此次提交
             </button>
           ) : null}
-          {showInteractions ? <SubmissionInteractions showEncouragement={submission.isOwn !== undefined} submission={submission} /> : null}
+          {showInteractions ? <SubmissionInteractions focusCommentId={focusCommentId} showEncouragement={submission.isOwn !== undefined} submission={submission} /> : null}
           {message ? <p className="notice" role="status">{message}</p> : null}
         </div>
       </div>

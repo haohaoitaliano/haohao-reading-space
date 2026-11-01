@@ -2,6 +2,7 @@ import { ArrowRight, BookOpenCheck, ChartNoAxesColumnIncreasing, Mic2, Repeat2 }
 import Link from "next/link";
 import { AppFrame } from "@/components/AppFrame";
 import { Header } from "@/components/Header";
+import { StudentMessageEntry } from "@/components/StudentMessageUnread";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { getStudentCampProgress } from "@/lib/student-camp-progress";
 
@@ -47,6 +48,8 @@ export default async function ProgressPage() {
           </Link>
           <div className="metric"><Repeat2 /><strong>{value(stats.resubmissions)}</strong><span>重新提交</span></div>
         </section>
+
+        <StudentMessageEntry />
 
         <Link className="button secondary full" href="/profile" style={{ marginTop: 14 }}>查看个人资料</Link>
       </section>

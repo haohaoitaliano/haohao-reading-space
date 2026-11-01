@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { countSubmissionCommentsByTarget } from "./circle-submission";
 import { STUDENT_PHOTO_BUCKET, STUDENT_PHOTO_SIGNED_URL_SECONDS } from "./student-photo";
 import { createSupabaseServerClient } from "./supabase/server";
 
@@ -68,6 +69,7 @@ export type CloudUnifiedAssignment = CloudPhotoSubmission & {
   assignmentId: string;
   hasRecording: boolean;
   visibility: "public" | "teacher_only";
+  commentCount: number;
 };
 
 const selection = "id, camp_id, course_id, user_id, student_display_name, version, created_at, courses(day_number, italian_title), student_submission_photos(id, storage_path, file_name, mime_type, size_bytes, position)";
@@ -112,7 +114,12 @@ async function mapSubmission(supabase: SupabaseClient, row: PhotoSubmissionRow, 
   } satisfies CloudPhotoSubmission;
 }
 
-async function mapUnifiedAssignment(supabase: SupabaseClient, row: UnifiedAssignmentRow, currentUserId?: string) {
+async function mapUnifiedAssignment(
+  supabase: SupabaseClient,
+  row: UnifiedAssignmentRow,
+  currentUserId?: string,
+  commentCounts = new Map<string, number>(),
+) {
   const photoSubmission = Array.isArray(row.student_photo_submissions)
     ? row.student_photo_submissions[0]
     : row.student_photo_submissions;
@@ -132,6 +139,7 @@ async function mapUnifiedAssignment(supabase: SupabaseClient, row: UnifiedAssign
     assignmentId: row.id,
     hasRecording: row.has_recording,
     visibility: row.visibility,
+    commentCount: commentCounts.get(row.id) ?? 0,
   } satisfies CloudUnifiedAssignment;
 }
 
@@ -179,8 +187,18 @@ export async function getCampUnifiedAssignments(campId: string, currentUserId: s
     .or(`visibility.eq.public,user_id.eq.${currentUserId}`)
     .order("created_at", { ascending: false });
   if (error) return { assignments: [] as CloudUnifiedAssignment[], error: true };
+  const rows = (data ?? []) as unknown as UnifiedAssignmentRow[];
+  const assignmentIds = rows.map((row) => row.id);
+  const { data: commentRows, error: commentError } = assignmentIds.length
+    ? await supabase
+      .from("submission_comments")
+      .select("submission_id, assignment_submission_id")
+      .or(`submission_id.in.(${assignmentIds.join(",")}),assignment_submission_id.in.(${assignmentIds.join(",")})`)
+    : { data: [], error: null };
+  if (commentError) return { assignments: [] as CloudUnifiedAssignment[], error: true };
+  const commentCounts = countSubmissionCommentsByTarget(commentRows ?? []);
   return {
-    assignments: await Promise.all(((data ?? []) as unknown as UnifiedAssignmentRow[]).map((row) => mapUnifiedAssignment(supabase, row, currentUserId))),
+    assignments: await Promise.all(rows.map((row) => mapUnifiedAssignment(supabase, row, currentUserId, commentCounts))),
     error: false,
   };
 }
@@ -194,8 +212,18 @@ export async function getOwnUnifiedAssignments(userId: string, campId: string) {
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
   if (error) return { assignments: [] as CloudUnifiedAssignment[], error: true };
+  const rows = (data ?? []) as unknown as UnifiedAssignmentRow[];
+  const assignmentIds = rows.map((row) => row.id);
+  const { data: commentRows, error: commentError } = assignmentIds.length
+    ? await supabase
+      .from("submission_comments")
+      .select("submission_id, assignment_submission_id")
+      .or(`submission_id.in.(${assignmentIds.join(",")}),assignment_submission_id.in.(${assignmentIds.join(",")})`)
+    : { data: [], error: null };
+  if (commentError) return { assignments: [] as CloudUnifiedAssignment[], error: true };
+  const commentCounts = countSubmissionCommentsByTarget(commentRows ?? []);
   return {
-    assignments: await Promise.all(((data ?? []) as unknown as UnifiedAssignmentRow[]).map((row) => mapUnifiedAssignment(supabase, row, userId))),
+    assignments: await Promise.all(rows.map((row) => mapUnifiedAssignment(supabase, row, userId, commentCounts))),
     error: false,
   };
 }

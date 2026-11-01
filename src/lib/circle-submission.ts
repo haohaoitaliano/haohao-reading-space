@@ -47,6 +47,23 @@ export type SubmissionComment = {
   imageUrl: string | null;
 };
 
+export type SubmissionCommentTargetRow = {
+  submission_id: string | null;
+  assignment_submission_id: string | null;
+};
+
+export function countSubmissionCommentsByTarget(rows: SubmissionCommentTargetRow[]) {
+  const counts = new Map<string, number>();
+
+  for (const row of rows) {
+    const targetId = row.assignment_submission_id ?? row.submission_id;
+    if (!targetId) continue;
+    counts.set(targetId, (counts.get(targetId) ?? 0) + 1);
+  }
+
+  return counts;
+}
+
 export function toCloudSubmission(
   row: SubmissionPresentationRow,
   currentUserId?: string,

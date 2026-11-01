@@ -1,7 +1,7 @@
 "use client";
 
 import { Reply, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CloudSubmission, SubmissionComment } from "@/lib/circle-submission";
 import {
   countCommentCharacters,
@@ -12,6 +12,7 @@ import {
   SubmissionCommentMediaPicker,
   type PreparedCommentAudio,
 } from "./SubmissionCommentMediaPicker";
+import { useStudentMessageUnread } from "./StudentMessageUnread";
 
 type ApiMessage = { message?: string };
 
@@ -79,14 +80,24 @@ function uploadComment(endpoint: string, formData: FormData, onProgress: (progre
   });
 }
 
-export function SubmissionInteractions({ submission, showEncouragement = true }: { submission: CloudSubmission; showEncouragement?: boolean }) {
+export function SubmissionInteractions({
+  submission,
+  showEncouragement = true,
+  focusCommentId,
+}: {
+  submission: CloudSubmission;
+  showEncouragement?: boolean;
+  focusCommentId?: string;
+}) {
   const endpoint = `/api/student/submissions/${encodeURIComponent(submission.id)}/comments`;
+  const { setUnreadCount } = useStudentMessageUnread();
   const [encouragementCount, setEncouragementCount] = useState(submission.encouragementCount);
   const [hasEncouraged, setHasEncouraged] = useState(submission.hasEncouraged);
   const [encouragementBusy, setEncouragementBusy] = useState(false);
-  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(Boolean(focusCommentId));
   const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [comments, setComments] = useState(submission.comments);
+  const [commentCount, setCommentCount] = useState(submission.commentCount);
   const [content, setContent] = useState("");
   const [audio, setAudio] = useState<PreparedCommentAudio | null>(null);
   const [image, setImage] = useState<File | null>(null);
@@ -97,21 +108,51 @@ export function SubmissionInteractions({ submission, showEncouragement = true }:
   const [deletingCommentId, setDeletingCommentId] = useState("");
   const [lightboxUrl, setLightboxUrl] = useState("");
   const [message, setMessage] = useState("");
+  const focusedCommentHandledRef = useRef(false);
+  const focusedCommentLoadStartedRef = useRef(false);
   const characterCount = countCommentCharacters(content);
   const validationError = validateSubmissionComment(content, Boolean(audio || image));
 
-  async function loadComments() {
+  const loadComments = useCallback(async () => {
     setMessage("");
     try {
       const response = await fetch(endpoint, { cache: "no-store" });
       const result = await readJson<{ comments?: SubmissionComment[] }>(response);
       if (!response.ok || !result.comments) throw new Error(result.message || "评论暂时无法读取。");
       setComments(result.comments);
+      setCommentCount(result.comments.length);
       setCommentsLoaded(true);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "评论暂时无法读取。");
     }
-  }
+  }, [endpoint]);
+
+  useEffect(() => {
+    if (!focusCommentId || focusedCommentLoadStartedRef.current) return;
+    focusedCommentLoadStartedRef.current = true;
+    void loadComments();
+  }, [focusCommentId, loadComments]);
+
+  useEffect(() => {
+    if (!commentsLoaded || !focusCommentId || focusedCommentHandledRef.current) return;
+    if (!comments.some((comment) => comment.id === focusCommentId)) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      const element = document.getElementById(`comment-${focusCommentId}`);
+      if (!element) return;
+      focusedCommentHandledRef.current = true;
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      element.focus({ preventScroll: true });
+      void fetch(`/api/student/messages/${encodeURIComponent(focusCommentId)}/read`, { method: "POST" })
+        .then(async (response) => {
+          if (!response.ok) return;
+          const result = await readJson<{ unreadCount?: number }>(response);
+          if (typeof result.unreadCount === "number") setUnreadCount(result.unreadCount);
+        })
+        .catch(() => undefined);
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [comments, commentsLoaded, focusCommentId, setUnreadCount]);
 
   async function toggleComments() {
     const next = !commentsOpen;
@@ -159,6 +200,7 @@ export function SubmissionInteractions({ submission, showEncouragement = true }:
       const { response, result } = await uploadComment(endpoint, formData, setUploadProgress);
       if (!response.ok || !result.comment) throw new Error(result.message || "评论发送失败，附件仍保留，可以重试。");
       setComments((current) => [...current, result.comment!]);
+      setCommentCount((current) => current + 1);
       setContent("");
       setAudio(null);
       setImage(null);
@@ -182,6 +224,7 @@ export function SubmissionInteractions({ submission, showEncouragement = true }:
       const result = await readJson<Record<string, never>>(response);
       if (!response.ok) throw new Error(result.message || "删除评论失败，请稍后重试。");
       setComments((current) => current.filter((comment) => comment.id !== commentId));
+      setCommentCount((current) => Math.max(0, current - 1));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "删除评论失败，请稍后重试。");
     } finally { setDeletingCommentId(""); }
@@ -193,12 +236,12 @@ export function SubmissionInteractions({ submission, showEncouragement = true }:
         {!showEncouragement ? null : submission.isOwn ? <span className="submission-interaction-static">👏 鼓励 {encouragementCount}</span> : (
           <button aria-pressed={hasEncouraged} className="submission-interaction-button" disabled={encouragementBusy} onClick={() => void toggleEncouragement()} type="button">👏 {hasEncouraged ? "已鼓励" : "鼓励"} {encouragementCount}</button>
         )}
-        <button aria-expanded={commentsOpen} className="submission-interaction-button" onClick={() => void toggleComments()} type="button">💬 评论 {commentsLoaded ? comments.length : submission.commentCount}</button>
+        <button aria-expanded={commentsOpen} className="submission-interaction-button" onClick={() => void toggleComments()} type="button">💬 评论 {commentCount}</button>
       </div>
 
       {commentsOpen ? <div className="submission-comments">
         {comments.length ? <div className="submission-comment-list">{comments.map((comment) => (
-          <article className={`submission-comment ${comment.parentCommentId ? "is-reply" : ""}`} key={comment.id}>
+          <article className={`submission-comment ${comment.parentCommentId ? "is-reply" : ""}${comment.id === focusCommentId ? " is-focused" : ""}`} id={`comment-${comment.id}`} key={comment.id} tabIndex={comment.id === focusCommentId ? -1 : undefined}>
             <header><strong>{comment.authorName}</strong>{comment.authorRole === "admin" ? <span className="pill olive">管理员</span> : null}<time dateTime={comment.createdAt}>{formatCommentTime(comment.createdAt)}</time></header>
             {comment.replyToAuthorName ? <p className="comment-reply-target">回复 {comment.replyToAuthorName}</p> : null}
             {comment.content ? <p className="comment-content">{comment.content}</p> : null}

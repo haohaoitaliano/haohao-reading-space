@@ -93,7 +93,7 @@ export default async function MyWorkPage() {
                 isOwn: true,
                 encouragementCount: 0,
                 hasEncouraged: false,
-                commentCount: 0,
+                commentCount: assignment.commentCount,
                 comments: [],
               }}
             />

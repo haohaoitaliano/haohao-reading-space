@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   buildCircleSubmissions,
+  countSubmissionCommentsByTarget,
   toCloudSubmission,
   type CloudSubmission,
   type SubmissionPresentationRow,
@@ -33,7 +34,8 @@ type EncouragementRow = {
 
 type CommentRow = {
   id: string;
-  submission_id: string;
+  submission_id: string | null;
+  assignment_submission_id: string | null;
   user_id: string;
   author_display_name: string;
   content: string;
@@ -154,8 +156,8 @@ export async function getCampCircleSubmissions(campId: string, currentUserId: st
       .in("submission_id", publicSubmissionIds),
     supabase
       .from("submission_comments")
-      .select("id, submission_id, user_id, author_display_name, content, created_at")
-      .in("submission_id", publicSubmissionIds)
+      .select("id, submission_id, assignment_submission_id, user_id, author_display_name, content, created_at")
+      .or(`submission_id.in.(${publicSubmissionIds.join(",")}),assignment_submission_id.in.(${publicSubmissionIds.join(",")})`)
       .order("created_at", { ascending: true }),
   ]);
 
@@ -167,6 +169,7 @@ export async function getCampCircleSubmissions(campId: string, currentUserId: st
   const comments = (commentResult.data ?? []) as CommentRow[];
   const encouragementsBySubmission = new Map<string, EncouragementRow[]>();
   const commentsBySubmission = new Map<string, CommentRow[]>();
+  const commentCounts = countSubmissionCommentsByTarget(comments);
 
   for (const encouragement of encouragements) {
     const current = encouragementsBySubmission.get(encouragement.submission_id) ?? [];
@@ -174,9 +177,11 @@ export async function getCampCircleSubmissions(campId: string, currentUserId: st
     encouragementsBySubmission.set(encouragement.submission_id, current);
   }
   for (const comment of comments) {
-    const current = commentsBySubmission.get(comment.submission_id) ?? [];
+    const targetId = comment.assignment_submission_id ?? comment.submission_id;
+    if (!targetId) continue;
+    const current = commentsBySubmission.get(targetId) ?? [];
     current.push(comment);
-    commentsBySubmission.set(comment.submission_id, current);
+    commentsBySubmission.set(targetId, current);
   }
 
   return {
@@ -187,7 +192,7 @@ export async function getCampCircleSubmissions(campId: string, currentUserId: st
         ...submission,
         encouragementCount: submissionEncouragements.length,
         hasEncouraged: submissionEncouragements.some((item) => item.user_id === currentUserId),
-        commentCount: submissionComments.length,
+        commentCount: commentCounts.get(submission.id) ?? 0,
         comments: submissionComments.map((comment) => ({
           id: comment.id,
           authorName: comment.author_display_name.trim() || "同学",

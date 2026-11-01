@@ -1,5 +1,8 @@
 import { BookOpen, CalendarDays, CircleUserRound, Home, Layers3, Mic2 } from "lucide-react";
 import Link from "next/link";
+import { getAuthContext } from "@/lib/auth";
+import { getStudentMessages } from "@/lib/student-message-data";
+import { StudentMessageNavDot, StudentMessageUnreadProvider } from "./StudentMessageUnread";
 
 type AppFrameProps = {
   children: React.ReactNode;
@@ -15,26 +18,37 @@ const navItems = [
   { key: "weekly", label: "见面", href: "/weekly", icon: CalendarDays },
 ] as const;
 
-export function AppFrame({ children, active }: AppFrameProps) {
+export async function AppFrame({ children, active }: AppFrameProps) {
+  const auth = await getAuthContext();
+  const messageResult = auth?.profile.role === "student"
+    ? await getStudentMessages(auth.profile.id)
+    : null;
+  const unreadCount = messageResult?.state === "ok" ? messageResult.unreadCount : 0;
+
   return (
-    <main className="app-shell">
-      {children}
-      <nav className="bottom-nav" aria-label="学生端导航">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Link
-              aria-label={item.label}
-              className={`nav-link ${active === item.key ? "active" : ""}`}
-              href={item.href}
-              key={item.key}
-            >
-              <Icon size={19} strokeWidth={2.2} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-    </main>
+    <StudentMessageUnreadProvider initialUnreadCount={unreadCount}>
+      <main className="app-shell">
+        {children}
+        <nav className="bottom-nav" aria-label="学生端导航">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                aria-label={item.label}
+                className={`nav-link ${active === item.key ? "active" : ""}`}
+                href={item.href}
+                key={item.key}
+              >
+                <span className="nav-icon-wrap">
+                  <Icon size={19} strokeWidth={2.2} />
+                  {item.key === "progress" ? <StudentMessageNavDot /> : null}
+                </span>
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </main>
+    </StudentMessageUnreadProvider>
   );
 }

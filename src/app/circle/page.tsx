@@ -7,8 +7,15 @@ import { getActiveCampForUser } from "@/lib/cloud-course-data";
 import { getCampCircleSubmissions } from "@/lib/cloud-submission-data";
 import { getCampUnifiedAssignments } from "@/lib/photo-submission-data";
 
-export default async function CirclePage() {
+type CirclePageProps = {
+  searchParams: Promise<{ submission?: string; comment?: string }>;
+};
+
+export default async function CirclePage({ searchParams }: CirclePageProps) {
   const { profile } = await requireAuthenticatedUser();
+  const params = await searchParams;
+  const focusedSubmissionId = typeof params.submission === "string" ? params.submission : "";
+  const focusedCommentId = typeof params.comment === "string" ? params.comment : "";
   const campResult = await getActiveCampForUser(profile.id);
   const [result, unifiedResult] = campResult.state === "ok"
     ? await Promise.all([
@@ -45,7 +52,7 @@ export default async function CirclePage() {
         isOwn: assignment.isOwn,
         encouragementCount: 0,
         hasEncouraged: false,
-        commentCount: 0,
+        commentCount: assignment.commentCount,
         comments: [],
       },
     })),
@@ -64,6 +71,7 @@ export default async function CirclePage() {
           {cards.map(({ submission, assignment }) => (
             <CloudSubmissionCard
               assignmentId={assignment?.assignmentId}
+              focusCommentId={submission.id === focusedSubmissionId ? focusedCommentId : undefined}
               key={assignment?.assignmentId ?? submission.id}
               photos={assignment?.photos}
               showInteractions

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildCircleSubmissions } from "./circle-submission.ts";
+import { buildCircleSubmissions, countSubmissionCommentsByTarget } from "./circle-submission.ts";
 
 const rows = [
   {
@@ -122,4 +122,18 @@ test("circle keeps the current student's private work and marks own cards", () =
       ["public-old", false],
     ],
   );
+});
+
+test("counts legacy and unified-assignment comments by their visible work target", () => {
+  const counts = countSubmissionCommentsByTarget([
+    { submission_id: "legacy-audio", assignment_submission_id: null },
+    { submission_id: "legacy-audio", assignment_submission_id: null },
+    { submission_id: null, assignment_submission_id: "unified-work" },
+    { submission_id: null, assignment_submission_id: "unified-work" },
+    { submission_id: null, assignment_submission_id: "photo-only" },
+  ]);
+
+  assert.equal(counts.get("legacy-audio"), 2);
+  assert.equal(counts.get("unified-work"), 2);
+  assert.equal(counts.get("photo-only"), 1);
 });
