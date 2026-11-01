@@ -108,6 +108,7 @@ export function SubmissionInteractions({
   const [deletingCommentId, setDeletingCommentId] = useState("");
   const [lightboxUrl, setLightboxUrl] = useState("");
   const [message, setMessage] = useState("");
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const focusedCommentHandledRef = useRef(false);
   const focusedCommentLoadStartedRef = useRef(false);
   const characterCount = countCommentCharacters(content);
@@ -158,6 +159,18 @@ export function SubmissionInteractions({
     const next = !commentsOpen;
     setCommentsOpen(next);
     if (next && !commentsLoaded) await loadComments();
+  }
+
+  function startReply(comment: SubmissionComment) {
+    setReplyTo(comment);
+    window.requestAnimationFrame(() => {
+      const input = commentInputRef.current;
+      if (!input) return;
+      const revealInput = () => commentInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      input.focus({ preventScroll: true });
+      revealInput();
+      window.setTimeout(revealInput, 320);
+    });
   }
 
   async function toggleEncouragement() {
@@ -250,12 +263,12 @@ export function SubmissionInteractions({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img alt={`${comment.authorName}发送的照片`} src={comment.imageUrl} />
             </button> : null}
-            <footer><button className="submission-comment-reply" onClick={() => setReplyTo(comment)} type="button"><Reply size={14} />回复</button>{comment.isOwn ? <button className="submission-comment-delete" disabled={deletingCommentId === comment.id} onClick={() => void deleteComment(comment.id)} type="button">删除</button> : null}</footer>
+            <footer><button className="submission-comment-reply" onClick={() => startReply(comment)} type="button"><Reply size={14} />回复</button>{comment.isOwn ? <button className="submission-comment-delete" disabled={deletingCommentId === comment.id} onClick={() => void deleteComment(comment.id)} type="button">删除</button> : null}</footer>
           </article>
         ))}</div> : <p className="notice">还没有评论，可以发送第一条。</p>}
 
         {replyTo ? <div className="comment-replying"><span>回复 {replyTo.authorName}</span><button aria-label="取消回复" onClick={() => setReplyTo(null)} type="button"><X size={16} /></button></div> : null}
-        <label className="submission-comment-composer"><span className="sr-only">写评论</span><textarea disabled={commentBusy} onChange={(event) => setContent(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) event.preventDefault(); }} placeholder={replyTo ? `回复 ${replyTo.authorName}…` : "写下批改、鼓励或问题……"} rows={3} value={content} /><span className={characterCount > SUBMISSION_COMMENT_MAX_LENGTH ? "comment-count over-limit" : "comment-count"}>{characterCount} / {SUBMISSION_COMMENT_MAX_LENGTH}</span></label>
+        <label className="submission-comment-composer"><span className="sr-only">写评论</span><textarea disabled={commentBusy} onChange={(event) => setContent(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) event.preventDefault(); }} placeholder={replyTo ? `回复 ${replyTo.authorName}…` : "写下批改、鼓励或问题……"} ref={commentInputRef} rows={3} value={content} /><span className={characterCount > SUBMISSION_COMMENT_MAX_LENGTH ? "comment-count over-limit" : "comment-count"}>{characterCount} / {SUBMISSION_COMMENT_MAX_LENGTH}</span></label>
         <SubmissionCommentMediaPicker disabled={commentBusy} key={pickerKey} onAudioChange={setAudio} onImageChange={setImage} />
         {commentBusy && (audio || image) ? <div className="comment-upload-progress" role="status"><span style={{ width: `${uploadProgress}%` }} /><b>上传 {uploadProgress}%</b></div> : null}
         <button className="button secondary submission-comment-send" disabled={commentBusy || Boolean(validationError)} onClick={() => void sendComment()} type="button">{commentBusy ? "发送中…" : "发送评论"}</button>

@@ -1048,6 +1048,8 @@ p {
   min-height: 74px;
   padding-bottom: 28px;
   resize: vertical;
+  scroll-margin-bottom: calc(120px + env(safe-area-inset-bottom));
+  scroll-margin-top: 80px;
   width: 100%;
 }
 

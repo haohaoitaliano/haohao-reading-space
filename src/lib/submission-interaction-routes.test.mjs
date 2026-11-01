@@ -40,6 +40,14 @@ test("creating, loading, and deleting a comment update the visible count immedia
   assert.match(interactionsSource, /setCommentCount\(\(current\) => Math\.max\(0, current - 1\)\)/);
 });
 
+test("reply actions keep the existing target and reveal the focused comment composer", () => {
+  assert.match(interactionsSource, /setReplyTo\(comment\)/);
+  assert.match(interactionsSource, /commentInputRef\.current/);
+  assert.match(interactionsSource, /focus\(\{ preventScroll: true \}\)/);
+  assert.match(interactionsSource, /scrollIntoView\(\{ behavior: "smooth", block: "center" \}\)/);
+  assert.match(interactionsSource, /onClick=\{\(\) => setReplyTo\(null\)\}/);
+});
+
 test("encouragement routes bind writes to the authenticated user and block self encouragement", () => {
   assert.match(encouragementSource, /context\.submission\.user_id === context\.auth\.profile\.id/);
   assert.match(encouragementSource, /user_id: context\.auth\.profile\.id/);
