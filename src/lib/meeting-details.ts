@@ -3,6 +3,16 @@ export type MeetingDescriptionPart = {
   value: string;
 };
 
+export type MeetingStatus = "upcoming" | "ended";
+
+export function getMeetingStatus(scheduledAt: string, now: number): MeetingStatus {
+  return now < new Date(scheduledAt).getTime() ? "upcoming" : "ended";
+}
+
+export function getMeetingStatusLabel(status: MeetingStatus): "未开始" | "已结束" {
+  return status === "upcoming" ? "未开始" : "已结束";
+}
+
 export function getMeetingConnectionError(meetingUrl: string, meetingNumber: string): string | null {
   const normalizedUrl = meetingUrl.trim();
   const normalizedNumber = meetingNumber.trim();

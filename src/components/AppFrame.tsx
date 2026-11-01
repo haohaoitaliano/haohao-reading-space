@@ -12,7 +12,7 @@ const navItems = [
   { key: "courses", label: "课程", href: "/courses", icon: BookOpen },
   { key: "circle", label: "作业圈", href: "/circle", icon: Mic2 },
   { key: "progress", label: "我的", href: "/progress", icon: CircleUserRound },
-  { key: "weekly", label: "周会", href: "/weekly", icon: CalendarDays },
+  { key: "weekly", label: "见面", href: "/weekly", icon: CalendarDays },
 ] as const;
 
 export function AppFrame({ children, active }: AppFrameProps) {

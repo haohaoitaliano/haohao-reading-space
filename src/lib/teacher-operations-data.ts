@@ -174,29 +174,32 @@ export async function getAdminMeetingData() {
     supabase
       .from("weekly_meetings")
       .select("id, camp_id, title, scheduled_at, meeting_url, meeting_number, description, camps(name, timezone)")
-      .order("scheduled_at", { ascending: false }),
+      .order("scheduled_at", { ascending: true }),
   ]);
   return {
     camps,
     error: Boolean(meetingResult.error),
     meetings: ((meetingResult.data ?? []) as unknown as MeetingRow[]).map(mapMeeting),
+    now: Date.now(),
   };
 }
 
 export async function getStudentMeetingData(userId: string) {
+  const now = Date.now();
   const campResult = await getActiveCampForUser(userId);
-  if (campResult.state !== "ok") return { state: campResult.state, camp: null, meetings: [] as WeeklyMeeting[] };
+  if (campResult.state !== "ok") return { state: campResult.state, camp: null, meetings: [] as WeeklyMeeting[], now };
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("weekly_meetings")
     .select("id, camp_id, title, scheduled_at, meeting_url, meeting_number, description, camps(name, timezone)")
     .eq("camp_id", campResult.camp.id)
     .order("scheduled_at", { ascending: true });
-  if (error) return { state: "database_error" as const, camp: campResult.camp, meetings: [] };
+  if (error) return { state: "database_error" as const, camp: campResult.camp, meetings: [], now };
   return {
     state: "ok" as const,
     camp: campResult.camp,
     meetings: ((data ?? []) as unknown as MeetingRow[]).map(mapMeeting),
+    now,
   };
 }
 

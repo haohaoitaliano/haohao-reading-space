@@ -13,7 +13,7 @@ export default async function TeacherPage() {
     { label: "素材库", icon: Headphones, text: "管理音频、视频和课程素材", href: "/teacher/media" },
     { label: "查看学生提交记录", icon: MessageSquareText, text: "查看和播放云端录音", href: "/teacher/submissions" },
     { label: "查看学习完成情况", icon: ChartBar, text: "查看已提交和未提交课程", href: "/teacher/progress" },
-    { label: "管理每周线上会议", icon: Video, text: "创建、编辑和删除会议", href: "/teacher/meetings" },
+    { label: "管理线上见面", icon: Video, text: "创建、编辑和删除会议", href: "/teacher/meetings" },
   ];
 
   return (

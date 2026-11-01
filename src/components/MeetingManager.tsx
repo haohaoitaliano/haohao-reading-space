@@ -1,14 +1,20 @@
 "use client";
 
-import { CalendarPlus, Save, Trash2 } from "lucide-react";
+import { CalendarDays, CalendarPlus, ExternalLink, Pencil, Save, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { deleteWeeklyMeeting, saveWeeklyMeeting } from "@/app/teacher/meeting-actions";
+import { MeetingNumber } from "@/components/MeetingNumber";
 import type { CloudCamp } from "@/lib/cloud-course-data";
-import { formatDateTimeLocalInZone } from "@/lib/course-schedule";
+import { formatDateTimeLocalInZone, formatUnlockDateTime } from "@/lib/course-schedule";
+import { getMeetingStatus, getMeetingStatusLabel, splitMeetingDescription } from "@/lib/meeting-details";
 import type { WeeklyMeeting } from "@/lib/teacher-operations-data";
 
-function MeetingEditor({ camps, meeting }: { camps: CloudCamp[]; meeting?: WeeklyMeeting }) {
+function MeetingEditor({ camps, meeting, onCancel }: {
+  camps: CloudCamp[];
+  meeting?: WeeklyMeeting;
+  onCancel?: () => void;
+}) {
   const router = useRouter();
   const initialCamp = camps.find((camp) => camp.id === meeting?.campId) ?? camps[0];
   const [campId, setCampId] = useState(initialCamp?.id ?? "");
@@ -26,8 +32,17 @@ function MeetingEditor({ camps, meeting }: { camps: CloudCamp[]; meeting?: Weekl
   async function save() {
     setBusy(true); setMessage(""); setError("");
     const result = await saveWeeklyMeeting({ id: meeting?.id ?? null, campId, title, scheduledAtLocal, meetingUrl, meetingNumber, description });
-    if (result.success) { setMessage(result.message); router.refresh(); }
-    else setError(result.message);
+    if (result.success) {
+      setMessage(result.message);
+      if (!meeting) {
+        setTitle("");
+        setScheduledAtLocal("");
+        setMeetingUrl("");
+        setMeetingNumber("");
+        setDescription("");
+      }
+      router.refresh();
+    } else setError(result.message);
     setBusy(false);
   }
   async function remove() {
@@ -40,7 +55,7 @@ function MeetingEditor({ camps, meeting }: { camps: CloudCamp[]; meeting?: Weekl
 
   return (
     <article className={meeting ? "item-card stack" : "quiet-card stack"}>
-      <div className="row start"><div><p className="kicker">{meeting ? meeting.campName : "New Meeting"}</p><h2>{meeting ? "编辑会议" : "创建会议"}</h2></div><CalendarPlus color="var(--sky)" /></div>
+      <div className="row start"><div><p className="kicker">{meeting ? meeting.campName : "New Meeting"}</p><h2>{meeting ? `正在编辑：${meeting.title}` : "新建线上见面"}</h2></div><CalendarPlus color="var(--sky)" /></div>
       <label className="field">训练营
         <select onChange={(event) => setCampId(event.target.value)} value={campId}>{camps.map((camp) => <option key={camp.id} value={camp.id}>{camp.name}</option>)}</select>
       </label>
@@ -51,12 +66,45 @@ function MeetingEditor({ camps, meeting }: { camps: CloudCamp[]; meeting?: Weekl
       <label className="field">说明<textarea onChange={(event) => setDescription(event.target.value)} rows={4} value={description} /></label>
       {error ? <p className="notice" role="alert">{error}</p> : null}
       {message ? <p className="success-notice" role="status">{message}</p> : null}
-      <button className="button full" disabled={busy || !camps.length} onClick={save} type="button"><Save size={18} /> {busy ? "处理中..." : "保存会议"}</button>
+      <button className="button full" disabled={busy || !camps.length} onClick={save} type="button"><Save size={18} /> {busy ? "处理中..." : meeting ? "保存本场修改" : "创建线上见面"}</button>
+      {onCancel ? <button className="button ghost full" disabled={busy} onClick={onCancel} type="button"><X size={18} /> 取消编辑</button> : null}
       {meeting ? <button className="button secondary full" disabled={busy} onClick={remove} type="button"><Trash2 size={18} /> 删除会议</button> : null}
     </article>
   );
 }
 
-export function MeetingManager({ camps, meetings }: { camps: CloudCamp[]; meetings: WeeklyMeeting[] }) {
-  return <div className="stack"><MeetingEditor camps={camps} />{meetings.map((meeting) => <MeetingEditor camps={camps} key={meeting.id} meeting={meeting} />)}</div>;
+function ManagedMeetingCard({ camps, meeting, now }: {
+  camps: CloudCamp[];
+  meeting: WeeklyMeeting;
+  now: number;
+}) {
+  const [editing, setEditing] = useState(false);
+  if (editing) return <MeetingEditor camps={camps} meeting={meeting} onCancel={() => setEditing(false)} />;
+
+  const status = getMeetingStatus(meeting.scheduledAt, now);
+  return <article className="item-card stack">
+    <div className="row start">
+      <div><p className="kicker">Meeting · {meeting.campName}</p><h2>{meeting.title}</h2></div>
+      <CalendarDays color="var(--sky)" />
+    </div>
+    <span className={`pill ${status === "upcoming" ? "sky" : "muted"}`}>{getMeetingStatusLabel(status)}</span>
+    <p>{formatUnlockDateTime(meeting.scheduledAt, meeting.timezone)}（{meeting.timezone}）</p>
+    {meeting.description ? <p className="meeting-description">{splitMeetingDescription(meeting.description).map((part, index) => part.type === "link"
+      ? <a href={part.value} key={`${part.value}-${index}`} rel="noreferrer" target="_blank">{part.value}</a>
+      : part.value)}</p> : null}
+    {meeting.meetingNumber ? <MeetingNumber value={meeting.meetingNumber} /> : null}
+    {meeting.meetingUrl ? <a className="button secondary full" href={meeting.meetingUrl} rel="noreferrer" target="_blank"><ExternalLink size={18} /> 加入会议</a> : null}
+    <button className="button ghost full" onClick={() => setEditing(true)} type="button"><Pencil size={18} /> 编辑这场线上见面</button>
+  </article>;
+}
+
+export function MeetingManager({ camps, meetings, now }: {
+  camps: CloudCamp[];
+  meetings: WeeklyMeeting[];
+  now: number;
+}) {
+  return <div className="stack">
+    <MeetingEditor camps={camps} />
+    {meetings.length ? meetings.map((meeting) => <ManagedMeetingCard camps={camps} key={meeting.id} meeting={meeting} now={now} />) : <p className="notice">还没有创建线上见面。</p>}
+  </div>;
 }
