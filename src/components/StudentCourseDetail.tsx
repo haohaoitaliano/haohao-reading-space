@@ -3,7 +3,6 @@
 import { Download, ExternalLink, FileText, Lightbulb, MessageSquareText, Send } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { AppFrame } from "@/components/AppFrame";
 import { BrowserRecorder, type PreparedRecording } from "@/components/BrowserRecorder";
 import { PhotoAssignmentUploader, type PreparedPhoto } from "@/components/PhotoAssignmentUploader";
 import { PhotoSubmissionCard } from "@/components/PhotoSubmissionCard";
@@ -137,8 +136,7 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
   }
 
   return (
-    <AppFrame active="courses">
-      <section className="screen with-top">
+    <section className="screen with-top">
         <Header title={`Giorno ${course.dayNumber}`} subtitle={course.chineseTitle} backHref="/courses" />
 
         <section className="hero">
@@ -269,7 +267,6 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
             课程资源和已提交作业均来自受权限保护的云端存储；未提交的临时录音或照片刷新后会丢失。
           </p>
         </div>
-      </section>
-    </AppFrame>
+    </section>
   );
 }

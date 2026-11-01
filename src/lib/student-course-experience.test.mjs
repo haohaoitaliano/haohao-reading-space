@@ -2,6 +2,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+test("course page keeps the server AppFrame outside the client course detail", async () => {
+  const page = await readFile(new URL("../app/courses/[id]/page.tsx", import.meta.url), "utf8");
+  const detail = await readFile(new URL("../components/StudentCourseDetail.tsx", import.meta.url), "utf8");
+
+  assert.match(page, /<AppFrame active="courses">[\s\S]*<StudentCourseDetail/);
+  assert.doesNotMatch(detail, /from "@\/components\/AppFrame"/);
+});
+
 test("course uses one final submission and waits for the student before opening the circle", async () => {
   const recorder = await readFile(new URL("../components/BrowserRecorder.tsx", import.meta.url), "utf8");
   const detail = await readFile(new URL("../components/StudentCourseDetail.tsx", import.meta.url), "utf8");

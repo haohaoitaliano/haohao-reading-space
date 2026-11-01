@@ -60,11 +60,13 @@ export default async function CoursePage({ params }: CoursePageProps) {
     ? await getOwnPhotoSubmissions(profile.id, result.camp.id, result.course.id)
     : { submissions: [], error: false };
   return (
-    <StudentCourseDetail
-      course={result.course}
-      latestPhotoSubmission={result.latestPhotoSubmission}
-      latestSubmission={result.latestSubmission}
-      photoSubmissions={photoResult.submissions}
-    />
+    <AppFrame active="courses">
+      <StudentCourseDetail
+        course={result.course}
+        latestPhotoSubmission={result.latestPhotoSubmission}
+        latestSubmission={result.latestSubmission}
+        photoSubmissions={photoResult.submissions}
+      />
+    </AppFrame>
   );
 }
