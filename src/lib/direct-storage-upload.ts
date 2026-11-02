@@ -12,26 +12,34 @@ export type DirectUploadTicket = {
 type UploadOptions = {
   file: File | Blob;
   ticket: DirectUploadTicket;
+  failureLabel?: string;
 };
 
-function signedUploadErrorMessage(message: string) {
-  if (/already exists|duplicate/i.test(message)) return "云端已存在同名文件，请重新选择文件后上传。";
-  if (/unauthorized|forbidden|jwt|token|signature/i.test(message)) return "视频上传授权无效或已过期，请重新点击上传。";
-  if (/too large|exceeded|maximum|size/i.test(message)) return "视频超过云端存储允许的大小，请联系管理员检查限制。";
-  return "视频上传到云端失败，请保留当前文件并重试。";
+function signedUploadErrorMessage(message: string, label: string) {
+  if (/failed to fetch|network|load failed|connection/i.test(message)) {
+    return `${label}上传时网络连接失败，请检查网络后直接重试。`;
+  }
+  if (/already exists|duplicate/i.test(message)) return `${label}的云端位置已被占用，请直接重试。`;
+  if (/unauthorized|forbidden|jwt|token|signature/i.test(message)) return `${label}上传授权无效或已过期，请直接重试。`;
+  if (/too large|exceeded|maximum|size/i.test(message)) return `${label}超过云端存储允许的大小，请检查文件后重试。`;
+  return `${label}上传到云端失败，请保留当前材料并重试。`;
 }
 
-export async function uploadFileDirectly({ file, ticket }: UploadOptions) {
+export async function uploadFileDirectly({ file, ticket, failureLabel = "视频" }: UploadOptions) {
   const supabase = createSupabaseBrowserClient();
+  const fileMimeType = file.type.split(";", 1)[0]?.trim().toLowerCase();
+  const uploadBody = fileMimeType === ticket.mimeType
+    ? file
+    : new Blob([file], { type: ticket.mimeType });
   const { error } = await supabase.storage
     .from(ticket.bucket)
-    .uploadToSignedUrl(ticket.path, ticket.token, file, {
+    .uploadToSignedUrl(ticket.path, ticket.token, uploadBody, {
       cacheControl: "3600",
       contentType: ticket.mimeType,
       upsert: false,
     });
   if (error) {
-    throw new Error(signedUploadErrorMessage(error.message));
+    throw new Error(signedUploadErrorMessage(error.message, failureLabel));
   }
 }
 

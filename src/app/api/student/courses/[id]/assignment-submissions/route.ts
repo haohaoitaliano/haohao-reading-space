@@ -6,9 +6,10 @@ import {
   buildStudentPhotoPath,
   getStudentPhotoExtension,
   getStudentPhotoMimeType,
-  hasStudentPhotoSignature,
+  hasStudentPhotoByteSignature,
   STUDENT_PHOTO_BUCKET,
   STUDENT_PHOTO_MAX_COUNT,
+  type StudentPhotoMimeType,
   validateStudentPhotoFile,
 } from "@/lib/student-photo";
 import {
@@ -19,10 +20,33 @@ import {
   validateManualStudentRecordingFile,
   validateStudentRecordingFile,
 } from "@/lib/student-recording";
+import { verifyStorageObject } from "@/lib/storage-object-verification";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { dispatchStudentRecordingTranscode } from "@/lib/student-transcode-dispatch";
 
 type RouteProps = { params: Promise<{ id: string }> };
+type UploadFileInfo = { fileName?: string; mimeType?: string; size?: number };
+type RecordingInfo = UploadFileInfo & { source?: string; durationSeconds?: number };
+type PhotoInfo = UploadFileInfo & { id?: string };
+type RequestBody = {
+  action?: string;
+  assignmentId?: string;
+  audio?: RecordingInfo | null;
+  photos?: PhotoInfo[];
+};
+type UploadTicket = { bucket: string; path: string; token: string; mimeType: string };
+type AssignmentContext = {
+  auth: NonNullable<Awaited<ReturnType<typeof getAuthContext>>>;
+  course: { id: string; camp_id: string; day_number: number; max_duration_seconds?: number };
+  requirements: { recording_assignment_enabled: boolean; photo_assignment_enabled: boolean };
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+};
+type UploadPlan = {
+  assignmentId: string;
+  audioMetadata: Record<string, string | number> | null;
+  audioPath: string;
+  photoMetadata: Array<Record<string, string | number>>;
+};
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -30,12 +54,15 @@ function failure(message: string, status: number) {
   return NextResponse.json({ success: false, message }, { status });
 }
 
-export async function POST(request: NextRequest, { params }: RouteProps) {
+function fileInfo(input: UploadFileInfo) {
+  return { name: String(input.fileName ?? ""), type: String(input.mimeType ?? ""), size: Number(input.size) };
+}
+
+async function getAssignmentContext(courseId: string): Promise<AssignmentContext | NextResponse> {
   const auth = await getAuthContext();
   if (!auth || auth.profile.role !== "student" || auth.profile.status !== "active") {
     return failure("请先以学生身份登录。", 401);
   }
-  const { id: courseId } = await params;
   const campResult = await getCurrentLearningSpace(auth.profile.id);
   if (campResult.state === "no_selected_camp") return failure("请先选择当前训练营。", 403);
   if (campResult.state === "no_membership") return failure("请先加入训练营。", 403);
@@ -55,60 +82,41 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
     .eq("course_id", course.id)
     .maybeSingle<{ recording_assignment_enabled: boolean; photo_assignment_enabled: boolean }>();
   if (!requirements) return failure("无法读取本课作业要求。", 503);
+  return { auth, course, requirements, supabase };
+}
 
-  let formData: FormData;
-  try {
-    formData = await request.formData();
-  } catch {
-    return failure("无法读取作业材料，请重试。", 400);
-  }
-
-  const assignmentId = String(formData.get("assignmentId") ?? "");
-  if (!uuidPattern.test(assignmentId)) return failure("提交标识无效，请刷新页面后重试。", 400);
-
-  const { data: existing } = await supabase
+async function findExistingAssignment(context: AssignmentContext, assignmentId: string) {
+  return context.supabase
     .from("student_assignment_submissions")
     .select("id, camp_id, course_id, version")
     .eq("id", assignmentId)
-    .eq("user_id", auth.profile.id)
-    .maybeSingle<{
-      id: string;
-      camp_id: string;
-      course_id: string;
-      version: number;
-    }>();
-  if (existing) {
-    if (existing.camp_id !== course.camp_id || existing.course_id !== course.id) {
-      return failure("本次提交标识已被其他课程使用，请刷新页面后重试。", 409);
-    }
-    return NextResponse.json({
-      success: true,
-      assignmentId: existing.id,
-      version: existing.version,
-      retryRecovered: true,
-    });
-  }
+    .eq("user_id", context.auth.profile.id)
+    .maybeSingle<{ id: string; camp_id: string; course_id: string; version: number }>();
+}
 
-  const audio = formData.get("audio");
-  const hasAudio = audio instanceof File;
-  if (requirements.recording_assignment_enabled !== hasAudio) {
-    return failure(requirements.recording_assignment_enabled ? "请先完成录音。" : "本课不需要录音。", 400);
-  }
+function buildUploadPlan(context: AssignmentContext, body: RequestBody): UploadPlan | NextResponse {
+  const assignmentId = String(body.assignmentId ?? "");
+  if (!uuidPattern.test(assignmentId)) return failure("提交标识无效，请刷新页面后重试。", 400);
 
-  const photos = formData.getAll("photos").filter((item): item is File => item instanceof File);
-  const photoIds = formData.getAll("photoIds").map(String);
-  if (requirements.photo_assignment_enabled && (photos.length < 1 || photos.length > STUDENT_PHOTO_MAX_COUNT)) {
+  const hasAudio = Boolean(body.audio);
+  if (context.requirements.recording_assignment_enabled !== hasAudio) {
+    return failure(context.requirements.recording_assignment_enabled ? "请先完成录音。" : "本课不需要录音。", 400);
+  }
+  const photos = Array.isArray(body.photos) ? body.photos : [];
+  if (context.requirements.photo_assignment_enabled && (photos.length < 1 || photos.length > STUDENT_PHOTO_MAX_COUNT)) {
     return failure("请先选择 1 至 3 张照片。", 400);
   }
-  if (!requirements.photo_assignment_enabled && photos.length) return failure("本课不需要照片作业。", 400);
-  if (photos.length !== photoIds.length || new Set(photoIds).size !== photoIds.length || photoIds.some((id) => !uuidPattern.test(id))) {
+  if (!context.requirements.photo_assignment_enabled && photos.length) return failure("本课不需要照片作业。", 400);
+  const photoIds = photos.map((photo) => String(photo.id ?? ""));
+  if (new Set(photoIds).size !== photoIds.length || photoIds.some((id) => !uuidPattern.test(id))) {
     return failure("照片提交标识无效，请重新选择照片。", 400);
   }
 
   let audioMetadata: Record<string, string | number> | null = null;
   let audioPath = "";
-  if (hasAudio) {
-    const source = formData.get("source");
+  if (body.audio) {
+    const audio = fileInfo(body.audio);
+    const source = body.audio.source;
     if (source !== "browser_recording" && source !== "manual_upload") {
       return failure("无法确认录音来源，请重新录制或选择。", 400);
     }
@@ -116,9 +124,10 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
       ? validateManualStudentRecordingFile(audio)
       : validateStudentRecordingFile(audio);
     if (validationError) return failure(validationError, 400);
-    const duration = Number(formData.get("durationSeconds"));
-    const maxDurationSeconds = Number.isInteger(course.max_duration_seconds) && Number(course.max_duration_seconds) > 0
-      ? Number(course.max_duration_seconds)
+    const duration = Number(body.audio.durationSeconds);
+    const maxDurationSeconds = Number.isInteger(context.course.max_duration_seconds)
+      && Number(context.course.max_duration_seconds) > 0
+      ? Number(context.course.max_duration_seconds)
       : 120;
     if (!Number.isFinite(duration) || duration < 0 || duration > maxDurationSeconds) {
       return failure(`录音时长无效或超过 ${maxDurationSeconds} 秒。`, 400);
@@ -126,7 +135,12 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
     const extension = getStudentRecordingExtension(audio.name, audio.type);
     const mimeType = normalizeStudentRecordingMimeType(audio.type)
       || (extension === "mp3" ? "audio/mpeg" : "audio/mp4");
-    audioPath = buildStudentRecordingPath(course.camp_id, auth.profile.id, assignmentId, extension);
+    audioPath = buildStudentRecordingPath(
+      context.course.camp_id,
+      context.auth.profile.id,
+      assignmentId,
+      extension,
+    );
     audioMetadata = {
       id: assignmentId,
       storage_path: audioPath,
@@ -138,67 +152,169 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
   }
 
   const photoMetadata: Array<Record<string, string | number>> = [];
-  for (const [index, photo] of photos.entries()) {
+  for (const [index, photoInput] of photos.entries()) {
+    const photo = fileInfo(photoInput);
     const validationError = validateStudentPhotoFile(photo);
     if (validationError) return failure(validationError, 400);
     const mimeType = getStudentPhotoMimeType(photo);
-    if (!mimeType || !(await hasStudentPhotoSignature(photo, mimeType))) {
-      return failure(`${photo.name || "所选文件"}的内容不是有效照片。`, 400);
-    }
-    const storagePath = buildStudentPhotoPath({
-      campId: course.camp_id,
-      userId: auth.profile.id,
-      courseId: course.id,
-      submissionId: assignmentId,
-      photoId: photoIds[index],
-      extension: getStudentPhotoExtension(photo),
-    });
+    if (!mimeType) return failure(`${photo.name || "所选文件"}不是支持的照片。`, 400);
     photoMetadata.push({
       id: photoIds[index],
-      storage_path: storagePath,
+      storage_path: buildStudentPhotoPath({
+        campId: context.course.camp_id,
+        userId: context.auth.profile.id,
+        courseId: context.course.id,
+        submissionId: assignmentId,
+        photoId: photoIds[index],
+        extension: getStudentPhotoExtension(photo),
+      }),
       file_name: photo.name.slice(0, 255),
       mime_type: mimeType,
       size_bytes: photo.size,
       position: index + 1,
     });
   }
+  return { assignmentId, audioMetadata, audioPath, photoMetadata };
+}
 
-  const intendedAudioPaths = audioPath ? [audioPath] : [];
-  const intendedPhotoPaths = photoMetadata.map((photo) => String(photo.storage_path));
-  if (intendedAudioPaths.length) await supabase.storage.from(STUDENT_RECORDING_BUCKET).remove(intendedAudioPaths);
-  if (intendedPhotoPaths.length) await supabase.storage.from(STUDENT_PHOTO_BUCKET).remove(intendedPhotoPaths);
+async function cleanupUploadPlan(context: AssignmentContext, plan: UploadPlan) {
+  const audioPaths = plan.audioPath ? [plan.audioPath] : [];
+  const photoPaths = plan.photoMetadata.map((photo) => String(photo.storage_path));
+  const results = await Promise.all([
+    audioPaths.length
+      ? context.supabase.storage.from(STUDENT_RECORDING_BUCKET).remove(audioPaths)
+      : Promise.resolve({ error: null }),
+    photoPaths.length
+      ? context.supabase.storage.from(STUDENT_PHOTO_BUCKET).remove(photoPaths)
+      : Promise.resolve({ error: null }),
+  ]);
+  return results.every((result) => !result.error);
+}
 
-  const uploadedAudioPaths: string[] = [];
-  const uploadedPhotoPaths: string[] = [];
-  if (hasAudio && audioMetadata) {
-    const { error } = await supabase.storage.from(STUDENT_RECORDING_BUCKET).upload(audioPath, audio, {
-      contentType: String(audioMetadata.mime_type),
-      upsert: false,
+async function createUploadTicket(
+  context: AssignmentContext,
+  bucket: string,
+  path: string,
+  mimeType: string,
+): Promise<UploadTicket | null> {
+  const { data, error } = await context.supabase.storage.from(bucket).createSignedUploadUrl(path);
+  if (error || !data?.token) return null;
+  return { bucket, path, token: data.token, mimeType };
+}
+
+async function verifyUploadedPlan(context: AssignmentContext, plan: UploadPlan) {
+  if (plan.audioMetadata) {
+    const verification = await verifyStorageObject(context.supabase, STUDENT_RECORDING_BUCKET, plan.audioPath, {
+      size: Number(plan.audioMetadata.size_bytes),
+      mimeType: String(plan.audioMetadata.mime_type),
     });
-    if (error) return failure("录音上传失败，请保留当前材料后重试。", 500);
-    uploadedAudioPaths.push(audioPath);
+    if (!verification.object) return verification.error || "录音上传未完成，请直接重试。";
   }
-
-  for (const [index, photo] of photos.entries()) {
-    const metadata = photoMetadata[index];
-    const { error } = await supabase.storage.from(STUDENT_PHOTO_BUCKET).upload(String(metadata.storage_path), photo, {
-      contentType: String(metadata.mime_type),
-      upsert: false,
-    });
-    if (error) {
-      if (uploadedAudioPaths.length) await supabase.storage.from(STUDENT_RECORDING_BUCKET).remove(uploadedAudioPaths);
-      if (uploadedPhotoPaths.length) await supabase.storage.from(STUDENT_PHOTO_BUCKET).remove(uploadedPhotoPaths);
-      return failure(`第 ${index + 1} 张照片上传失败；已清理本次文件，可以直接重试。`, 500);
+  for (const [index, photo] of plan.photoMetadata.entries()) {
+    const mimeType = String(photo.mime_type) as StudentPhotoMimeType;
+    const verification = await verifyStorageObject(
+      context.supabase,
+      STUDENT_PHOTO_BUCKET,
+      String(photo.storage_path),
+      { size: Number(photo.size_bytes), mimeType },
+    );
+    if (!verification.object) return `第 ${index + 1} 张照片：${verification.error || "上传未完成，请直接重试。"}`;
+    if (!hasStudentPhotoByteSignature(new Uint8Array(verification.object.firstBytes), mimeType)) {
+      return `第 ${index + 1} 张照片内容无效，请重新选择照片。`;
     }
-    uploadedPhotoPaths.push(String(metadata.storage_path));
+  }
+  return null;
+}
+
+function revalidateAssignmentViews(course: AssignmentContext["course"]) {
+  revalidatePath(`/courses/giorno-${course.day_number}`);
+  revalidatePath("/circle");
+  revalidatePath("/home");
+  revalidatePath("/my-work");
+  revalidatePath("/progress");
+  revalidatePath("/teacher/submissions");
+  revalidatePath("/teacher/progress");
+}
+
+export async function POST(request: NextRequest, { params }: RouteProps) {
+  let body: RequestBody;
+  try {
+    body = await request.json();
+  } catch {
+    return failure("无法读取作业上传信息，请直接重试。", 400);
+  }
+  const { id: courseId } = await params;
+  const context = await getAssignmentContext(courseId);
+  if (context instanceof NextResponse) return context;
+  const plan = buildUploadPlan(context, body);
+  if (plan instanceof NextResponse) return plan;
+
+  const { data: existing, error: existingError } = await findExistingAssignment(context, plan.assignmentId);
+  if (existingError) return failure("暂时无法检查作业状态，请稍后重试。", 503);
+  if (existing) {
+    if (existing.camp_id !== context.course.camp_id || existing.course_id !== context.course.id) {
+      return failure("本次提交标识已被其他课程使用，请刷新页面后重试。", 409);
+    }
+    return NextResponse.json({
+      success: true,
+      completed: true,
+      assignmentId: existing.id,
+      version: existing.version,
+      retryRecovered: true,
+    });
   }
 
-  const { data: completed, error: completionError } = await supabase.rpc("complete_student_assignment", {
-    target_assignment_id: assignmentId,
-    target_camp_id: course.camp_id,
-    target_course_id: course.id,
-    audio_metadata: audioMetadata,
-    photos_metadata: photoMetadata,
+  if (body.action === "cleanup") {
+    const cleaned = await cleanupUploadPlan(context, plan);
+    return NextResponse.json({
+      success: cleaned,
+      message: cleaned ? "未完成的上传已清理。" : "部分临时文件暂未清理，将在重试时再次清理。",
+    }, { status: cleaned ? 200 : 503 });
+  }
+
+  if (body.action === "prepare") {
+    const cleaned = await cleanupUploadPlan(context, plan);
+    if (!cleaned) {
+      return failure("无法清理上次未完成的上传，请稍后直接重试。", 503);
+    }
+    const audioTicket = plan.audioMetadata
+      ? await createUploadTicket(
+        context,
+        STUDENT_RECORDING_BUCKET,
+        plan.audioPath,
+        String(plan.audioMetadata.mime_type),
+      )
+      : null;
+    if (plan.audioMetadata && !audioTicket) {
+      return failure("无法创建录音上传授权，请确认 RLS migration 已执行。", 500);
+    }
+    const photoTickets: UploadTicket[] = [];
+    for (const photo of plan.photoMetadata) {
+      const ticket = await createUploadTicket(
+        context,
+        STUDENT_PHOTO_BUCKET,
+        String(photo.storage_path),
+        String(photo.mime_type),
+      );
+      if (!ticket) return failure("无法创建照片上传授权，请直接重试。", 500);
+      photoTickets.push(ticket);
+    }
+    return NextResponse.json({ success: true, completed: false, audio: audioTicket, photos: photoTickets });
+  }
+
+  if (body.action !== "complete") return failure("作业上传步骤无效，请直接重试。", 400);
+  const verificationError = await verifyUploadedPlan(context, plan);
+  if (verificationError) {
+    await cleanupUploadPlan(context, plan);
+    return failure(`${verificationError}；本次临时文件已清理，可以直接重试。`, 400);
+  }
+
+  const { data: completed, error: completionError } = await context.supabase.rpc("complete_student_assignment", {
+    target_assignment_id: plan.assignmentId,
+    target_camp_id: context.course.camp_id,
+    target_course_id: context.course.id,
+    audio_metadata: plan.audioMetadata,
+    photos_metadata: plan.photoMetadata,
   }).single<{
     assignment_id: string;
     assignment_version: number;
@@ -207,26 +323,17 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
     photo_submission_id: string | null;
     audio_transcode_status: string | null;
   }>();
-
   if (completionError || !completed) {
-    if (uploadedAudioPaths.length) await supabase.storage.from(STUDENT_RECORDING_BUCKET).remove(uploadedAudioPaths);
-    if (uploadedPhotoPaths.length) await supabase.storage.from(STUDENT_PHOTO_BUCKET).remove(uploadedPhotoPaths);
-    return failure("作业记录保存失败；已清理本次文件，请保留材料后重试。", 500);
+    await cleanupUploadPlan(context, plan);
+    return failure("文件已上传，但作业记录保存失败；本次临时文件已清理，请直接重试。", 500);
   }
-
   if (completed.audio_submission_id && completed.audio_transcode_status === "pending") {
     await dispatchStudentRecordingTranscode(completed.audio_submission_id);
   }
-
-  revalidatePath(`/courses/giorno-${course.day_number}`);
-  revalidatePath("/circle");
-  revalidatePath("/home");
-  revalidatePath("/my-work");
-  revalidatePath("/progress");
-  revalidatePath("/teacher/submissions");
-  revalidatePath("/teacher/progress");
+  revalidateAssignmentViews(context.course);
   return NextResponse.json({
     success: true,
+    completed: true,
     assignmentId: completed.assignment_id,
     version: completed.assignment_version,
   });

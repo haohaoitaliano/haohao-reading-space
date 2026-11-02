@@ -52,6 +52,10 @@ export function buildStudentPhotoPath(input: {
 
 export async function hasStudentPhotoSignature(file: Blob, mimeType: StudentPhotoMimeType) {
   const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  return hasStudentPhotoByteSignature(bytes, mimeType);
+}
+
+export function hasStudentPhotoByteSignature(bytes: Uint8Array, mimeType: StudentPhotoMimeType) {
   if (mimeType === "image/jpeg") {
     return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
   }

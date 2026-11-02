@@ -20,6 +20,12 @@ export function normalizeStudentRecordingMimeType(mimeType: string) {
   return mimeType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
 }
 
+export function getDirectStudentRecordingMimeType(mimeType: string, source: "browser_recording" | "manual_upload") {
+  const normalized = normalizeStudentRecordingMimeType(mimeType);
+  if (source === "browser_recording" && normalized === "video/webm") return "audio/webm";
+  return normalized || "audio/webm";
+}
+
 export function getStudentRecordingExtension(fileName: string, mimeType: string) {
   const extension = fileName.toLowerCase().split(".").pop() ?? "";
   const normalizedMimeType = normalizeStudentRecordingMimeType(mimeType);

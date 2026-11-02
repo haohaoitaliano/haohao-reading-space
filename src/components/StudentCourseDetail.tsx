@@ -15,7 +15,13 @@ import type {
   CloudCoursePdf,
   StudentCourseSubmissionSummary,
 } from "@/lib/cloud-course-data";
+import {
+  readJsonResponse,
+  uploadFileDirectly,
+  type DirectUploadTicket,
+} from "@/lib/direct-storage-upload";
 import type { CloudPhotoSubmission } from "@/lib/photo-submission-data";
+import { getDirectStudentRecordingMimeType } from "@/lib/student-recording";
 
 function CloudCourseAudioPlayer({ audio }: { audio: CloudCourseAudio }) {
   return (
@@ -71,6 +77,7 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
   const [submissionMessage, setSubmissionMessage] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
   const assignmentIdRef = useRef("");
+  const submissionInFlightRef = useRef(false);
   const hasReflection = Boolean(
     course.reflectionPromptZh.trim() || course.reflectionPromptIt.trim(),
   );
@@ -90,49 +97,123 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
   ), [course.photoAssignmentEnabled, course.recordingAssignmentEnabled, preparedPhotos.length, preparedRecording]);
   const hasAssignment = course.recordingAssignmentEnabled || course.photoAssignmentEnabled;
 
-  function submitAssignment() {
-    if (!allRequiredMaterialsReady || submissionState === "submitting") return;
+  async function submitAssignment() {
+    if (!allRequiredMaterialsReady || submissionState === "submitting" || submissionInFlightRef.current) return;
+    submissionInFlightRef.current = true;
     if (!assignmentIdRef.current) assignmentIdRef.current = crypto.randomUUID();
-    const formData = new FormData();
-    formData.set("assignmentId", assignmentIdRef.current);
+    let audioFile: Blob | null = null;
+    let audioInfo: {
+      fileName: string;
+      mimeType: string;
+      size: number;
+      source: PreparedRecording["source"];
+      durationSeconds: number;
+    } | null = null;
     if (course.recordingAssignmentEnabled && preparedRecording) {
-      const extension = preparedRecording.mimeType.includes("mpeg") ? "mp3"
-        : preparedRecording.mimeType.includes("wav") ? "wav"
-          : preparedRecording.mimeType.includes("mp4") ? "m4a" : "webm";
-      formData.set("audio", preparedRecording.blob, `recording.${extension}`);
-      formData.set("source", preparedRecording.source);
-      formData.set("durationSeconds", String(preparedRecording.durationSeconds));
+      const mimeType = getDirectStudentRecordingMimeType(preparedRecording.mimeType, preparedRecording.source);
+      const extension = mimeType.includes("mpeg") ? "mp3"
+        : mimeType.includes("wav") ? "wav"
+          : mimeType.includes("mp4") ? "m4a"
+            : mimeType.includes("ogg") ? "ogg" : "webm";
+      audioFile = new Blob([preparedRecording.blob], { type: mimeType });
+      audioInfo = {
+        fileName: `recording.${extension}`,
+        mimeType,
+        size: audioFile.size,
+        source: preparedRecording.source,
+        durationSeconds: preparedRecording.durationSeconds,
+      };
     }
-    for (const photo of preparedPhotos) {
-      formData.append("photos", photo.file, photo.file.name);
-      formData.append("photoIds", photo.id);
-    }
+    const requestBody = {
+      assignmentId: assignmentIdRef.current,
+      audio: audioInfo,
+      photos: preparedPhotos.map((photo) => ({
+        id: photo.id,
+        fileName: photo.file.name,
+        mimeType: photo.file.type,
+        size: photo.file.size,
+      })),
+    };
 
     setSubmissionState("submitting");
-    setSubmissionMessage("");
+    setSubmissionMessage("正在准备安全上传…");
     setUploadProgress(0);
-    const request = new XMLHttpRequest();
-    request.open("POST", `/api/student/courses/${course.id}/assignment-submissions`);
-    request.upload.addEventListener("progress", (event) => {
-      if (event.lengthComputable) setUploadProgress(Math.round((event.loaded / event.total) * 100));
-    });
-    request.addEventListener("load", () => {
-      let result: { message?: string } = {};
-      try { result = JSON.parse(request.responseText) as { message?: string }; } catch { /* use fallback */ }
-      if (request.status >= 200 && request.status < 300) {
+    try {
+      const prepareResponse = await fetch(`/api/student/courses/${course.id}/assignment-submissions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "prepare", ...requestBody }),
+      });
+      const prepared = await readJsonResponse<{
+        success: boolean;
+        completed: boolean;
+        audio?: DirectUploadTicket | null;
+        photos?: DirectUploadTicket[];
+      }>(prepareResponse, prepareResponse.status === 413
+        ? "作业材料超过 Vercel 请求限制，请刷新页面后重试。"
+        : "无法准备作业上传，请检查网络后直接重试。");
+      if (prepared.completed) {
         setUploadProgress(100);
         setSubmissionState("success");
         setSubmissionMessage("");
         return;
       }
+
+      const photoTickets = prepared.photos ?? [];
+      if (Boolean(audioFile) !== Boolean(prepared.audio) || photoTickets.length !== preparedPhotos.length) {
+        throw new Error("上传授权与作业材料不一致，请直接重试。");
+      }
+      const totalFiles = (audioFile && prepared.audio ? 1 : 0) + photoTickets.length;
+      let completedFiles = 0;
+      const markFileComplete = () => {
+        completedFiles += 1;
+        setUploadProgress(Math.round((completedFiles / Math.max(1, totalFiles)) * 85));
+      };
+      if (audioFile && prepared.audio) {
+        setSubmissionMessage("正在上传录音…");
+        await uploadFileDirectly({ file: audioFile, ticket: prepared.audio, failureLabel: "录音" });
+        markFileComplete();
+      }
+      for (const [index, ticket] of photoTickets.entries()) {
+        setSubmissionMessage(`正在上传第 ${index + 1} 张照片…`);
+        await uploadFileDirectly({
+          file: preparedPhotos[index].file,
+          ticket,
+          failureLabel: `第 ${index + 1} 张照片`,
+        });
+        markFileComplete();
+      }
+
+      setUploadProgress(95);
+      setSubmissionMessage("正在确认作业记录…");
+      const completeResponse = await fetch(`/api/student/courses/${course.id}/assignment-submissions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "complete", ...requestBody }),
+      });
+      await readJsonResponse<{ success: boolean; completed: boolean }>(
+        completeResponse,
+        "文件已上传，但作业确认失败，请直接重试。",
+      );
+      setUploadProgress(100);
+      setSubmissionState("success");
+      setSubmissionMessage("");
+    } catch (submissionError) {
+      try {
+        await fetch(`/api/student/courses/${course.id}/assignment-submissions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "cleanup", ...requestBody }),
+        });
+      } catch {
+        // A later retry runs the same cleanup before issuing fresh upload tickets.
+      }
       setSubmissionState("error");
-      setSubmissionMessage(result.message ?? "提交失败，材料仍保留在本页，请直接重试。");
-    });
-    request.addEventListener("error", () => {
-      setSubmissionState("error");
-      setSubmissionMessage("网络中断，材料仍保留在本页，请直接重试。");
-    });
-    request.send(formData);
+      const message = submissionError instanceof Error ? submissionError.message : "提交失败，请直接重试。";
+      setSubmissionMessage(`${message} 录音和照片仍保留在本页。`);
+    } finally {
+      submissionInFlightRef.current = false;
+    }
   }
 
   return (

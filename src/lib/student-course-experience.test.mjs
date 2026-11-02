@@ -74,8 +74,8 @@ test("photo homework accepts camera and gallery input while unified submission r
   assert.match(uploader, /multiple onChange=\{handleFiles\}/);
   assert.match(uploader, /STUDENT_PHOTO_MAX_COUNT/);
   assert.match(uploader, /removePhoto\(photo\.id\)/);
-  assert.match(detail, /request\.upload\.addEventListener\("progress"/);
-  assert.match(detail, /材料仍保留在本页，请直接重试/);
+  assert.match(detail, /正在上传第 \$\{index \+ 1\} 张照片/);
+  assert.match(detail, /录音和照片仍保留在本页/);
 });
 
 test("course assignments use warm beginner guidance without changing assignment capabilities", async () => {
@@ -126,13 +126,16 @@ test("unified assignment route is idempotent and cleans partial uploads before r
   assert.match(route, /student_assignment_submissions/);
   assert.match(route, /if \(existing\)/);
   assert.match(route, /retryRecovered: true/);
+  assert.match(route, /body\.action === "prepare"/);
+  assert.match(route, /createSignedUploadUrl\(path\)/);
+  assert.match(route, /body\.action === "cleanup"/);
   assert.match(route, /complete_student_assignment/);
-  assert.match(route, /remove\(uploadedAudioPaths\)/);
-  assert.match(route, /remove\(uploadedPhotoPaths\)/);
+  assert.match(route, /cleanupUploadPlan/);
+  assert.match(route, /verifyUploadedPlan/);
   assert.match(route, /dispatchStudentRecordingTranscode\(completed\.audio_submission_id\)/);
 });
 
-test("video uses the official signed upload while PDF and photos keep their prior server upload", async () => {
+test("video and unified student assignments use official signed uploads while PDF keeps its prior upload", async () => {
   const uploader = await readFile(new URL("./direct-storage-upload.ts", import.meta.url), "utf8");
   const editor = await readFile(new URL("../components/TeacherCourseEditor.tsx", import.meta.url), "utf8");
   const detail = await readFile(new URL("../components/StudentCourseDetail.tsx", import.meta.url), "utf8");
@@ -145,12 +148,15 @@ test("video uses the official signed upload while PDF and photos keep their prio
     "utf8",
   );
 
-  assert.match(uploader, /uploadToSignedUrl\(ticket\.path, ticket\.token, file/);
+  assert.match(uploader, /uploadToSignedUrl\(ticket\.path, ticket\.token, uploadBody/);
   assert.doesNotMatch(uploader, /tus-js-client|x-signature|fingerprint/);
   assert.match(editor, /uploadFileDirectly/);
   assert.match(editor, /uploadingVideo \? "正在上传"/);
-  assert.match(detail, /formData\.append\("photos", photo\.file/);
-  assert.match(assignmentRoute, /from\(STUDENT_PHOTO_BUCKET\)\.upload/);
+  assert.match(detail, /uploadFileDirectly\(\{ file: audioFile/);
+  assert.match(detail, /file: preparedPhotos\[index\]\.file/);
+  assert.doesNotMatch(detail, /new FormData\(\)/);
+  assert.match(assignmentRoute, /createSignedUploadUrl\(path\)/);
+  assert.doesNotMatch(assignmentRoute, /request\.formData\(\)/);
   assert.match(pdfRoute, /request\.formData\(\)/);
   assert.match(pdfRoute, /\.upload\(storagePath, file/);
 });

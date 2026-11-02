@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  getDirectStudentRecordingMimeType,
   buildStudentRecordingPath,
   MANUAL_STUDENT_RECORDING_MAX_BYTES,
   STUDENT_RECORDING_MAX_BYTES,
@@ -21,6 +22,18 @@ test("accepts browser recording formats", () => {
     validateStudentRecordingFile({ name: "recording.webm", type: "audio/webm;codecs=opus", size: 1024 }),
     null,
   );
+});
+
+test("normalizes Android WebView audio-only WebM before direct upload", () => {
+  assert.equal(
+    getDirectStudentRecordingMimeType("video/webm;codecs=opus", "browser_recording"),
+    "audio/webm",
+  );
+  assert.equal(
+    getDirectStudentRecordingMimeType("audio/webm;codecs=opus", "browser_recording"),
+    "audio/webm",
+  );
+  assert.equal(getDirectStudentRecordingMimeType("audio/mp4", "manual_upload"), "audio/mp4");
 });
 
 test("manual uploads accept only M4A and MP3 files up to 3 MB", () => {
