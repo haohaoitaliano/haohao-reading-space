@@ -1,10 +1,10 @@
 "use client";
 
-import { Download, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { CloudPhotoSubmission } from "@/lib/photo-submission-data";
-import { formatFileSize } from "@/lib/audio-file";
+import { PhotoGallery } from "./PhotoGallery";
 
 function formatSubmittedAt(value: string) {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -45,22 +45,7 @@ export function PhotoSubmissionCard({ submission, manageable = false }: {
         </div>
         <span className="pill muted">{submission.photos.length} 张</span>
       </div>
-      <div className="photo-grid">
-        {submission.photos.map((photo) => (
-          <figure key={photo.id}>
-            <a href={photo.signedUrl} rel="noreferrer" target="_blank">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img alt={`${submission.studentName}的作业照片 ${photo.position}`} src={photo.signedUrl} />
-            </a>
-            <figcaption>
-              <span>{photo.fileName} · {formatFileSize(photo.sizeBytes)}</span>
-              <a aria-label={`下载 ${photo.fileName}`} href={photo.downloadUrl}>
-                <Download size={15} />
-              </a>
-            </figcaption>
-          </figure>
-        ))}
-      </div>
+      <PhotoGallery ownerName={submission.studentName} photos={submission.photos} />
       {submission.photos.some((photo) => photo.mimeType === "image/heic" || photo.mimeType === "image/heif") ? (
         <p className="notice" style={{ marginBottom: 0 }}>HEIC 是否能直接显示取决于浏览器；无法预览时可使用下载按钮查看原文件。</p>
       ) : null}

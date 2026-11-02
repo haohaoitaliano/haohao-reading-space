@@ -1,12 +1,12 @@
 "use client";
 
-import { Download, LockKeyhole, RefreshCw, Trash2, Users } from "lucide-react";
+import { LockKeyhole, RefreshCw, Trash2, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { CloudSubmission } from "@/lib/cloud-submission-data";
 import type { CloudPhotoSubmission } from "@/lib/photo-submission-data";
-import { formatFileSize } from "@/lib/audio-file";
 import { formatRecordingDuration } from "@/lib/recording-utils";
+import { PhotoGallery } from "./PhotoGallery";
 import { SubmissionInteractions } from "./SubmissionInteractions";
 
 function formatSubmittedAt(value: string) {
@@ -186,20 +186,7 @@ export function CloudSubmissionCard({
             </div>
           ) : null}
           {photos.length ? (
-            <div className="photo-grid" style={{ marginTop: 12 }}>
-              {photos.map((photo) => (
-                <figure key={photo.id}>
-                  <a href={photo.signedUrl} rel="noreferrer" target="_blank">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img alt={`${submission.studentName}的作业照片 ${photo.position}`} src={photo.signedUrl} />
-                  </a>
-                  <figcaption>
-                    <span>{photo.fileName} · {formatFileSize(photo.sizeBytes)}</span>
-                    <a aria-label={`下载 ${photo.fileName}`} href={photo.downloadUrl}><Download size={15} /></a>
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
+            <div style={{ marginTop: 12 }}><PhotoGallery ownerName={submission.studentName} photos={photos} /></div>
           ) : null}
           <div className="row" style={{ marginTop: 8 }}>
             <span className={`pill ${isPublic ? "sky" : "muted"}`}>

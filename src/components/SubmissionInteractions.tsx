@@ -3,6 +3,7 @@
 import { Reply, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CloudSubmission, SubmissionComment } from "@/lib/circle-submission";
+import { ImagePreviewDialog } from "./MediaPreviewDialog";
 import {
   countCommentCharacters,
   SUBMISSION_COMMENT_MAX_LENGTH,
@@ -274,11 +275,13 @@ export function SubmissionInteractions({
         <button className="button secondary submission-comment-send" disabled={commentBusy || Boolean(validationError)} onClick={() => void sendComment()} type="button">{commentBusy ? "发送中…" : "发送评论"}</button>
       </div> : null}
       {message ? <p className="submission-interaction-message" role="alert">{message}</p> : null}
-      {lightboxUrl ? <div aria-label="照片预览" aria-modal="true" className="comment-lightbox" onClick={() => setLightboxUrl("")} role="dialog">
-        <button aria-label="关闭照片预览" onClick={() => setLightboxUrl("")} type="button"><X size={24} /></button>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img alt="放大的评论照片" onClick={(event) => event.stopPropagation()} src={lightboxUrl} />
-      </div> : null}
+      {lightboxUrl ? <ImagePreviewDialog images={[{
+        id: lightboxUrl,
+        src: lightboxUrl,
+        downloadUrl: lightboxUrl,
+        fileName: "评论照片",
+        alt: "放大的评论照片",
+      }]} initialIndex={0} onClose={() => setLightboxUrl("")} /> : null}
     </section>
   );
 }

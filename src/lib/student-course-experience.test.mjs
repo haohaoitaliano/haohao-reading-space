@@ -58,13 +58,14 @@ test("completed browser recordings show a dynamic success notice and keep the na
   assert.match(recorder, /const startRecording = \(\) => \{[\s\S]*clearRecording\(\)/);
 });
 
-test("PDF reader keeps online mobile reading and explicit open and download options", async () => {
+test("PDF reader opens the shared in-page reader and keeps download explicit", async () => {
   const detail = await readFile(new URL("../components/StudentCourseDetail.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(detail, /<iframe src=\{pdf\.signedUrl\}/);
-  assert.match(detail, />全屏阅读</);
+  assert.match(detail, /<PdfPreviewDialog/);
+  assert.match(detail, />站内阅读</);
   assert.match(detail, /href=\{pdf\.downloadUrl\}/);
-  assert.match(styles, /\.pdf-reader iframe\s*\{[\s\S]*?width:\s*100%/);
+  assert.doesNotMatch(detail, /target="_blank"/);
+  assert.match(styles, /\.pdf-preview-scroll\s*\{[\s\S]*?overflow:\s*auto/);
 });
 
 test("photo homework accepts camera and gallery input while unified submission reports progress", async () => {

@@ -1,9 +1,11 @@
 "use client";
 
-import { Download, ExternalLink, FileText, Lightbulb, MessageSquareText, Send } from "lucide-react";
+import { Download, FileText, Lightbulb, MessageSquareText, Send } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { BrowserRecorder, type PreparedRecording } from "@/components/BrowserRecorder";
+import { PdfPreviewDialog } from "@/components/MediaPreviewDialog";
 import { PhotoAssignmentUploader, type PreparedPhoto } from "@/components/PhotoAssignmentUploader";
 import { PhotoSubmissionCard } from "@/components/PhotoSubmissionCard";
 import { Header } from "@/components/Header";
@@ -50,16 +52,27 @@ function CloudCourseVideoPlayer({ video }: { video: CloudCourseVideo }) {
   );
 }
 
-function CoursePdfReader({ pdf, initiallyOpen }: { pdf: CloudCoursePdf; initiallyOpen: boolean }) {
+function CoursePdfReader({ pdf }: { pdf: CloudCoursePdf }) {
+  const router = useRouter();
+  const [previewOpen, setPreviewOpen] = useState(false);
+
   return (
-    <details className="pdf-reader" open={initiallyOpen}>
-      <summary><FileText size={18} /><span>{pdf.fileName} · {formatFileSize(pdf.sizeBytes)}</span></summary>
-      <iframe src={pdf.signedUrl} title={`在线阅读 ${pdf.fileName}`} />
+    <div className="pdf-reader">
+      <div className="pdf-reader-summary"><FileText size={18} /><span>{pdf.fileName} · {formatFileSize(pdf.sizeBytes)}</span></div>
       <div className="row pdf-actions">
-        <a className="button secondary" href={pdf.signedUrl} rel="noreferrer" target="_blank"><ExternalLink size={17} />全屏阅读</a>
-        <a className="button ghost" href={pdf.downloadUrl}><Download size={17} />下载</a>
+        <button className="button secondary" onClick={() => setPreviewOpen(true)} type="button"><FileText size={17} />站内阅读</button>
+        <a className="button ghost" download={pdf.fileName} href={pdf.downloadUrl}><Download size={17} />下载</a>
       </div>
-    </details>
+      {previewOpen ? (
+        <PdfPreviewDialog
+          downloadUrl={pdf.downloadUrl}
+          fileName={pdf.fileName}
+          onClose={() => setPreviewOpen(false)}
+          onRefresh={() => { setPreviewOpen(false); router.refresh(); }}
+          signedUrl={pdf.signedUrl}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -235,8 +248,8 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
 
           {course.pdfs.length ? (
             <section className="quiet-card stack" aria-label="PDF 课件">
-              <div><p className="kicker">Materiali PDF</p><h2 style={{ marginBottom: 4 }}>PDF 课件</h2><p style={{ margin: 0 }}>可直接在线阅读，也可以全屏打开或下载。</p></div>
-              {course.pdfs.map((pdf, index) => <CoursePdfReader initiallyOpen={index === 0} key={pdf.id} pdf={pdf} />)}
+              <div><p className="kicker">Materiali PDF</p><h2 style={{ marginBottom: 4 }}>PDF 课件</h2><p style={{ margin: 0 }}>点击“站内阅读”即可逐页查看，也可以单独下载。</p></div>
+              {course.pdfs.map((pdf) => <CoursePdfReader key={pdf.id} pdf={pdf} />)}
             </section>
           ) : null}
 
