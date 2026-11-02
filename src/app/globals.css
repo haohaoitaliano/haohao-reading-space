@@ -810,7 +810,11 @@ p {
 }
 
 .submission-interaction-button[aria-pressed="true"] {
-  color: var(--ink);
+  background: #edf3df;
+  border: 1px solid #cedaa9;
+  border-radius: 999px;
+  color: #405126;
+  padding: 4px 8px;
 }
 
 .submission-interaction-button:disabled,
