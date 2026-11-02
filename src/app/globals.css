@@ -966,6 +966,26 @@ p {
   gap: 10px;
 }
 
+.message-home-alert {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin-top: 18px;
+  padding: 13px 14px;
+}
+
+.message-home-alert-copy strong,
+.message-home-alert-copy small {
+  display: block;
+}
+
+.message-home-alert-copy small {
+  color: var(--muted);
+  line-height: 1.45;
+  margin-top: 3px;
+}
+
 .message-card {
   background: var(--surface);
   border: 1px solid var(--line);

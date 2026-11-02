@@ -32,6 +32,8 @@ test("messages include comments on own work and replies to own comments, newest 
 
   assert.deepEqual(messages.map((message) => message.id), ["reply", "direct"]);
   assert.equal(messages[0].authorRole, "admin");
+  assert.equal(messages[0].isReplyOnOtherWork, true);
+  assert.equal(messages[1].isReplyOnOtherWork, false);
   assert.equal(messages[1].isRead, true);
 });
 
@@ -47,6 +49,7 @@ test("one comment produces one message even when it is both on own work and a re
   });
 
   assert.deepEqual(messages.map((message) => message.id), ["both"]);
+  assert.equal(messages[0].isReplyOnOtherWork, false);
 });
 
 test("self comments and comments whose work is no longer accessible are excluded", () => {

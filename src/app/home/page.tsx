@@ -1,46 +1,33 @@
-import { ArrowRight, CalendarCheck, Headphones, Mic2 } from "lucide-react";
+import { ArrowRight, CalendarCheck, Mic2 } from "lucide-react";
 import Link from "next/link";
 import { AppFrame } from "@/components/AppFrame";
 import { CloudSubmissionCard } from "@/components/CloudSubmissionCard";
 import { Header } from "@/components/Header";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { getCourseRouteId } from "@/lib/cloud-course";
-import { getTodayTaskStatus } from "@/lib/learning-progress";
 import {
   getPublicCampSubmissions,
 } from "@/lib/cloud-submission-data";
 import { getStudentCampProgress } from "@/lib/student-camp-progress";
+import { getStudentMessages } from "@/lib/student-message-data";
 
 export default async function HomePage() {
   const { profile } = await requireAuthenticatedUser();
+  const messagePromise = getStudentMessages(profile.id);
   const {
     courseResult: result,
-    submissionResult: ownSubmissionResult,
-    photoSubmissionResult,
-    unifiedResult,
     submissionError,
     stats,
   } = await getStudentCampProgress(profile.id);
   const today = result.courses.filter((course) => course.isUnlocked).at(-1) ?? null;
-  const publicSubmissionResult = result.state === "ok" && result.camp
-    ? await getPublicCampSubmissions(result.camp.id, profile.id, 2)
-    : { submissions: [], error: result.state === "database_error" };
-  const todaySubmitted = today
-    ? ownSubmissionResult.submissions.some((submission) => submission.courseId === today.id)
-      || unifiedResult.assignments.some((assignment) => assignment.courseId === today.id && assignment.hasRecording)
-    : false;
-  const todayPhotoSubmitted = today
-    ? photoSubmissionResult.submissions.some((submission) => submission.courseId === today.id)
-      || unifiedResult.assignments.some((assignment) => assignment.courseId === today.id && assignment.photos.length > 0)
-    : false;
-  const todayTaskStatus = getTodayTaskStatus({
-    hasTask: Boolean(today),
-    recordingRequired: today?.recordingAssignmentEnabled ?? false,
-    photoRequired: today?.photoAssignmentEnabled ?? false,
-    hasRecordingSubmission: todaySubmitted,
-    hasPhotoSubmission: todayPhotoSubmitted,
-    submissionError,
-  });
+  const [publicSubmissionResult, messageResult] = await Promise.all([
+    result.state === "ok" && result.camp
+      ? getPublicCampSubmissions(result.camp.id, profile.id, 2)
+      : Promise.resolve({ submissions: [], error: result.state === "database_error" }),
+    messagePromise,
+  ]);
+  const hasUnreadReplyOnOtherWork = messageResult.state === "ok"
+    && messageResult.messages.some((message) => !message.isRead && message.isReplyOnOtherWork);
 
   return (
     <AppFrame active="home">
@@ -104,14 +91,16 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <section className="quiet-card stack">
-          <div className="row">
-            <div><p className="kicker">今日任务</p><h2>听、读、录、交流</h2></div>
-            <Headphones color="var(--sky)" />
-          </div>
-          <p style={{ margin: 0 }}>听示范、阅读文本、完成录音，并和同学交流。</p>
-          <p style={{ margin: 0 }}>今日作业：{todayTaskStatus}</p>
-        </section>
+        {messageResult.state === "ok" && messageResult.unreadCount > 0 ? (
+          <Link className="quiet-card message-home-alert" href="/messages">
+            <span aria-hidden="true" className="message-dot" />
+            <span className="message-home-alert-copy">
+              <strong>{hasUnreadReplyOnOtherWork ? "你收到了" : "你的作业收到了"} {messageResult.unreadCount} 条新{hasUnreadReplyOnOtherWork ? "消息" : "评论"}！</strong>
+              <small>快来看看，及时改进，别忘了回复哦！</small>
+            </span>
+            <ArrowRight aria-hidden="true" size={18} />
+          </Link>
+        ) : null}
 
         <section style={{ marginTop: 18 }}>
           <div className="row"><h2>同学新作业</h2><Link className="pill sky" href="/circle">查看全部</Link></div>

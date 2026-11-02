@@ -30,6 +30,7 @@ export type StudentMessage = {
   dayNumber: number;
   courseTitle: string;
   workOwnerName: string;
+  isReplyOnOtherWork: boolean;
   isRead: boolean;
 };
 
@@ -75,6 +76,7 @@ export function buildStudentMessages(input: {
       dayNumber: target.dayNumber,
       courseTitle: target.courseTitle,
       workOwnerName: target.studentName,
+      isReplyOnOtherWork: Boolean(repliesToOwnComment && !commentsOnOwnWork),
       isRead: input.readCommentIds.has(comment.id),
     });
   }
