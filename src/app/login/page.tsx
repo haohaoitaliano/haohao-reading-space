@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LockKeyhole, LogIn } from "lucide-react";
+import { LogIn } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { getSafePostLoginPath } from "@/lib/auth-redirect";
 import { getPostLoginPath, type AuthProfile } from "@/lib/auth-policy";
@@ -60,7 +60,6 @@ export default function LoginPage() {
       <section className="screen">
         <div className="hero">
           <div className="brand-mark" style={{ width: 58, height: 58, marginBottom: 18 }}>好</div>
-          <p className="kicker">7 天免费公测版</p>
           <h1>登录好好意语共读空间。</h1>
           <p>使用注册邮箱和密码继续学习。</p>
         </div>
@@ -97,9 +96,6 @@ export default function LoginPage() {
           还没有账号？ <Link href="/register">创建学生账号</Link>
         </p>
         {!configured ? <p className="notice" role="alert">尚未配置 Supabase。</p> : null}
-        <p className="notice" style={{ marginTop: 14 }}>
-          <LockKeyhole size={15} style={{ verticalAlign: "text-bottom" }} /> 管理员角色只能在 Supabase 后台设置。
-        </p>
       </section>
     </main>
   );
