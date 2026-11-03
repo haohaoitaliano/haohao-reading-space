@@ -1,15 +1,14 @@
 import { ChevronLeft } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
+import { BrandMark } from "@/components/BrandMark";
 
 type HeaderProps = {
   title: string;
   subtitle?: string;
   backHref?: string;
-  showBrandImage?: boolean;
 };
 
-export function Header({ title, subtitle, backHref, showBrandImage = false }: HeaderProps) {
+export function Header({ title, subtitle, backHref }: HeaderProps) {
   const backLabel = backHref === "/teacher" ? "返回老师后台" : "返回";
 
   return (
@@ -19,18 +18,8 @@ export function Header({ title, subtitle, backHref, showBrandImage = false }: He
           <Link aria-label={backLabel} className="button ghost" href={backHref} style={{ minHeight: 38, padding: 8 }}>
             <ChevronLeft size={20} />
           </Link>
-        ) : showBrandImage ? (
-          <Image
-            alt="好好意语"
-            className="brand-mark"
-            height={40}
-            src="/icons/icon-192.png"
-            style={{ objectFit: "contain" }}
-            unoptimized
-            width={40}
-          />
         ) : (
-          <div className="brand-mark">好</div>
+          <BrandMark />
         )}
         <div>
           <strong>{title}</strong>

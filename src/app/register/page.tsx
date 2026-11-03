@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { FormEvent, useState } from "react";
+import { BrandMark } from "@/components/BrandMark";
 import {
   getCampInviteMessage,
   isCampInviteSuccess,
@@ -73,7 +74,7 @@ export default function RegisterPage() {
     <main className="app-shell">
       <section className="screen">
         <div className="hero">
-          <div className="brand-mark" style={{ width: 58, height: 58, marginBottom: 18 }}>好</div>
+          <BrandMark size={58} style={{ marginBottom: 18 }} />
           <p className="kicker">学生注册</p>
           <h1>创建你的共读账号。</h1>
           <p>新账号会自动获得 student 角色。</p>

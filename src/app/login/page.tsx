@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { LogIn } from "lucide-react";
 import { FormEvent, useState } from "react";
+import { BrandMark } from "@/components/BrandMark";
 import { getSafePostLoginPath } from "@/lib/auth-redirect";
 import { getPostLoginPath, type AuthProfile } from "@/lib/auth-policy";
 import { validateLoginFields } from "@/lib/password-auth";
@@ -59,7 +60,7 @@ export default function LoginPage() {
     <main className="app-shell">
       <section className="screen">
         <div className="hero">
-          <div className="brand-mark" style={{ width: 58, height: 58, marginBottom: 18 }}>好</div>
+          <BrandMark size={58} style={{ marginBottom: 18 }} />
           <h1>登录好好意语共读空间。</h1>
           <p>使用注册邮箱和密码继续学习。</p>
         </div>
