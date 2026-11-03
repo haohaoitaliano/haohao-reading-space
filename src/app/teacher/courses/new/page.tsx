@@ -17,12 +17,14 @@ export default async function NewTeacherCoursePage({ searchParams }: {
 
   if (!camp) return <main className="app-shell"><section className="screen"><p className="notice">请先创建训练营，再创建课程。</p></section></main>;
 
-  const nextDay = Math.max(0, ...existing.courses.filter((course) => course.campId === camp.id).map((course) => course.dayNumber)) + 1;
+  const campCourses = existing.courses.filter((course) => course.campId === camp.id);
+  const hasIntroduction = campCourses.some((course) => course.dayNumber === 0);
+  const nextDay = Math.max(0, ...campCourses.map((course) => course.dayNumber)) + 1;
   const initialCourse: CloudCourseDetail = {
     id: "",
     campId: camp.id,
-    dayNumber: nextDay,
-    italianTitle: "",
+    dayNumber: hasIntroduction ? nextDay : 0,
+    italianTitle: hasIntroduction ? "" : "欢迎与试打卡",
     chineseTitle: "",
     description: "",
     readingText: "",

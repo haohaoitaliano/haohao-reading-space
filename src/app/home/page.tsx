@@ -19,7 +19,7 @@ export default async function HomePage() {
     submissionError,
     stats,
   } = await getStudentCampProgress(profile.id);
-  const today = result.courses.filter((course) => course.isUnlocked).at(-1) ?? null;
+  const today = result.courses.filter((course) => course.dayNumber > 0 && course.isUnlocked).at(-1) ?? null;
   const [publicSubmissionResult, messageResult] = await Promise.all([
     result.state === "ok" && result.camp
       ? getPublicCampSubmissions(result.camp.id, profile.id, 2)

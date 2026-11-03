@@ -31,6 +31,8 @@ export async function DELETE(_: NextRequest, { params }: RouteProps) {
     return NextResponse.json({ success: false, message: "PDF 记录删除失败，请稍后重试。" }, { status: 500 });
   }
   revalidatePath(`/teacher/courses/${courseId}/edit`);
-  if (pdf.courses?.day_number) revalidatePath(`/courses/giorno-${pdf.courses.day_number}`);
+  if (pdf.courses?.day_number !== undefined && pdf.courses.day_number !== null) {
+    revalidatePath(`/courses/giorno-${pdf.courses.day_number}`);
+  }
   return NextResponse.json({ success: true, message: "PDF 已删除。" });
 }

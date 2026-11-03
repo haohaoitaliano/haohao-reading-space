@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getCourseRouteId,
+  getStudentCourseDayLabel,
   filterCoursesForCamp,
   isCourseUnlocked,
   parseCourseDay,
@@ -10,10 +11,17 @@ import {
 } from "./cloud-course.ts";
 
 test("maps course days to stable giorno routes", () => {
+  assert.equal(getCourseRouteId(0), "giorno-0");
   assert.equal(getCourseRouteId(4), "giorno-4");
+  assert.equal(parseCourseDay("giorno-0"), 0);
   assert.equal(parseCourseDay("giorno-4"), 4);
   assert.equal(parseCourseDay("4"), 4);
   assert.equal(parseCourseDay("giorno-zero"), null);
+});
+
+test("uses the special student label only for Giorno 0", () => {
+  assert.equal(getStudentCourseDayLabel(0), "Benvenuti!");
+  assert.equal(getStudentCourseDayLabel(1), "Giorno 1");
 });
 
 test("filters teacher courses by the selected camp without changing course data", () => {
@@ -63,7 +71,8 @@ test("validates required admin course fields and vocabulary positions", () => {
   };
 
   assert.equal(validateCourseEditorInput(valid), null);
-  assert.equal(validateCourseEditorInput({ ...valid, dayNumber: 0 }), "课程天数必须大于 0");
+  assert.equal(validateCourseEditorInput({ ...valid, dayNumber: 0 }), null);
+  assert.equal(validateCourseEditorInput({ ...valid, dayNumber: -1 }), "课程天数不能小于 0");
   assert.equal(validateCourseEditorInput({ ...valid, italianTitle: "" }), "请输入意大利语标题");
   assert.equal(validateCourseEditorInput({ ...valid, readingText: "" }), null);
   assert.equal(validateCourseEditorInput({

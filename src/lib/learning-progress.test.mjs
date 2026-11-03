@@ -10,6 +10,7 @@ test("missing work includes only published courses already unlocked", () => {
       { userId: "student-2", displayName: "Luca" },
     ],
     courses: [
+      { id: "intro", dayNumber: 0, title: "欢迎与试打卡", status: "published", effectiveUnlockAt: "2026-06-20T08:00:00Z", recordingAssignmentEnabled: true, photoAssignmentEnabled: true },
       { id: "c1", dayNumber: 1, title: "Uno", status: "published", effectiveUnlockAt: "2026-06-23T08:00:00Z", recordingAssignmentEnabled: true, photoAssignmentEnabled: false },
       { id: "c2", dayNumber: 2, title: "Due", status: "published", effectiveUnlockAt: "2026-06-24T09:00:00Z", recordingAssignmentEnabled: true, photoAssignmentEnabled: true },
       { id: "future", dayNumber: 3, title: "Tre", status: "published", effectiveUnlockAt: "2026-06-25T08:00:00Z", recordingAssignmentEnabled: true, photoAssignmentEnabled: false },
@@ -33,19 +34,23 @@ test("missing work includes only published courses already unlocked", () => {
 test("student camp stats count opened missing tasks and every real submission", () => {
   const stats = buildStudentCampStats({
     courses: [
-      { id: "opened-done", isUnlocked: true, recordingAssignmentEnabled: true, photoAssignmentEnabled: true },
-      { id: "opened-missing", isUnlocked: true, recordingAssignmentEnabled: false, photoAssignmentEnabled: true },
-      { id: "no-work", isUnlocked: true, recordingAssignmentEnabled: false, photoAssignmentEnabled: false },
-      { id: "locked", isUnlocked: false, recordingAssignmentEnabled: true, photoAssignmentEnabled: false },
+      { id: "intro", dayNumber: 0, isUnlocked: true, recordingAssignmentEnabled: true, photoAssignmentEnabled: true },
+      { id: "opened-done", dayNumber: 1, isUnlocked: true, recordingAssignmentEnabled: true, photoAssignmentEnabled: true },
+      { id: "opened-missing", dayNumber: 2, isUnlocked: true, recordingAssignmentEnabled: false, photoAssignmentEnabled: true },
+      { id: "no-work", dayNumber: 3, isUnlocked: true, recordingAssignmentEnabled: false, photoAssignmentEnabled: false },
+      { id: "locked", dayNumber: 4, isUnlocked: false, recordingAssignmentEnabled: true, photoAssignmentEnabled: false },
     ],
     recordingSubmissions: [
+      { courseId: "intro", version: 1 },
       { courseId: "opened-done", version: 1 },
       { courseId: "opened-done", version: 2 },
       { courseId: "locked", version: 1 },
     ],
     photoSubmissions: [
+      { courseId: "intro", version: 1 },
       { courseId: "opened-done", version: 1 },
     ],
+    unifiedAssignments: [{ courseId: "intro", version: 2, hasRecording: true, photoCount: 1 }],
   });
 
   assert.deepEqual(stats, {
@@ -70,7 +75,7 @@ test("today task status follows independent recording and photo requirements", (
 
 test("one unified recording and photo assignment completes both requirements and counts once", () => {
   const stats = buildStudentCampStats({
-    courses: [{ id: "combined", isUnlocked: true, recordingAssignmentEnabled: true, photoAssignmentEnabled: true }],
+    courses: [{ id: "combined", dayNumber: 1, isUnlocked: true, recordingAssignmentEnabled: true, photoAssignmentEnabled: true }],
     recordingSubmissions: [],
     photoSubmissions: [],
     unifiedAssignments: [{ courseId: "combined", version: 2, hasRecording: true, photoCount: 2 }],
@@ -89,6 +94,7 @@ test("admin progress counts each unlocked published course once per student", ()
       { userId: "student-2", displayName: "Luca" },
     ],
     courses: [
+      { id: "intro", dayNumber: 0, title: "欢迎与试打卡", status: "published", effectiveUnlockAt: "2026-11-01T08:00:00Z" },
       { id: "c1", dayNumber: 1, title: "Uno", status: "published", effectiveUnlockAt: "2026-11-01T08:00:00Z" },
       { id: "c2", dayNumber: 2, title: "Due", status: "published", effectiveUnlockAt: "2026-11-02T08:00:00Z" },
       { id: "future", dayNumber: 3, title: "Tre", status: "published", effectiveUnlockAt: "2026-11-04T08:00:00Z" },

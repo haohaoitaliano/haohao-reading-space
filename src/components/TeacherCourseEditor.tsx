@@ -425,9 +425,9 @@ export function TeacherCourseEditor({
       <section className="quiet-card">
         <p className="kicker">云端课程内容</p>
         <label className="field">课程天数
-          <input min={1} onChange={(event) => updateField("dayNumber", Number(event.target.value))} type="number" value={course.dayNumber} />
+          <input min={0} onChange={(event) => updateField("dayNumber", Number(event.target.value))} type="number" value={course.dayNumber} />
         </label>
-        <label className="field">意大利语标题
+        <label className="field">{course.dayNumber === 0 ? "课程标题" : "意大利语标题"}
           <input onChange={(event) => updateField("italianTitle", event.target.value)} value={course.italianTitle} />
         </label>
         <label className="field">中文标题
@@ -445,9 +445,11 @@ export function TeacherCourseEditor({
           </select>
         </label>
         {course.unlockMode === "auto" ? (
-          <p className="notice">自动解锁：{initialCourse.id
-            ? formatUnlockDateTime(initialCourse.automaticUnlockAt, initialCourse.timezone)
-            : "保存后按所选训练营开始时间和 Giorno 计算"}（{initialCourse.timezone}）</p>
+          <p className="notice">自动解锁：{course.dayNumber === 0
+            ? "课程创建后立即解锁"
+            : initialCourse.id
+              ? formatUnlockDateTime(initialCourse.automaticUnlockAt, initialCourse.timezone)
+              : "保存后按所选训练营开始时间和 Giorno 计算"}（{initialCourse.timezone}）</p>
         ) : (
           <label className="field">手动解锁时间（{initialCourse.timezone}）
             <input onChange={(event) => updateField("unlockAtLocal", event.target.value || null)} type="datetime-local" value={course.unlockAtLocal ?? ""} />

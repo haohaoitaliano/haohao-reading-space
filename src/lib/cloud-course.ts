@@ -31,8 +31,12 @@ export function getCourseRouteId(dayNumber: number) {
 }
 
 export function parseCourseDay(value: string) {
-  const match = /^(?:giorno-)?([1-9]\d*)$/.exec(value);
+  const match = /^(?:giorno-)?(0|[1-9]\d*)$/.exec(value);
   return match ? Number(match[1]) : null;
+}
+
+export function getStudentCourseDayLabel(dayNumber: number) {
+  return dayNumber === 0 ? "Benvenuti!" : `Giorno ${dayNumber}`;
 }
 
 export function selectCourseCamp<T extends { id: string; status: string }>(
@@ -56,8 +60,8 @@ export function isCourseUnlocked(unlockAt: string | null, now = new Date()) {
 }
 
 export function validateCourseEditorInput(input: CourseEditorInput) {
-  if (!Number.isInteger(input.dayNumber) || input.dayNumber <= 0) {
-    return "课程天数必须大于 0";
+  if (!Number.isInteger(input.dayNumber) || input.dayNumber < 0) {
+    return "课程天数不能小于 0";
   }
   if (!input.italianTitle.trim()) return "请输入意大利语标题";
   if (!(["draft", "published", "archived"] as string[]).includes(input.status)) {

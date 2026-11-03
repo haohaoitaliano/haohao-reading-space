@@ -9,6 +9,7 @@ import { PdfPreviewDialog } from "@/components/MediaPreviewDialog";
 import { PhotoAssignmentUploader, type PreparedPhoto } from "@/components/PhotoAssignmentUploader";
 import { PhotoSubmissionCard } from "@/components/PhotoSubmissionCard";
 import { Header } from "@/components/Header";
+import { getStudentCourseDayLabel } from "@/lib/cloud-course";
 import { formatFileSize } from "@/lib/audio-file";
 import type {
   CloudCourseAudio,
@@ -231,7 +232,7 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
 
   return (
     <section className="screen with-top">
-        <Header title={`Giorno ${course.dayNumber}`} subtitle={course.chineseTitle} backHref="/courses" />
+        <Header title={getStudentCourseDayLabel(course.dayNumber)} subtitle={course.chineseTitle} backHref="/courses" />
 
         <section className="hero">
           <p className="kicker">每日课程</p>

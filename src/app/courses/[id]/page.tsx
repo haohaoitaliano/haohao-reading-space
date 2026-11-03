@@ -4,7 +4,7 @@ import { AppFrame } from "@/components/AppFrame";
 import { Header } from "@/components/Header";
 import { StudentCourseDetail } from "@/components/StudentCourseDetail";
 import { requireAuthenticatedUser } from "@/lib/auth";
-import { parseCourseDay } from "@/lib/cloud-course";
+import { getStudentCourseDayLabel, parseCourseDay } from "@/lib/cloud-course";
 import { getStudentCourseByDay } from "@/lib/cloud-course-data";
 import { getOwnPhotoSubmissions } from "@/lib/photo-submission-data";
 import { formatUnlockDateTime } from "@/lib/course-schedule";
@@ -15,7 +15,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
   const { profile } = await requireAuthenticatedUser();
   const { id } = await params;
   const dayNumber = parseCourseDay(id);
-  const result = dayNumber
+  const result = dayNumber !== null
     ? await getStudentCourseByDay(profile.id, dayNumber)
     : { state: "not_found" as const, course: null };
 
@@ -23,7 +23,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
     return (
       <AppFrame active="courses">
         <section className="screen with-top">
-          <Header title={`Giorno ${result.course.dayNumber}`} subtitle={result.course.chineseTitle} backHref="/courses" />
+          <Header title={getStudentCourseDayLabel(result.course.dayNumber)} subtitle={result.course.chineseTitle} backHref="/courses" />
           <section className="hero">
             <Lock color="var(--accent)" size={38} />
             <p className="kicker" style={{ marginTop: 14 }}>课程未解锁</p>

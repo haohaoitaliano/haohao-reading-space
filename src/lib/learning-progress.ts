@@ -52,6 +52,7 @@ export function isCourseAssignmentComplete(
 export function buildStudentCampStats(input: {
   courses: Array<{
     id: string;
+    dayNumber: number;
     isUnlocked: boolean;
     recordingAssignmentEnabled: boolean;
     photoAssignmentEnabled: boolean;
@@ -60,7 +61,8 @@ export function buildStudentCampStats(input: {
   photoSubmissions: Array<{ courseId: string; version: number }>;
   unifiedAssignments?: Array<{ courseId: string; version: number; hasRecording: boolean; photoCount: number }>;
 }): StudentCampStats {
-  const unifiedAssignments = input.unifiedAssignments ?? [];
+  const formalCourseIds = new Set(input.courses.filter((course) => course.dayNumber > 0).map((course) => course.id));
+  const unifiedAssignments = (input.unifiedAssignments ?? []).filter((assignment) => formalCourseIds.has(assignment.courseId));
   const recordingCourseIds = new Set([
     ...input.recordingSubmissions.map((submission) => submission.courseId),
     ...unifiedAssignments.filter((assignment) => assignment.hasRecording).map((assignment) => assignment.courseId),
@@ -70,7 +72,9 @@ export function buildStudentCampStats(input: {
     ...unifiedAssignments.filter((assignment) => assignment.photoCount > 0).map((assignment) => assignment.courseId),
   ]);
   const openedCourses = input.courses.filter((course) =>
-    course.isUnlocked && (course.recordingAssignmentEnabled || course.photoAssignmentEnabled)
+    course.dayNumber > 0
+    && course.isUnlocked
+    && (course.recordingAssignmentEnabled || course.photoAssignmentEnabled)
   );
   const completedTasks = openedCourses.filter((course) => isCourseAssignmentComplete(
     course,
@@ -78,7 +82,8 @@ export function buildStudentCampStats(input: {
     photoCourseIds.has(course.id),
   )).length;
   const openedTasks = openedCourses.length;
-  const legacySubmissions = [...input.recordingSubmissions, ...input.photoSubmissions];
+  const legacySubmissions = [...input.recordingSubmissions, ...input.photoSubmissions]
+    .filter((submission) => formalCourseIds.has(submission.courseId));
 
   return {
     openedTasks,
@@ -100,6 +105,7 @@ export function buildLearningProgress(input: {
   const now = input.now ?? new Date();
   const availableCourses = input.courses
     .filter((course) => {
+      if (course.dayNumber === 0) return false;
       if (!course.recordingAssignmentEnabled && !course.photoAssignmentEnabled) return false;
       if (course.status !== "published" || !course.effectiveUnlockAt) return false;
       const unlockTime = new Date(course.effectiveUnlockAt).getTime();
@@ -148,6 +154,7 @@ export function buildAdminLearningProgress(input: {
   const now = input.now ?? new Date();
   const courses = input.courses
     .filter((course) => {
+      if (course.dayNumber === 0) return false;
       if (course.status !== "published" || !course.effectiveUnlockAt) return false;
       const unlockTime = new Date(course.effectiveUnlockAt).getTime();
       return Number.isFinite(unlockTime) && unlockTime <= now.getTime();
