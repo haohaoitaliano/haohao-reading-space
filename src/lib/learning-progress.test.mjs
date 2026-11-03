@@ -101,6 +101,8 @@ test("admin progress counts each unlocked published course once per student", ()
       { id: "draft", dayNumber: 4, title: "Quattro", status: "draft", effectiveUnlockAt: "2026-11-01T08:00:00Z" },
     ],
     submissions: [
+      { userId: "student-1", courseId: "intro" },
+      { userId: "student-1", courseId: "intro" },
       { userId: "student-1", courseId: "c1" },
       { userId: "student-1", courseId: "c1" },
       { userId: "student-1", courseId: "future" },
@@ -108,7 +110,7 @@ test("admin progress counts each unlocked published course once per student", ()
     ],
   });
 
-  assert.deepEqual(result.courses.map((course) => course.id), ["c1", "c2"]);
-  assert.deepEqual(result.students[0].submittedCourseIds, ["c1"]);
+  assert.deepEqual(result.courses.map((course) => course.id), ["intro", "c1", "c2"]);
+  assert.deepEqual(result.students[0].submittedCourseIds, ["intro", "c1"]);
   assert.deepEqual(result.students[1].submittedCourseIds, ["c2"]);
 });

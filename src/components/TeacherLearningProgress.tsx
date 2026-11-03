@@ -4,6 +4,7 @@ import { BookOpenCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type CSSProperties } from "react";
 import type { CloudCamp } from "@/lib/cloud-course-data";
+import { getStudentCourseDayLabel } from "@/lib/cloud-course";
 import type { AdminProgressCourse, ProgressMember } from "@/lib/learning-progress";
 
 type CampProgress = {
@@ -81,10 +82,10 @@ export function TeacherLearningProgress({ camps, initialCampId }: {
     {selectedCamp.courses.length && mode === "daily" ? <>
       <label className="field">选择课程
         <select onChange={(event) => changeCourse(event.target.value)} value={selectedCourse?.id ?? ""}>
-          {selectedCamp.courses.map((course) => <option key={course.id} value={course.id}>Giorno {course.dayNumber} · {course.title}</option>)}
+          {selectedCamp.courses.map((course) => <option key={course.id} value={course.id}>{getStudentCourseDayLabel(course.dayNumber)} · {course.title}</option>)}
         </select>
       </label>
-      <div className="row start"><div><p className="kicker">Daily Check-in</p><h2>{selectedCourse ? `Giorno ${selectedCourse.dayNumber} · ${selectedCourse.title}` : "单日打卡"}</h2></div><BookOpenCheck color="var(--olive)" /></div>
+      <div className="row start"><div><p className="kicker">Daily Check-in</p><h2>{selectedCourse ? `${getStudentCourseDayLabel(selectedCourse.dayNumber)} · ${selectedCourse.title}` : "单日打卡"}</h2></div><BookOpenCheck color="var(--olive)" /></div>
     </> : null}
 
     {selectedCamp.courses.length && mode === "cumulative" ? <>

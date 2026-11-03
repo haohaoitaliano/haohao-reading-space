@@ -154,7 +154,6 @@ export function buildAdminLearningProgress(input: {
   const now = input.now ?? new Date();
   const courses = input.courses
     .filter((course) => {
-      if (course.dayNumber === 0) return false;
       if (course.status !== "published" || !course.effectiveUnlockAt) return false;
       const unlockTime = new Date(course.effectiveUnlockAt).getTime();
       return Number.isFinite(unlockTime) && unlockTime <= now.getTime();
