@@ -12,6 +12,8 @@ export function normalizeCampTimeZone(timeZone: string | null | undefined) {
 
 export function formatDateTimeLocalInZone(value: string | null, timeZone: string) {
   if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: normalizeCampTimeZone(timeZone),
     year: "numeric",
@@ -20,7 +22,7 @@ export function formatDateTimeLocalInZone(value: string | null, timeZone: string
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-  }).formatToParts(new Date(value));
+  }).formatToParts(date);
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((item) => item.type === type)?.value ?? "";
   return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
@@ -28,9 +30,11 @@ export function formatDateTimeLocalInZone(value: string | null, timeZone: string
 
 export function formatUnlockDateTime(value: string | null, timeZone: string) {
   if (!value) return "训练营开始时间尚未设置";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "训练营开始时间尚未设置";
   return new Intl.DateTimeFormat("zh-CN", {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: normalizeCampTimeZone(timeZone),
-  }).format(new Date(value));
+  }).format(date);
 }

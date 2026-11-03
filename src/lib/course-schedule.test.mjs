@@ -19,3 +19,10 @@ test("formats unlock text in the camp timezone rather than the browser timezone"
     /09:00/,
   );
 });
+
+test("handles empty and invalid dates without crashing date displays or editors", () => {
+  assert.equal(formatUnlockDateTime(null, "Europe/Rome"), "训练营开始时间尚未设置");
+  assert.equal(formatUnlockDateTime("invalid-date", "Europe/Rome"), "训练营开始时间尚未设置");
+  assert.equal(formatDateTimeLocalInZone(null, "Europe/Rome"), "");
+  assert.equal(formatDateTimeLocalInZone("invalid-date", "Europe/Rome"), "");
+});
