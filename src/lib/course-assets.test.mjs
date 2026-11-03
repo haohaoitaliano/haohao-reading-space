@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { hasCoursePdfSignature, validateCoursePdfFile } from "./course-pdf.ts";
 import { getStudentPhotoMimeType, hasStudentPhotoSignature, validateStudentPhotoFile } from "./student-photo.ts";
+import { PHOTO_COMPRESSION_TARGET_BYTES, PHOTO_COMPRESSION_TRIGGER_BYTES } from "./photo-compression.ts";
 
 test("PDF validation accepts PDF only and enforces 20 MB", () => {
   assert.equal(validateCoursePdfFile({ name: "lezione.pdf", size: 10, type: "application/pdf" }), null);
@@ -11,6 +12,8 @@ test("PDF validation accepts PDF only and enforces 20 MB", () => {
 });
 
 test("photo validation accepts JPG PNG and HEIC and enforces 5 MB", () => {
+  assert.equal(PHOTO_COMPRESSION_TRIGGER_BYTES, 5 * 1024 * 1024);
+  assert.equal(PHOTO_COMPRESSION_TARGET_BYTES, 2 * 1024 * 1024);
   assert.equal(validateStudentPhotoFile({ name: "homework.HEIC", size: 10, type: "" }), null);
   assert.equal(getStudentPhotoMimeType({ name: "homework.HEIC", type: "" }), "image/heic");
   assert.equal(validateStudentPhotoFile({ name: "homework.png", size: 10, type: "image/png" }), null);

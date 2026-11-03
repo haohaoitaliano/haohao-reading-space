@@ -3,7 +3,8 @@
 import { Camera, Images, Trash2 } from "lucide-react";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { formatFileSize } from "@/lib/audio-file";
-import { STUDENT_PHOTO_MAX_COUNT, validateStudentPhotoFile } from "@/lib/student-photo";
+import { compressPhotoForUpload, PHOTO_COMPRESSION_TRIGGER_BYTES } from "@/lib/photo-compression";
+import { getStudentPhotoMimeType, STUDENT_PHOTO_MAX_COUNT, validateStudentPhotoFile } from "@/lib/student-photo";
 
 export type PreparedPhoto = { id: string; file: File };
 type SelectedPhoto = PreparedPhoto & { previewUrl: string };
@@ -13,6 +14,7 @@ export function PhotoAssignmentUploader({ onPreparedChange }: {
 }) {
   const [photos, setPhotos] = useState<SelectedPhoto[]>([]);
   const [error, setError] = useState("");
+  const [processing, setProcessing] = useState(false);
   const photoUrlsRef = useRef<string[]>([]);
 
   useEffect(() => {
@@ -22,29 +24,45 @@ export function PhotoAssignmentUploader({ onPreparedChange }: {
 
   useEffect(() => () => photoUrlsRef.current.forEach((url) => URL.revokeObjectURL(url)), []);
 
-  function addFiles(files: File[]) {
+  async function addFiles(files: File[]) {
     setError("");
     if (photos.length + files.length > STUDENT_PHOTO_MAX_COUNT) {
       setError("每次最多选择 3 张照片，请先移除多余照片。");
       return;
     }
-    for (const file of files) {
-      const validationError = validateStudentPhotoFile(file);
-      if (validationError) {
-        setError(validationError);
-        return;
+    setProcessing(true);
+    try {
+      const preparedFiles: File[] = [];
+      for (const file of files) {
+        if (file.size <= 0 || !getStudentPhotoMimeType(file)) {
+          setError(validateStudentPhotoFile(file) || `${file.name || "所选文件"}不是支持的照片。`);
+          return;
+        }
+        const prepared = file.size > PHOTO_COMPRESSION_TRIGGER_BYTES
+          ? await compressPhotoForUpload(file)
+          : file;
+        const validationError = validateStudentPhotoFile(prepared);
+        if (validationError) {
+          setError(validationError);
+          return;
+        }
+        preparedFiles.push(prepared);
       }
+      setPhotos((current) => [
+        ...current,
+        ...preparedFiles.map((file) => ({ id: crypto.randomUUID(), file, previewUrl: URL.createObjectURL(file) })),
+      ]);
+    } catch (compressionError) {
+      setError(compressionError instanceof Error ? compressionError.message : "照片压缩失败，请重新选择，或选择尺寸较小的照片。");
+    } finally {
+      setProcessing(false);
     }
-    setPhotos((current) => [
-      ...current,
-      ...files.map((file) => ({ id: crypto.randomUUID(), file, previewUrl: URL.createObjectURL(file) })),
-    ]);
   }
 
   function handleFiles(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
-    if (files.length) addFiles(files);
+    if (files.length) void addFiles(files);
   }
 
   function removePhoto(id: string) {
@@ -64,13 +82,14 @@ export function PhotoAssignmentUploader({ onPreparedChange }: {
       <div className="grid-two photo-picker-actions">
         <label className="button secondary upload-picker">
           <Camera size={18} />手机拍照
-          <input accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif" capture="environment" disabled={photos.length >= 3} onChange={handleFiles} type="file" />
+          <input accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif" capture="environment" disabled={processing || photos.length >= 3} onChange={handleFiles} type="file" />
         </label>
         <label className="button secondary upload-picker">
           <Images size={18} />从相册选择
-          <input accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif" disabled={photos.length >= 3} multiple onChange={handleFiles} type="file" />
+          <input accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif" disabled={processing || photos.length >= 3} multiple onChange={handleFiles} type="file" />
         </label>
       </div>
+      {processing ? <p className="notice" role="status">正在压缩照片，请稍候…</p> : null}
       {photos.length ? (
         <>
           <div className="photo-preview-grid">

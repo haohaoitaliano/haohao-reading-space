@@ -1,9 +1,10 @@
 import { getStudentRecordingExtension, normalizeStudentRecordingMimeType } from "./student-recording.ts";
+import { compressPhotoForUpload, PHOTO_COMPRESSION_TRIGGER_BYTES } from "./photo-compression.ts";
 
 export const SUBMISSION_COMMENT_MEDIA_BUCKET = "submission-comment-media";
 export const SUBMISSION_COMMENT_AUDIO_MAX_BYTES = 3 * 1024 * 1024;
 export const SUBMISSION_COMMENT_AUDIO_MAX_SECONDS = 45;
-export const SUBMISSION_COMMENT_IMAGE_MAX_BYTES = 3 * 1024 * 1024;
+export const SUBMISSION_COMMENT_IMAGE_MAX_BYTES = PHOTO_COMPRESSION_TRIGGER_BYTES;
 export const SUBMISSION_COMMENT_SIGNED_URL_SECONDS = 5 * 60;
 
 const imageMimeExtensions = {
@@ -42,7 +43,7 @@ export function getSubmissionCommentImageMimeType(file: Pick<File, "name" | "typ
 
 export function validateSubmissionCommentImage(file: Pick<File, "name" | "size" | "type">) {
   if (file.size <= 0) return "照片内容为空，请重新选择。";
-  if (file.size > SUBMISSION_COMMENT_IMAGE_MAX_BYTES) return "照片压缩后仍超过 3 MB，请选择尺寸较小的照片。";
+  if (file.size > SUBMISSION_COMMENT_IMAGE_MAX_BYTES) return "照片压缩后仍超过 5 MB，请选择尺寸较小的照片。";
   if (!getSubmissionCommentImageMimeType(file)) return "照片仅支持 JPG、PNG 或 WebP 格式。";
   return null;
 }
@@ -76,26 +77,5 @@ export function buildSubmissionCommentMediaPath(input: {
 export async function compressSubmissionCommentImage(file: File) {
   const mimeType = getSubmissionCommentImageMimeType(file);
   if (!mimeType) throw new Error("照片仅支持 JPG、PNG 或 WebP 格式。");
-  const objectUrl = URL.createObjectURL(file);
-  try {
-    const image = new Image();
-    image.src = objectUrl;
-    await image.decode();
-    const maxEdge = 1600;
-    const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth, image.naturalHeight));
-    if (scale === 1 && file.size <= SUBMISSION_COMMENT_IMAGE_MAX_BYTES) return file;
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("当前浏览器无法压缩照片，请选择尺寸较小的照片。");
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const outputType = mimeType === "image/png" ? "image/png" : mimeType;
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, outputType, 0.82));
-    if (!blob) throw new Error("照片压缩失败，请重新选择。");
-    const extension = getSubmissionCommentImageExtension(outputType);
-    return new File([blob], `comment-photo.${extension}`, { type: outputType });
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
+  return compressPhotoForUpload(file);
 }

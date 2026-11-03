@@ -19,4 +19,5 @@ test("comment images accept JPG PNG and WebP and use camp-scoped paths", () => {
     assert.equal(validateSubmissionCommentImage({ name, type, size: 1024 }), null);
   }
   assert.equal(buildSubmissionCommentMediaPath({ campId: "camp", userId: "user", commentId: "comment", kind: "image", extension: "webp" }), "camp/user/comment/image.webp");
+  assert.match(validateSubmissionCommentImage({ name: "large.jpg", type: "image/jpeg", size: 5 * 1024 * 1024 + 1 }), /5 MB/);
 });
