@@ -19,7 +19,7 @@ export default async function TeacherPage() {
   return (
     <main className="app-shell">
       <section className="screen with-top">
-        <Header title="老师后台" subtitle={`${profile.display_name} · 管理员`} />
+        <Header title="老师后台" subtitle={`${profile.display_name} · 管理员`} showBrandImage />
         <div className="hero">
           <p className="kicker">Teacher Studio</p>
           <h1>选择今天要管理的内容。</h1>
