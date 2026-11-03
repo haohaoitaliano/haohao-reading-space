@@ -24,7 +24,7 @@ test("course uses one final submission and waits for the student before opening 
 test("course page hides optional modules that have no teacher content", async () => {
   const detail = await readFile(new URL("../components/StudentCourseDetail.tsx", import.meta.url), "utf8");
 
-  assert.match(detail, /course\.video \? <CloudCourseVideoPlayer video=\{course\.video\} \/> : null/);
+  assert.match(detail, /course\.videos\.map\(\(video\) => <CloudCourseVideoPlayer key=\{video\.id\} video=\{video\} \/>\)/);
   assert.match(detail, /course\.vocabulary\.length > 0/);
   assert.match(detail, /course\.readingText\.trim\(\) \? \(/);
   assert.match(detail, /const hasReflection = Boolean\(/);

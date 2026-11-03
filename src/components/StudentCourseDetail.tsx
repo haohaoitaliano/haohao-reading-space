@@ -245,7 +245,7 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
             <section className="audio-box"><p style={{ margin: 0 }}>暂无示范音频。</p></section>
           )}
 
-          {course.video ? <CloudCourseVideoPlayer video={course.video} /> : null}
+          {course.videos.map((video) => <CloudCourseVideoPlayer key={video.id} video={video} />)}
 
           {course.pdfs.length ? (
             <section className="quiet-card stack" aria-label="PDF 课件">

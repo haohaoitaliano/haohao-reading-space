@@ -48,6 +48,7 @@ export type CloudCourseDetail = CloudCourseSummary & {
   reflectionPromptIt: string;
   vocabulary: CloudVocabularyItem[];
   audio: CloudCourseAudio | null;
+  videos: CloudCourseVideo[];
   video: CloudCourseVideo | null;
   pdfs: CloudCoursePdf[];
   submissionCount: number;
@@ -69,6 +70,8 @@ export type CloudCourseAudio = {
 };
 
 export type CloudCourseVideo = {
+  id: string;
+  position: number;
   fileName: string;
   mimeType: string;
   sizeBytes: number;
@@ -113,6 +116,8 @@ type CourseAudioRow = {
 };
 
 type CourseVideoRow = {
+  id: string;
+  position: number;
   storage_path: string;
   file_name: string;
   mime_type: string;
@@ -152,13 +157,14 @@ async function createSignedCourseAudio(supabase: SupabaseClient, row: CourseAudi
   } satisfies CloudCourseAudio;
 }
 
-async function createSignedCourseVideo(supabase: SupabaseClient, row: CourseVideoRow | null) {
-  if (!row) return null;
+async function createSignedCourseVideo(supabase: SupabaseClient, row: CourseVideoRow) {
   const { data, error } = await supabase.storage
     .from(COURSE_VIDEO_BUCKET)
     .createSignedUrl(row.storage_path, COURSE_VIDEO_SIGNED_URL_SECONDS);
   if (error || !data?.signedUrl) return null;
   return {
+    id: row.id,
+    position: row.position,
     fileName: row.file_name,
     mimeType: row.mime_type,
     sizeBytes: row.size_bytes,
@@ -166,6 +172,11 @@ async function createSignedCourseVideo(supabase: SupabaseClient, row: CourseVide
     updatedAt: row.updated_at,
     signedUrl: data.signedUrl,
   } satisfies CloudCourseVideo;
+}
+
+async function createSignedCourseVideos(supabase: SupabaseClient, rows: CourseVideoRow[] | null) {
+  return (await Promise.all((rows ?? []).map((row) => createSignedCourseVideo(supabase, row))))
+    .filter((video): video is CloudCourseVideo => Boolean(video));
 }
 
 async function createSignedCoursePdf(supabase: SupabaseClient, row: CoursePdfRow) {
@@ -291,7 +302,7 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
     { data: content, error: contentError },
     { data: vocabulary, error: vocabularyError },
     { data: audioRow, error: audioError },
-    { data: videoRow, error: videoError },
+    { data: videoRows, error: videoError },
     { data: pdfRows, error: pdfError },
     { data: latestSubmissionRow, error: latestSubmissionError },
     { data: latestPhotoSubmissionRow, error: latestPhotoSubmissionError },
@@ -321,9 +332,9 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
         .maybeSingle<CourseAudioRow>(),
       supabase
         .from("course_videos")
-        .select("storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at")
+        .select("id, position, storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at")
         .eq("course_id", summary.id)
-        .maybeSingle<CourseVideoRow>(),
+        .order("position", { ascending: true }),
       supabase
         .from("course_pdfs")
         .select("id, storage_path, file_name, size_bytes, position, updated_at")
@@ -357,6 +368,7 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
     return { state: "database_error" as const, camp: campResult.camp, course: null };
   }
 
+  const videos = await createSignedCourseVideos(supabase, videoRows as CourseVideoRow[] | null);
   const detail: CloudCourseDetail = {
     ...summary,
     description: content.description ?? "",
@@ -377,7 +389,8 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
       meaningZh: item.meaning_zh ?? "",
     })),
     audio: await createSignedCourseAudio(supabase, audioRow),
-    video: await createSignedCourseVideo(supabase, videoRow),
+    videos,
+    video: videos[0] ?? null,
     pdfs: (await Promise.all(((pdfRows ?? []) as CoursePdfRow[]).map((row) => createSignedCoursePdf(supabase, row))))
       .filter((pdf): pdf is CloudCoursePdf => Boolean(pdf)),
     submissionCount: 0,
@@ -429,7 +442,7 @@ export async function getAdminCourse(courseId: string) {
     { data: content },
     { data: vocabulary },
     { data: audioRow },
-    { data: videoRow },
+    { data: videoRows },
     { data: pdfRows },
     submissionResult,
     photoSubmissionResult,
@@ -458,9 +471,9 @@ export async function getAdminCourse(courseId: string) {
       .maybeSingle<CourseAudioRow>(),
     supabase
       .from("course_videos")
-      .select("storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at")
+      .select("id, position, storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at")
       .eq("course_id", courseId)
-      .maybeSingle<CourseVideoRow>(),
+      .order("position", { ascending: true }),
     supabase
       .from("course_pdfs")
       .select("id, storage_path, file_name, size_bytes, position, updated_at")
@@ -476,6 +489,7 @@ export async function getAdminCourse(courseId: string) {
       .eq("course_id", courseId),
   ]);
 
+  const videos = await createSignedCourseVideos(supabase, videoRows as CourseVideoRow[] | null);
   return {
     ...summary,
     description: content?.description ?? "",
@@ -496,7 +510,8 @@ export async function getAdminCourse(courseId: string) {
       meaningZh: item.meaning_zh ?? "",
     })),
     audio: await createSignedCourseAudio(supabase, audioRow),
-    video: await createSignedCourseVideo(supabase, videoRow),
+    videos,
+    video: videos[0] ?? null,
     pdfs: (await Promise.all(((pdfRows ?? []) as CoursePdfRow[]).map((pdf) => createSignedCoursePdf(supabase, pdf))))
       .filter((pdf): pdf is CloudCoursePdf => Boolean(pdf)),
     submissionCount: (submissionResult.count ?? 0) + (photoSubmissionResult.count ?? 0),
@@ -532,7 +547,7 @@ export async function getAdminCourseMediaLibrary() {
         .select("course_id, storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at"),
       supabase
         .from("course_videos")
-        .select("course_id, storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at"),
+        .select("id, position, course_id, storage_path, file_name, mime_type, size_bytes, duration_seconds, updated_at"),
     ]);
 
   if (scheduleError || audioError || videoError) {
@@ -552,7 +567,7 @@ export async function getAdminCourseMediaLibrary() {
     ]),
   );
 
-  async function mapAudio(row: CourseAudioRow & { course_id: string }) {
+  async function mapAudio(row: CourseAudioRow & { course_id: string }): Promise<CloudCourseMediaItem | null> {
     const course = coursesById.get(row.course_id);
     if (!course) return null;
     const signed = await createSignedCourseAudio(supabase, row);
@@ -565,16 +580,16 @@ export async function getAdminCourseMediaLibrary() {
     } satisfies CloudCourseMediaItem;
   }
 
-  async function mapVideo(row: CourseVideoRow & { course_id: string }) {
+  async function mapVideo(row: CourseVideoRow & { course_id: string }): Promise<CloudCourseMediaItem | null> {
     const course = coursesById.get(row.course_id);
     if (!course) return null;
     const signed = await createSignedCourseVideo(supabase, row);
     if (!signed) return null;
     return {
       ...course,
-      id: `video-${row.course_id}`,
       kind: "video",
       ...signed,
+      id: `video-${row.id}`,
     } satisfies CloudCourseMediaItem;
   }
 

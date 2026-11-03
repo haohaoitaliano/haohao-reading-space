@@ -60,7 +60,7 @@ export function TeacherCourseEditor({
   const router = useRouter();
   const [course, setCourse] = useState(() => toEditorInput(initialCourse));
   const [audio, setAudio] = useState<CloudCourseAudio | null>(initialCourse.audio);
-  const [video, setVideo] = useState<CloudCourseVideo | null>(initialCourse.video);
+  const [videos, setVideos] = useState<CloudCourseVideo[]>(initialCourse.videos);
   const [pdfs, setPdfs] = useState<CloudCoursePdf[]>(initialCourse.pdfs);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
@@ -73,7 +73,7 @@ export function TeacherCourseEditor({
   const [uploadingPdfs, setUploadingPdfs] = useState(false);
   const [pdfUploadProgress, setPdfUploadProgress] = useState(0);
   const [deletingAudio, setDeletingAudio] = useState(false);
-  const [deletingVideo, setDeletingVideo] = useState(false);
+  const [deletingVideoId, setDeletingVideoId] = useState("");
   const [deletingPdfId, setDeletingPdfId] = useState("");
   const [saving, setSaving] = useState(false);
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
@@ -269,7 +269,7 @@ export function TeacherCourseEditor({
         "视频已传到云端，但课程信息确认失败；请保留文件并重试。",
       );
       if (!result.video) throw new Error(result.message || "视频上传状态异常，请刷新页面确认。");
-      setVideo(result.video);
+      setVideos((current) => [...current, result.video!].sort((left, right) => left.position - right.position));
       setSelectedVideoFile(null);
       setMessage(result.message);
       router.refresh();
@@ -280,23 +280,27 @@ export function TeacherCourseEditor({
     }
   }
 
-  async function deleteVideo() {
-    if (!initialCourse.id || !video) return;
+  async function deleteVideo(video: CloudCourseVideo) {
+    if (!initialCourse.id || !window.confirm(`确定删除“${video.fileName}”吗？`)) return;
     setFeedbackArea("video");
-    setDeletingVideo(true);
+    setDeletingVideoId(video.id);
     setError("");
     setMessage("");
     try {
-      const response = await fetch(`/api/teacher/courses/${initialCourse.id}/video`, { method: "DELETE" });
+      const response = await fetch(`/api/teacher/courses/${initialCourse.id}/video`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId: video.id }),
+      });
       const result = await response.json() as { success: boolean; message: string };
       if (!response.ok || !result.success) throw new Error(result.message);
-      setVideo(null);
+      setVideos((current) => current.filter((item) => item.id !== video.id));
       setMessage(result.message);
       router.refresh();
     } catch (deleteError) {
       setError(deleteError instanceof Error && deleteError.message ? deleteError.message : "视频删除失败，请稍后重试。");
     } finally {
-      setDeletingVideo(false);
+      setDeletingVideoId("");
     }
   }
 
@@ -610,7 +614,7 @@ export function TeacherCourseEditor({
         <div className="row start"><div><p className="kicker">Private Storage</p><h2>云端示范视频</h2></div><Video color="var(--olive)" /></div>
         {!initialCourse.id ? <p className="notice">请先创建课程，再上传示范视频。</p> : null}
         <label className="button secondary full upload-picker">
-          {video ? <RotateCcw size={18} /> : <Upload size={18} />}{video ? "选择替换视频" : "选择视频文件"}
+          <Upload size={18} />选择视频文件
           <input accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm" disabled={!initialCourse.id || uploadingVideo} onChange={handleVideoFileChange} type="file" />
         </label>
 
@@ -624,10 +628,10 @@ export function TeacherCourseEditor({
           </div>
         ) : null}
 
-        {video ? (
-          <div className="audio-box">
+        {videos.length ? videos.map((video) => (
+          <div className="audio-box" key={video.id}>
             <div className="row start"><div><strong className="file-name">已上传 · {video.fileName}</strong><p>{formatFileSize(video.sizeBytes)}</p></div>
-              <button aria-label="删除云端示范视频" className="button ghost" disabled={deletingVideo} onClick={deleteVideo} type="button"><Trash2 size={18} /></button>
+              <button aria-label={`删除 ${video.fileName}`} className="button ghost" disabled={deletingVideoId === video.id} onClick={() => void deleteVideo(video)} type="button"><Trash2 size={18} /></button>
             </div>
             {video.signedUrl ? (
               <video controls preload="metadata" src={video.signedUrl} style={{ width: "100%", borderRadius: 8 }} />
@@ -635,7 +639,7 @@ export function TeacherCourseEditor({
               <p className="notice" style={{ margin: 0 }}>视频已保存，预览链接暂时不可用；请刷新页面重试。</p>
             )}
           </div>
-        ) : <div className="item-card"><p style={{ margin: 0 }}>暂无云端示范视频。</p></div>}
+        )) : <div className="item-card"><p style={{ margin: 0 }}>暂无云端示范视频。</p></div>}
         {renderFeedback("video")}
       </section>
 

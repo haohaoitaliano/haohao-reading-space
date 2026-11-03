@@ -153,11 +153,10 @@ export async function permanentlyDeleteCloudCourse(courseId: string): Promise<Co
     .select("storage_path")
     .eq("course_id", courseId)
     .maybeSingle<{ storage_path: string }>();
-  const { data: video } = await supabase
+  const { data: videos } = await supabase
     .from("course_videos")
     .select("storage_path")
-    .eq("course_id", courseId)
-    .maybeSingle<{ storage_path: string }>();
+    .eq("course_id", courseId);
   const { data: pdfs } = await supabase
     .from("course_pdfs")
     .select("storage_path")
@@ -168,10 +167,11 @@ export async function permanentlyDeleteCloudCourse(courseId: string): Promise<Co
       .remove([audio.storage_path]);
     if (storageError) return { success: false, message: "示范音频文件删除失败，请稍后重试。" };
   }
-  if (video?.storage_path) {
+  const videoPaths = (videos ?? []).map((video) => video.storage_path).filter(Boolean);
+  if (videoPaths.length) {
     const { error: storageError } = await supabase.storage
       .from(COURSE_VIDEO_BUCKET)
-      .remove([video.storage_path]);
+      .remove(videoPaths);
     if (storageError) return { success: false, message: "示范视频文件删除失败，请稍后重试。" };
   }
   const pdfPaths = (pdfs ?? []).map((pdf) => pdf.storage_path).filter(Boolean);

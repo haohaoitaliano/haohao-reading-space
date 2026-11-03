@@ -7,14 +7,28 @@ import { filterCoursesForCamp, selectCourseCamp } from "@/lib/cloud-course";
 import { getAdminCampOptions, getAdminCourseList } from "@/lib/cloud-course-data";
 import { formatUnlockDateTime } from "@/lib/course-schedule";
 
+const courseStatuses = [
+  { value: "published", label: "已发布" },
+  { value: "draft", label: "草稿" },
+  { value: "archived", label: "已归档" },
+] as const;
+
 export default async function TeacherCoursesPage({ searchParams }: {
-  searchParams: Promise<{ camp?: string; intent?: string }>;
+  searchParams: Promise<{ camp?: string; intent?: string; status?: string }>;
 }) {
   await requireAdmin();
   const query = await searchParams;
   const [courseResult, camps] = await Promise.all([getAdminCourseList(), getAdminCampOptions()]);
   const selectedCamp = selectCourseCamp(camps, query.camp);
-  const visibleCourses = selectedCamp ? filterCoursesForCamp(courseResult.courses, selectedCamp.id) : [];
+  const selectedStatus = courseStatuses.some((status) => status.value === query.status)
+    ? query.status as (typeof courseStatuses)[number]["value"]
+    : "published";
+  const campCourses = selectedCamp ? filterCoursesForCamp(courseResult.courses, selectedCamp.id) : [];
+  const visibleCourses = campCourses.filter((course) => course.status === selectedStatus);
+  const statusCounts = Object.fromEntries(courseStatuses.map((status) => [
+    status.value,
+    campCourses.filter((course) => course.status === status.value).length,
+  ])) as Record<(typeof courseStatuses)[number]["value"], number>;
   const isMediaIntent = query.intent === "media";
 
   return (
@@ -41,8 +55,16 @@ export default async function TeacherCoursesPage({ searchParams }: {
           </div>
 
           {selectedCamp ? <TeacherCourseCampFilter camps={camps} selectedCampId={selectedCamp.id} /> : null}
+          {selectedCamp ? <nav aria-label="课程状态" className="progress-filter-grid">
+            {courseStatuses.map((status) => <Link
+              aria-current={selectedStatus === status.value ? "page" : undefined}
+              className={`button full ${selectedStatus === status.value ? "" : "ghost"}`}
+              href={`/teacher/courses?camp=${encodeURIComponent(selectedCamp.id)}&status=${status.value}`}
+              key={status.value}
+            >{status.label} ({statusCounts[status.value]})</Link>)}
+          </nav> : null}
           {courseResult.error ? <p className="notice" role="alert">课程数据库暂时不可用。</p> : null}
-          {!courseResult.error && selectedCamp && !visibleCourses.length ? <p className="notice">{selectedCamp.name} 当前没有课程。</p> : null}
+          {!courseResult.error && selectedCamp && !visibleCourses.length ? <p className="notice">{selectedCamp.name} 当前没有{courseStatuses.find((status) => status.value === selectedStatus)?.label}课程。</p> : null}
           {!courseResult.error && !selectedCamp ? <p className="notice">请先创建训练营。</p> : null}
 
           {visibleCourses.map((course) => (

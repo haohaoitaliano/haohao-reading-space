@@ -43,6 +43,7 @@ export default async function NewTeacherCoursePage({ searchParams }: {
     photoAssignmentEnabled: false,
     vocabulary: [],
     audio: null,
+    videos: [],
     video: null,
     pdfs: [],
     submissionCount: 0,

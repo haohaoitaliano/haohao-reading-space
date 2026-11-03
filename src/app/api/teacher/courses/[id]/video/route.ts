@@ -116,18 +116,24 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
     ? durationValue
     : null;
 
-  const { data: previousVideo, error: previousError } = await context.supabase
+  const { data: lastVideo, error: lastVideoError } = await context.supabase
     .from("course_videos")
-    .select("storage_path")
+    .select("position")
     .eq("course_id", context.course.id)
-    .maybeSingle<{ storage_path: string }>();
-  if (previousError) {
-    logVideoUploadFailure("read existing metadata failed", previousError);
-    return errorResponse("无法读取当前视频信息，请确认视频数据库迁移已执行。", 500);
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ position: number }>();
+  if (lastVideoError) {
+    logVideoUploadFailure("read last video position failed", lastVideoError);
+    return errorResponse("无法读取视频排序信息，请确认多视频数据库迁移已执行。", 500);
   }
+  const videoId = crypto.randomUUID();
+  const position = (lastVideo?.position ?? 0) + 1;
 
-  const { error: metadataError } = await context.supabase.from("course_videos").upsert({
+  const { data: video, error: metadataError } = await context.supabase.from("course_videos").insert({
+    id: videoId,
     course_id: context.course.id,
+    position,
     storage_path: storagePath,
     file_name: file.name.slice(0, 255),
     mime_type: mimeType,
@@ -135,16 +141,20 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
     duration_seconds: durationSeconds,
     updated_by: context.auth.profile.id,
     updated_at: new Date().toISOString(),
-  });
+  }).select("id, position, file_name, mime_type, size_bytes, duration_seconds, updated_at").single<{
+    id: string;
+    position: number;
+    file_name: string;
+    mime_type: string;
+    size_bytes: number;
+    duration_seconds: number | null;
+    updated_at: string;
+  }>();
 
-  if (metadataError) {
+  if (metadataError || !video) {
     await context.supabase.storage.from(COURSE_VIDEO_BUCKET).remove([storagePath]);
     logVideoUploadFailure("metadata upsert failed", metadataError);
     return errorResponse("视频已传到 Storage，但课程视频信息保存失败；已尝试清理本次上传，请确认视频数据库迁移已执行。", 500);
-  }
-
-  if (previousVideo?.storage_path && previousVideo.storage_path !== storagePath) {
-    await context.supabase.storage.from(COURSE_VIDEO_BUCKET).remove([previousVideo.storage_path]);
   }
 
   const { data: signed, error: signedError } = await context.supabase.storage
@@ -157,17 +167,19 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
     success: true,
     message: signed?.signedUrl ? "示范视频上传成功。" : "示范视频已上传；预览链接生成失败，请刷新页面重试。",
     video: {
-      fileName: file.name.slice(0, 255),
-      mimeType,
-      sizeBytes: file.size,
-      durationSeconds,
-      updatedAt: new Date().toISOString(),
+      id: video.id,
+      position: video.position,
+      fileName: video.file_name,
+      mimeType: video.mime_type,
+      sizeBytes: video.size_bytes,
+      durationSeconds: video.duration_seconds,
+      updatedAt: video.updated_at,
       signedUrl: signed?.signedUrl ?? "",
     },
   });
 }
 
-export async function DELETE(_: NextRequest, { params }: RouteProps) {
+export async function DELETE(request: NextRequest, { params }: RouteProps) {
   const { id } = await params;
   const context = await getAdminCourse(id);
   if ("error" in context) {
@@ -176,9 +188,19 @@ export async function DELETE(_: NextRequest, { params }: RouteProps) {
       : errorResponse("课程不存在。", 404);
   }
 
+  let videoId = "";
+  try {
+    const body = await request.json() as { videoId?: string };
+    videoId = String(body.videoId ?? "");
+  } catch {
+    return errorResponse("请选择要删除的视频。", 400);
+  }
+  if (!videoId) return errorResponse("请选择要删除的视频。", 400);
+
   const { data: video } = await context.supabase
     .from("course_videos")
     .select("storage_path")
+    .eq("id", videoId)
     .eq("course_id", context.course.id)
     .maybeSingle<{ storage_path: string }>();
   if (!video) return NextResponse.json({ success: true, message: "课程当前没有示范视频。" });
@@ -194,6 +216,7 @@ export async function DELETE(_: NextRequest, { params }: RouteProps) {
   const { error: metadataError } = await context.supabase
     .from("course_videos")
     .delete()
+    .eq("id", videoId)
     .eq("course_id", context.course.id);
   if (metadataError) {
     logVideoUploadFailure("metadata delete failed", metadataError);
