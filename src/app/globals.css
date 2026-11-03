@@ -1,17 +1,17 @@
 :root {
-  --bg: #fbf7f0;
-  --surface: #fffdf8;
+  --bg: #fff9f0;
+  --surface: #fffcf7;
   --surface-strong: #ffffff;
-  --ink: #2c2925;
-  --muted: #766f66;
-  --soft: #efe4d3;
-  --line: #e6d8c4;
-  --accent: #9d4f3b;
-  --accent-deep: #713628;
-  --olive: #6f7d4c;
+  --ink: #303b37;
+  --muted: #68736e;
+  --soft: #e5f0eb;
+  --line: #d7e5de;
+  --accent: #b35e4a;
+  --accent-deep: #7d3f33;
+  --olive: #4f806f;
   --sky: #527a8c;
   --gold: #b9862e;
-  --shadow: 0 18px 48px rgba(83, 62, 42, 0.12);
+  --shadow: 0 18px 48px rgba(48, 59, 55, 0.12);
   --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
 }
 
@@ -27,8 +27,8 @@ body {
   margin: 0;
   color: var(--ink);
   background:
-    radial-gradient(circle at 20% 0%, rgba(157, 79, 59, 0.12), transparent 28rem),
-    linear-gradient(180deg, #fbf7f0 0%, #f6efe3 100%);
+    radial-gradient(circle at 20% 0%, rgba(30, 201, 172, 0.12), transparent 28rem),
+    linear-gradient(180deg, #fff9f0 0%, #f7f0e6 100%);
   font-family: var(--font-sans);
 }
 
