@@ -11,6 +11,9 @@ export type ProgressCourse = {
 export type ProgressMember = { userId: string; displayName: string };
 export type ProgressSubmission = { userId: string; courseId: string; kind: "recording" | "photo" };
 
+export type AdminProgressCourse = Pick<ProgressCourse, "id" | "dayNumber" | "title" | "status" | "effectiveUnlockAt">;
+export type AdminProgressSubmission = { userId: string; courseId: string };
+
 export type StudentCampStats = {
   openedTasks: number;
   completedTasks: number;
@@ -134,4 +137,37 @@ export function buildLearningProgress(input: {
       missingCourses,
     };
   });
+}
+
+export function buildAdminLearningProgress(input: {
+  now?: Date;
+  members: ProgressMember[];
+  courses: AdminProgressCourse[];
+  submissions: AdminProgressSubmission[];
+}) {
+  const now = input.now ?? new Date();
+  const courses = input.courses
+    .filter((course) => {
+      if (course.status !== "published" || !course.effectiveUnlockAt) return false;
+      const unlockTime = new Date(course.effectiveUnlockAt).getTime();
+      return Number.isFinite(unlockTime) && unlockTime <= now.getTime();
+    })
+    .sort((left, right) => left.dayNumber - right.dayNumber);
+  const courseIds = new Set(courses.map((course) => course.id));
+  const submissionsByUser = new Map<string, Set<string>>();
+
+  for (const submission of input.submissions) {
+    if (!courseIds.has(submission.courseId)) continue;
+    const submittedCourseIds = submissionsByUser.get(submission.userId) ?? new Set<string>();
+    submittedCourseIds.add(submission.courseId);
+    submissionsByUser.set(submission.userId, submittedCourseIds);
+  }
+
+  return {
+    courses,
+    students: input.members.map((member) => ({
+      ...member,
+      submittedCourseIds: [...(submissionsByUser.get(member.userId) ?? [])],
+    })),
+  };
 }

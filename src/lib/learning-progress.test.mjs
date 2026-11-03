@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildLearningProgress, buildStudentCampStats, getTodayTaskStatus } from "./learning-progress.ts";
+import { buildAdminLearningProgress, buildLearningProgress, buildStudentCampStats, getTodayTaskStatus } from "./learning-progress.ts";
 
 test("missing work includes only published courses already unlocked", () => {
   const result = buildLearningProgress({
@@ -79,4 +79,30 @@ test("one unified recording and photo assignment completes both requirements and
   assert.equal(stats.pendingTasks, 0);
   assert.equal(stats.completedOutputs, 1);
   assert.equal(stats.resubmissions, 1);
+});
+
+test("admin progress counts each unlocked published course once per student", () => {
+  const result = buildAdminLearningProgress({
+    now: new Date("2026-11-03T12:00:00Z"),
+    members: [
+      { userId: "student-1", displayName: "林小满" },
+      { userId: "student-2", displayName: "Luca" },
+    ],
+    courses: [
+      { id: "c1", dayNumber: 1, title: "Uno", status: "published", effectiveUnlockAt: "2026-11-01T08:00:00Z" },
+      { id: "c2", dayNumber: 2, title: "Due", status: "published", effectiveUnlockAt: "2026-11-02T08:00:00Z" },
+      { id: "future", dayNumber: 3, title: "Tre", status: "published", effectiveUnlockAt: "2026-11-04T08:00:00Z" },
+      { id: "draft", dayNumber: 4, title: "Quattro", status: "draft", effectiveUnlockAt: "2026-11-01T08:00:00Z" },
+    ],
+    submissions: [
+      { userId: "student-1", courseId: "c1" },
+      { userId: "student-1", courseId: "c1" },
+      { userId: "student-1", courseId: "future" },
+      { userId: "student-2", courseId: "c2" },
+    ],
+  });
+
+  assert.deepEqual(result.courses.map((course) => course.id), ["c1", "c2"]);
+  assert.deepEqual(result.students[0].submittedCourseIds, ["c1"]);
+  assert.deepEqual(result.students[1].submittedCourseIds, ["c2"]);
 });

@@ -1594,6 +1594,33 @@ p {
   background: var(--olive);
 }
 
+.progress-summary-grid,
+.progress-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.progress-summary-grid .metric {
+  min-width: 0;
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.progress-summary-grid .metric strong {
+  font-size: 22px;
+}
+
+.progress-summary-grid .metric span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.progress-filter-grid .button {
+  min-width: 0;
+  padding-inline: 8px;
+}
+
 .notice {
   padding: 12px;
   color: #61442f;
