@@ -518,12 +518,12 @@ export async function getAdminCourse(courseId: string) {
   } satisfies CloudCourseDetail;
 }
 
-export async function getAdminCampOptions() {
+export async function getAdminCampOptions(options?: { newestFirst?: boolean }) {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("camps")
     .select("id, name, slug, starts_at, timezone, status")
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: !options?.newestFirst });
   return ((data ?? []) as Array<{
     id: string; name: string; slug: string; starts_at: string | null; timezone: string;
     status: "draft" | "active" | "archived";

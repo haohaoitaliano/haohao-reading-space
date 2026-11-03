@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Header } from "@/components/Header";
 import { TeacherCourseCampFilter } from "@/components/TeacherCourseCampFilter";
 import { requireAdmin } from "@/lib/auth";
-import { filterCoursesForCamp, selectCourseCamp } from "@/lib/cloud-course";
+import { filterCoursesForCamp } from "@/lib/cloud-course";
 import { getAdminCampOptions, getAdminCourseList } from "@/lib/cloud-course-data";
 import { formatUnlockDateTime } from "@/lib/course-schedule";
 
@@ -18,8 +18,8 @@ export default async function TeacherCoursesPage({ searchParams }: {
 }) {
   await requireAdmin();
   const query = await searchParams;
-  const [courseResult, camps] = await Promise.all([getAdminCourseList(), getAdminCampOptions()]);
-  const selectedCamp = selectCourseCamp(camps, query.camp);
+  const [courseResult, camps] = await Promise.all([getAdminCourseList(), getAdminCampOptions({ newestFirst: true })]);
+  const selectedCamp = camps.find((camp) => camp.id === query.camp) ?? camps[0] ?? null;
   const selectedStatus = courseStatuses.some((status) => status.value === query.status)
     ? query.status as (typeof courseStatuses)[number]["value"]
     : "published";
