@@ -18,8 +18,10 @@ export function InviteManager({ camps, invites }: { camps: CloudCamp[]; invites:
   const [message, setMessage] = useState("");
   const [createdCode, setCreatedCode] = useState("");
   const [error, setError] = useState("");
+  const [feedbackTarget, setFeedbackTarget] = useState("create");
 
   async function create() {
+    setFeedbackTarget("create");
     setBusy(true); setError(""); setMessage("");
     const result = await createCampInvite({ campId, code, maxUses, expiresAtLocal });
     if (result.success) { setCreatedCode(code); setMessage(result.message); router.refresh(); }
@@ -28,6 +30,7 @@ export function InviteManager({ camps, invites }: { camps: CloudCamp[]; invites:
   }
 
   async function disable(inviteId: string) {
+    setFeedbackTarget(inviteId);
     setBusy(true); setError(""); setMessage("");
     const result = await disableCampInvite(inviteId);
     if (result.success) { setMessage(result.message); router.refresh(); }
@@ -54,10 +57,10 @@ export function InviteManager({ camps, invites }: { camps: CloudCamp[]; invites:
           <input onChange={(event) => setExpiresAtLocal(event.target.value)} type="datetime-local" value={expiresAtLocal} />
         </label>
         <p className="notice">邀请码明文只用于本次创建，数据库仅保存哈希和脱敏提示。</p>
-        {error ? <p className="notice" role="alert">{error}</p> : null}
-        {message ? <p className="success-notice" role="status">{message}</p> : null}
         {createdCode ? <div className="row"><strong>{createdCode}</strong><button className="button ghost" onClick={() => navigator.clipboard.writeText(createdCode)} title="复制邀请码" type="button"><Copy size={18} /> 复制</button></div> : null}
         <button className="button full" disabled={busy || !camps.length} onClick={create} type="button"><Plus size={18} /> 创建邀请码</button>
+        {feedbackTarget === "create" && error ? <p className="notice" role="alert">{error}</p> : null}
+        {feedbackTarget === "create" && message ? <p className="success-notice" role="status">{message}</p> : null}
       </section>
 
       {invites.map((invite) => (
@@ -68,6 +71,8 @@ export function InviteManager({ camps, invites }: { camps: CloudCamp[]; invites:
           <p>已使用 {invite.usedCount} / {invite.maxUses} 次</p>
           <p style={{ fontSize: 13 }}>有效期至：{formatUnlockDateTime(invite.expiresAt, invite.timezone)}（{invite.timezone}）</p>
           {invite.isActive ? <button className="button secondary full" disabled={busy} onClick={() => disable(invite.id)} type="button"><Ban size={18} /> 停用邀请码</button> : null}
+          {feedbackTarget === invite.id && error ? <p className="notice" role="alert">{error}</p> : null}
+          {feedbackTarget === invite.id && message ? <p className="success-notice" role="status">{message}</p> : null}
         </article>
       ))}
       {!invites.length ? <p className="notice">当前还没有邀请码。</p> : null}

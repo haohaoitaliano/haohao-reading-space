@@ -22,6 +22,7 @@ import {
 
 type SaveAction = (input: CourseEditorInput) => Promise<CourseActionResult>;
 type LifecycleAction = () => Promise<CourseActionResult>;
+type FeedbackArea = "course" | "pdf" | "audio" | "video" | "lifecycle";
 
 function toEditorInput(course: CloudCourseDetail): CourseEditorInput {
   return {
@@ -78,6 +79,7 @@ export function TeacherCourseEditor({
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [feedbackArea, setFeedbackArea] = useState<FeedbackArea>("course");
   const previewUrl = useMemo(() => selectedFile ? URL.createObjectURL(selectedFile) : "", [selectedFile]);
   const videoPreviewUrl = useMemo(
     () => selectedVideoFile ? URL.createObjectURL(selectedVideoFile) : "",
@@ -111,6 +113,9 @@ export function TeacherCourseEditor({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    setFeedbackArea("audio");
+    setError("");
+    setMessage("");
     const validationError = validateCourseAudioFile(file);
     if (validationError) {
       setError(validationError);
@@ -119,7 +124,6 @@ export function TeacherCourseEditor({
     setSelectedFile(file);
     setSelectedDuration(null);
     setUploadProgress(0);
-    setError("");
     const objectUrl = URL.createObjectURL(file);
     const media = new Audio(objectUrl);
     media.addEventListener("loadedmetadata", () => {
@@ -133,6 +137,9 @@ export function TeacherCourseEditor({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    setFeedbackArea("video");
+    setError("");
+    setMessage("");
     const validationError = validateCourseVideoFile(file);
     if (validationError) {
       setError(validationError);
@@ -140,7 +147,6 @@ export function TeacherCourseEditor({
     }
     setSelectedVideoFile(file);
     setSelectedVideoDuration(null);
-    setError("");
     const objectUrl = URL.createObjectURL(file);
     const media = document.createElement("video");
     media.preload = "metadata";
@@ -156,6 +162,9 @@ export function TeacherCourseEditor({
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
     if (!files.length) return;
+    setFeedbackArea("pdf");
+    setError("");
+    setMessage("");
     for (const file of files) {
       const validationError = validateCoursePdfFile(file);
       if (validationError) {
@@ -165,12 +174,11 @@ export function TeacherCourseEditor({
     }
     setSelectedPdfFiles((current) => [...current, ...files]);
     setPdfUploadProgress(0);
-    setError("");
-    setMessage("");
   }
 
   async function uploadAudio() {
     if (!selectedFile || !initialCourse.id) return;
+    setFeedbackArea("audio");
     setUploading(true);
     setUploadProgress(0);
     setError("");
@@ -206,6 +214,7 @@ export function TeacherCourseEditor({
 
   async function deleteAudio() {
     if (!initialCourse.id || !audio) return;
+    setFeedbackArea("audio");
     setDeletingAudio(true);
     setError("");
     setMessage("");
@@ -224,6 +233,7 @@ export function TeacherCourseEditor({
 
   async function uploadVideo() {
     if (!selectedVideoFile || !initialCourse.id) return;
+    setFeedbackArea("video");
     setUploadingVideo(true);
     setError("");
     setMessage("");
@@ -272,6 +282,7 @@ export function TeacherCourseEditor({
 
   async function deleteVideo() {
     if (!initialCourse.id || !video) return;
+    setFeedbackArea("video");
     setDeletingVideo(true);
     setError("");
     setMessage("");
@@ -291,6 +302,7 @@ export function TeacherCourseEditor({
 
   async function uploadPdfs() {
     if (!initialCourse.id || !selectedPdfFiles.length) return;
+    setFeedbackArea("pdf");
     setUploadingPdfs(true);
     setPdfUploadProgress(0);
     setError("");
@@ -343,6 +355,7 @@ export function TeacherCourseEditor({
 
   async function deletePdf(pdf: CloudCoursePdf) {
     if (!initialCourse.id || !window.confirm(`确定删除“${pdf.fileName}”吗？`)) return;
+    setFeedbackArea("pdf");
     setDeletingPdfId(pdf.id);
     setError("");
     setMessage("");
@@ -361,6 +374,7 @@ export function TeacherCourseEditor({
   }
 
   async function saveChanges() {
+    setFeedbackArea("course");
     const validationError = validateCourseEditorInput(course);
     if (validationError) { setError(validationError); return; }
     setSaving(true);
@@ -389,6 +403,7 @@ export function TeacherCourseEditor({
     nextStatus?: CourseEditorInput["status"],
   ) {
     if (!action) return;
+    setFeedbackArea("lifecycle");
     setLifecycleBusy(true);
     setError("");
     setMessage("");
@@ -417,11 +432,15 @@ export function TeacherCourseEditor({
     void runLifecycleAction(deleteAction, true);
   }
 
+  function renderFeedback(area: FeedbackArea) {
+    if (feedbackArea !== area) return null;
+    if (error) return <p className="notice" role="alert">{error}</p>;
+    if (message) return <p className="success-notice" role="status">{message}</p>;
+    return null;
+  }
+
   return (
     <div className="stack">
-      {error ? <p className="notice" role="alert">{error}</p> : null}
-      {message ? <p className="success-notice" role="status">{message}</p> : null}
-
       <section className="quiet-card">
         <p className="kicker">云端课程内容</p>
         <label className="field">课程天数
@@ -545,6 +564,7 @@ export function TeacherCourseEditor({
             <button className="button full" disabled={uploadingPdfs} onClick={() => void uploadPdfs()} type="button"><Upload size={18} />{uploadingPdfs ? `上传中 ${pdfUploadProgress}%` : `上传 ${selectedPdfFiles.length} 个 PDF`}</button>
           </div>
         ) : null}
+        {renderFeedback("pdf")}
         {pdfs.length ? pdfs.map((pdf) => (
           <div className="audio-box" key={pdf.id}>
             <div className="row start">
@@ -583,6 +603,7 @@ export function TeacherCourseEditor({
             <audio controls preload="metadata" src={audio.signedUrl} style={{ width: "100%" }} />
           </div>
         ) : <div className="item-card"><p style={{ margin: 0 }}>暂无云端示范音频。</p></div>}
+        {renderFeedback("audio")}
       </section>
 
       <section className="quiet-card stack">
@@ -615,6 +636,7 @@ export function TeacherCourseEditor({
             )}
           </div>
         ) : <div className="item-card"><p style={{ margin: 0 }}>暂无云端示范视频。</p></div>}
+        {renderFeedback("video")}
       </section>
 
       {initialCourse.id ? (
@@ -658,6 +680,7 @@ export function TeacherCourseEditor({
               <Trash2 size={18} /> 永久删除课程
             </button>
           </div>
+          {renderFeedback("lifecycle")}
           {initialCourse.submissionCount > 0 ? (
             <p className="notice">已有 {initialCourse.submissionCount} 条学生提交，不能永久删除；请使用归档。</p>
           ) : (
@@ -670,6 +693,7 @@ export function TeacherCourseEditor({
       <button className="button full" disabled={saving || uploading || uploadingVideo || uploadingPdfs} onClick={saveChanges} type="button">
         <Save size={18} /> {saving ? "正在保存..." : "保存课程"}
       </button>
+      {renderFeedback("course")}
     </div>
   );
 }
