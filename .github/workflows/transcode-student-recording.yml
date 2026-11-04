@@ -63,4 +63,5 @@ jobs:
         run: pnpm recordings:transcode -- --apply
 
       - name: Generate iPhone-compatible comment playback
+        if: ${{ always() }}
         run: pnpm comments:transcode -- --apply

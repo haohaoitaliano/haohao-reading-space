@@ -24,6 +24,9 @@ test("transcode worker claims retryable rows and never replaces the original obj
   assert.match(source, /"-profile:a", "aac_low"/);
   assert.match(source, /"-ac", "1"/);
   assert.match(source, /"-movflags", "\+faststart"/);
+  assert.match(source, /const sourceInspection = await run\(ffmpeg, \["-hide_banner", "-i", inputPath, "-f", "null", "-"\]\)/);
+  assert.match(source, /Math\.abs\(actualDuration - sourceDuration\) > tolerance/);
+  assert.doesNotMatch(source, /actualDuration - Number\(expectedDuration\)/);
   assert.match(source, /upload\(playbackPath, output, \{ contentType: TARGET_MIME_TYPE, upsert: true \}\)/);
   assert.doesNotMatch(source, /remove\(\[row\.storage_path\]\)/);
 });
@@ -63,6 +66,7 @@ test("comment audio reuses the proven recording workflow and recovery schedule",
   assert.match(workflow, /comment_id:/);
   assert.match(workflow, /TRANSCODE_COMMENT_ID: \$\{\{ inputs\.comment_id \|\| '' \}\}/);
   assert.match(workflow, /Ensure FFmpeg is available[\s\S]*DEBIAN_FRONTEND=noninteractive timeout 90s/);
+  assert.match(workflow, /Generate iPhone-compatible comment playback\s+if: \$\{\{ always\(\) \}\}/);
   assert.match(workflow, /pnpm comments:transcode -- --apply/);
   assert.match(worker, /audio_transcode_status", \["pending", "failed", "processing"\]/);
   assert.match(worker, /audio_transcode_status:\s*"ready"/);

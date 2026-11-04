@@ -71,11 +71,20 @@ async function assertFfmpegAvailable() {
 
 function parseDuration(stderr) {
   const match = stderr.match(/Duration:\s*(\d{2}):(\d{2}):(\d{2}(?:\.\d+)?)/);
-  if (!match) return null;
-  return Number(match[1]) * 3_600 + Number(match[2]) * 60 + Number(match[3]);
+  if (match) return Number(match[1]) * 3_600 + Number(match[2]) * 60 + Number(match[3]);
+  const decodedTimes = [...stderr.matchAll(/time=(\d{2}):(\d{2}):(\d{2}(?:\.\d+)?)/g)];
+  const decoded = decodedTimes.at(-1);
+  if (!decoded) return null;
+  return Number(decoded[1]) * 3_600 + Number(decoded[2]) * 60 + Number(decoded[3]);
 }
 
-async function transcodeAndVerify(inputPath, outputPath, expectedDuration) {
+async function transcodeAndVerify(inputPath, outputPath) {
+  const sourceInspection = await run(ffmpeg, ["-hide_banner", "-i", inputPath, "-f", "null", "-"]);
+  const sourceDuration = parseDuration(sourceInspection);
+  if (sourceDuration === null || sourceDuration <= 0) {
+    throw new Error("verification failed: source duration is unavailable");
+  }
+
   await run(ffmpeg, [
     "-hide_banner", "-loglevel", "error", "-y", "-i", inputPath,
     "-vn", "-c:a", "aac", "-profile:a", "aac_low", "-b:a", TARGET_BITRATE,
@@ -88,11 +97,9 @@ async function transcodeAndVerify(inputPath, outputPath, expectedDuration) {
   }
   const actualDuration = parseDuration(inspection);
   if (actualDuration === null) throw new Error("verification failed: output duration is unavailable");
-  if (Number(expectedDuration) > 0) {
-    const tolerance = Math.max(1, Number(expectedDuration) * 0.02);
-    if (Math.abs(actualDuration - Number(expectedDuration)) > tolerance) {
-      throw new Error(`verification failed: duration ${actualDuration}s differs from ${expectedDuration}s`);
-    }
+  const tolerance = Math.max(0.5, sourceDuration * 0.02);
+  if (Math.abs(actualDuration - sourceDuration) > tolerance) {
+    throw new Error(`verification failed: output duration ${actualDuration}s differs from source ${sourceDuration}s`);
   }
   const file = await stat(outputPath);
   if (file.size <= 0) throw new Error("verification failed: output is empty");
@@ -172,7 +179,7 @@ async function convertSubmission(row, tempRoot) {
       .download(row.storage_path);
     if (downloadError || !source) throw downloadError ?? new Error("source download failed");
     await writeFile(inputPath, Buffer.from(await source.arrayBuffer()));
-    const verified = await transcodeAndVerify(inputPath, outputPath, Number(row.duration_seconds));
+    const verified = await transcodeAndVerify(inputPath, outputPath);
     const output = await readFile(outputPath);
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
