@@ -513,6 +513,12 @@ p {
   white-space: pre-wrap;
 }
 
+.reading-text a {
+  color: #2563eb;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
 .meeting-description,
 .meeting-number p,
 .copy-status {
