@@ -38,7 +38,7 @@ test("course PDFs open in the PDF.js in-page reader and keep download separate",
   ]);
   assert.match(course, /<PdfPreviewDialog/);
   assert.match(course, /站内阅读/);
-  assert.doesNotMatch(course, /target=["']_blank["']/);
+  assert.match(course, /<a className="button ghost" download=\{pdf\.fileName\} href=\{pdf\.downloadUrl\}>/);
   assert.match(component, /import\("pdfjs-dist"\)/);
   assert.match(component, /document\.numPages/);
   assert.match(component, /pdf-preview-scroll/);

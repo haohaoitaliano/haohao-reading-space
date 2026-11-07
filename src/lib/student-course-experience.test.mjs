@@ -33,6 +33,8 @@ test("course page hides optional modules that have no teacher content", async ()
   assert.match(detail, /course\.pdfs\.length/);
   assert.match(detail, /course\.recordingAssignmentEnabled \? \(/);
   assert.match(detail, /course\.photoAssignmentEnabled \? \(/);
+  assert.match(detail, /course\.audio \? <CloudCourseAudioPlayer audio=\{course\.audio\} \/> : null/);
+  assert.doesNotMatch(detail, /暂无示范音频/);
   assert.match(detail, /本课无需提交作业/);
 });
 
@@ -64,7 +66,7 @@ test("PDF reader opens the shared in-page reader and keeps download explicit", a
   assert.match(detail, /<PdfPreviewDialog/);
   assert.match(detail, />站内阅读</);
   assert.match(detail, /href=\{pdf\.downloadUrl\}/);
-  assert.doesNotMatch(detail, /target="_blank"/);
+  assert.match(detail, /<a className="button ghost" download=\{pdf\.fileName\} href=\{pdf\.downloadUrl\}>/);
   assert.match(styles, /\.pdf-preview-scroll\s*\{[\s\S]*?overflow:\s*auto/);
 });
 
@@ -177,7 +179,8 @@ test("course reading text preserves teacher-entered line breaks without horizont
   const detail = await readFile(new URL("../components/StudentCourseDetail.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
-  assert.match(detail, /className="italian-text reading-text">\{course\.readingText\}<\/p>/);
+  assert.match(detail, /className="italian-text reading-text">\{renderReadingText\(course\.readingText\)\}<\/p>/);
+  assert.match(detail, /<a href=\{href\} key=\{start\} rel="noopener noreferrer" target="_blank">\{href\}<\/a>/);
   assert.match(styles, /\.reading-text\s*\{[^}]*overflow-wrap:\s*anywhere;[^}]*white-space:\s*pre-wrap;[^}]*\}/);
 });
 

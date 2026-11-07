@@ -3,7 +3,7 @@
 import { Download, FileText, Lightbulb, MessageSquareText, Send } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { BrowserRecorder, type PreparedRecording } from "@/components/BrowserRecorder";
 import { PdfPreviewDialog } from "@/components/MediaPreviewDialog";
 import { PhotoAssignmentUploader, type PreparedPhoto } from "@/components/PhotoAssignmentUploader";
@@ -25,6 +25,24 @@ import {
 } from "@/lib/direct-storage-upload";
 import type { CloudPhotoSubmission } from "@/lib/photo-submission-data";
 import { getDirectStudentRecordingMimeType } from "@/lib/student-recording";
+
+function renderReadingText(text: string) {
+  const nodes: ReactNode[] = [];
+  const urlPattern = /https:\/\/[^\s<>"']+/gi;
+  let cursor = 0;
+
+  for (const match of text.matchAll(urlPattern)) {
+    const start = match.index;
+    const href = match[0].replace(/[.,!?;:)\]}。，！？；：）】》]+$/u, "");
+    if (!href) continue;
+    nodes.push(text.slice(cursor, start));
+    nodes.push(<a href={href} key={start} rel="noopener noreferrer" target="_blank">{href}</a>);
+    cursor = start + href.length;
+  }
+
+  nodes.push(text.slice(cursor));
+  return nodes;
+}
 
 function CloudCourseAudioPlayer({ audio }: { audio: CloudCourseAudio }) {
   return (
@@ -241,9 +259,7 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
         </section>
 
         <div className="stack">
-          {course.audio ? <CloudCourseAudioPlayer audio={course.audio} /> : (
-            <section className="audio-box"><p style={{ margin: 0 }}>暂无示范音频。</p></section>
-          )}
+          {course.audio ? <CloudCourseAudioPlayer audio={course.audio} /> : null}
 
           {course.videos.map((video) => <CloudCourseVideoPlayer key={video.id} video={video} />)}
 
@@ -257,7 +273,7 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
           {course.readingText.trim() ? (
             <section className="quiet-card">
               <p className="kicker">Testo</p>
-              <p className="italian-text reading-text">{course.readingText}</p>
+              <p className="italian-text reading-text">{renderReadingText(course.readingText)}</p>
             </section>
           ) : null}
 
