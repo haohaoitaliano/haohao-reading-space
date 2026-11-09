@@ -66,9 +66,9 @@ export default async function CirclePage({ searchParams }: CirclePageProps) {
         <Header title="同学作业圈" />
         <div className="hero circle-hero">
           <p className="kicker">Compagni di lettura</p>
-          <h1>今天，也一起进步一点点！</h1>
+          <h1>Passo dopo passo 👣，每一次表达都是一小步的进步。</h1>
           {!countResult.error ? (
-            <p className="circle-total">我们一起完成了 <strong>{countResult.count}</strong> 份作业 👏</p>
+            <p className="circle-total">到今天为止，我们一起输出了 <strong>{countResult.count}</strong> 份作业 👏</p>
           ) : null}
         </div>
         <div className="stack">

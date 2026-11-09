@@ -70,7 +70,7 @@ test("circle reads only the aggregate assignment count for the active camp", asy
   assert.match(dataSource, /getCampCompletedAssignmentCount\(campId: string\)/);
   assert.match(dataSource, /rpc\("get_camp_completed_assignment_count", \{[\s\S]*target_camp_id: campId/);
   assert.match(pageSource, /getCampCompletedAssignmentCount\(campResult\.camp\.id\)/);
-  assert.match(pageSource, /今天，也一起进步一点点！/);
-  assert.match(pageSource, /我们一起完成了 <strong>\{countResult\.count\}<\/strong> 份作业 👏/);
+  assert.match(pageSource, /Passo dopo passo 👣，每一次表达都是一小步的进步。/);
+  assert.match(pageSource, /到今天为止，我们一起输出了 <strong>\{countResult\.count\}<\/strong> 份作业 👏/);
   assert.doesNotMatch(pageSource, /<Header title="同学作业圈" subtitle=/);
 });
