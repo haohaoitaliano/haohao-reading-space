@@ -17,6 +17,13 @@
   "license": "UNLICENSED",
   "packageManager": "pnpm@11.7.0",
   "type": "module",
+  "browserslist": [
+    "chrome >= 111",
+    "edge >= 111",
+    "firefox >= 111",
+    "safari >= 16.0",
+    "ios_saf >= 16.0"
+  ],
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
