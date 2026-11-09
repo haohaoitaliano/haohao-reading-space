@@ -31,7 +31,7 @@ test("camp lifecycle UI uses member count only and keeps a confirmation dialog",
   assert.doesNotMatch(source, /totalUsage/);
 });
 
-test("camp info editing is admin-gated and leaves course unlock logic untouched", async () => {
+test("camp info editing is admin-gated and saves the per-camp unlock schedule", async () => {
   const actions = await readFile(new URL("./camp-actions.ts", import.meta.url), "utf8");
   const manager = await readFile(new URL("../../components/CampLifecycleManager.tsx", import.meta.url), "utf8");
   const editor = await readFile(new URL("../../components/EditCampForm.tsx", import.meta.url), "utf8");
@@ -41,6 +41,10 @@ test("camp info editing is admin-gated and leaves course unlock logic untouched"
   assert.match(actions, /update_camp_info_admin/);
   assert.match(actions, /结束时间必须晚于开始时间/);
   assert.match(manager, /编辑训练营信息/);
-  assert.match(editor, /现有解锁算法不会改变/);
+  assert.match(actions, /target_course_unlock_schedule: input\.courseUnlockSchedule/);
+  assert.match(editor, /每天解锁一节/);
+  assert.match(editor, /仅周一至周五解锁一节/);
+  assert.match(editor, /Giorno 0 入营后立即解锁/);
+  assert.match(editor, /手动解锁课程不受影响/);
   assert.match(editor, /不会自动停用训练营，也不会限制学生提交作业/);
 });

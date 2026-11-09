@@ -16,6 +16,7 @@ export type ManagedCamp = CloudCamp & {
   maxStudents: number;
   endsAt: string | null;
   description: string;
+  courseUnlockSchedule: "daily" | "weekdays";
   counts: CampUsageCounts;
 };
 
@@ -114,7 +115,7 @@ export async function getCampMemberCount(campId: string): Promise<number | null>
 export async function getAdminCampManagementData() {
   const supabase = await createSupabaseServerClient();
   const [campResult, coursesResult, membersResult, meetingsResult, invitesResult, submissionsResult] = await Promise.all([
-    supabase.from("camps").select("id, name, slug, starts_at, ends_at, timezone, status, max_students, description").order("created_at", { ascending: true }),
+    supabase.from("camps").select("*").order("created_at", { ascending: true }),
     supabase.from("courses").select("camp_id"),
     supabase.from("camp_members").select("camp_id").eq("status", "active"),
     supabase.from("weekly_meetings").select("camp_id"),
@@ -146,7 +147,8 @@ export async function getAdminCampManagementData() {
     camps: ((campResult.data ?? []) as Array<{
       id: string; name: string; slug: string; starts_at: string | null; ends_at: string | null; timezone: string;
       status: "draft" | "active" | "archived"; max_students: number; description: string | null;
-    }>).map((camp) => ({
+      course_unlock_schedule?: "daily" | "weekdays";
+    }>).map((camp): ManagedCamp => ({
       id: camp.id,
       name: camp.name,
       slug: camp.slug,
@@ -156,6 +158,7 @@ export async function getAdminCampManagementData() {
       maxStudents: camp.max_students,
       endsAt: camp.ends_at,
       description: camp.description ?? "",
+      courseUnlockSchedule: camp.course_unlock_schedule === "weekdays" ? "weekdays" : "daily",
       counts: {
         courses: maps.courses.get(camp.id) ?? 0,
         members: maps.members.get(camp.id) ?? 0,

@@ -93,6 +93,7 @@ export async function updateCampInfo(input: {
   startsAtLocal: string;
   endsAtLocal: string;
   description: string;
+  courseUnlockSchedule: "daily" | "weekdays";
 }): Promise<CampScheduleActionResult> {
   await requireAdmin();
   if (!input.name.trim()) return { success: false, message: "请输入训练营名称。" };
@@ -104,6 +105,9 @@ export async function updateCampInfo(input: {
   if (input.endsAtLocal && input.endsAtLocal <= input.startsAtLocal) {
     return { success: false, message: "结束时间必须晚于开始时间。" };
   }
+  if (input.courseUnlockSchedule !== "daily" && input.courseUnlockSchedule !== "weekdays") {
+    return { success: false, message: "课程自动解锁方式不正确。" };
+  }
 
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("update_camp_info_admin", {
@@ -113,6 +117,7 @@ export async function updateCampInfo(input: {
     local_starts_at: input.startsAtLocal,
     local_ends_at: input.endsAtLocal || null,
     camp_description: input.description.trim(),
+    target_course_unlock_schedule: input.courseUnlockSchedule,
   });
   if (error) return { success: false, message: "训练营信息保存失败，请稍后重试。" };
 

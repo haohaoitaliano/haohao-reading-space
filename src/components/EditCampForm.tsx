@@ -14,6 +14,7 @@ export function EditCampForm({ camp }: { camp: ManagedCamp }) {
   const [startsAtLocal, setStartsAtLocal] = useState(formatDateTimeLocalInZone(camp.startsAt, camp.timezone));
   const [endsAtLocal, setEndsAtLocal] = useState(formatDateTimeLocalInZone(camp.endsAt, camp.timezone));
   const [description, setDescription] = useState(camp.description);
+  const [courseUnlockSchedule, setCourseUnlockSchedule] = useState(camp.courseUnlockSchedule);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -29,6 +30,7 @@ export function EditCampForm({ camp }: { camp: ManagedCamp }) {
       startsAtLocal,
       endsAtLocal,
       description,
+      courseUnlockSchedule,
     });
     if (result.success) {
       setMessage(result.message);
@@ -55,7 +57,17 @@ export function EditCampForm({ camp }: { camp: ManagedCamp }) {
     <label className="field">训练营说明（选填）
       <textarea onChange={(event) => setDescription(event.target.value)} rows={5} value={description} />
     </label>
-    <p className="notice">修改开始时间会影响按训练营开始时间自动计算的课程解锁时间；现有解锁算法不会改变。</p>
+    <label className="field">课程自动解锁方式
+      <select
+        onChange={(event) => setCourseUnlockSchedule(event.target.value as typeof courseUnlockSchedule)}
+        value={courseUnlockSchedule}
+      >
+        <option value="daily">每天解锁一节</option>
+        <option value="weekdays">仅周一至周五解锁一节</option>
+      </select>
+    </label>
+    <p className="notice">Giorno 0 入营后立即解锁，不计入自动排期。工作日模式遇到周末会顺延到下周一，已解锁课程周末仍可访问。</p>
+    <p className="notice">修改开始时间或自动解锁方式，会重新计算自动解锁课程的开放时间；手动解锁课程不受影响。</p>
     <p className="notice">结束时间仅用于展示，不会自动停用训练营，也不会限制学生提交作业。</p>
     {error ? <p className="notice" role="alert">{error}</p> : null}
     {message ? <p className="success-notice" role="status">{message}</p> : null}
