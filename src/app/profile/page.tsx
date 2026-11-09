@@ -5,6 +5,7 @@ import { Header } from "@/components/Header";
 import { LogoutButton } from "@/components/LogoutButton";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { getStudentCampProgress } from "@/lib/student-camp-progress";
+import { NicknameForm } from "./NicknameForm";
 
 export default async function ProfilePage() {
   const { profile, email } = await requireAuthenticatedUser();
@@ -50,6 +51,8 @@ export default async function ProfilePage() {
             </div>
           </div>
         </section>
+
+        {profile.role === "student" ? <NicknameForm initialDisplayName={profile.display_name} /> : null}
 
         <Link className="button full" href="/my-work" style={{ marginTop: 14 }}>
           查看我的作业
