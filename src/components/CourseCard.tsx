@@ -1,8 +1,8 @@
 import { Lock, Sparkles } from "lucide-react";
-import Link from "next/link";
 import { getCourseRouteId, getStudentCourseDayLabel } from "@/lib/cloud-course";
 import type { CloudCourseSummary } from "@/lib/cloud-course-data";
 import { formatUnlockDateTime } from "@/lib/course-schedule";
+import { StudentNavigationLink } from "./StudentNavigationLink";
 
 export function CourseCard({ course }: { course: CloudCourseSummary }) {
   const content = (
@@ -32,5 +32,5 @@ export function CourseCard({ course }: { course: CloudCourseSummary }) {
   );
 
   if (!course.isUnlocked) return content;
-  return <Link href={`/courses/${getCourseRouteId(course.dayNumber)}`}>{content}</Link>;
+  return <StudentNavigationLink href={`/courses/${getCourseRouteId(course.dayNumber)}`}>{content}</StudentNavigationLink>;
 }

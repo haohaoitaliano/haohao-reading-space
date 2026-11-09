@@ -1,7 +1,7 @@
 import { BookOpen, CalendarDays, CircleUserRound, Home, Layers3, Mic2 } from "lucide-react";
-import Link from "next/link";
 import { getAuthContext } from "@/lib/auth";
 import { getStudentMessages } from "@/lib/student-message-data";
+import { StudentNavigationLink } from "./StudentNavigationLink";
 import { StudentMessageNavDot, StudentMessageUnreadProvider } from "./StudentMessageUnread";
 
 type AppFrameProps = {
@@ -33,7 +33,7 @@ export async function AppFrame({ children, active }: AppFrameProps) {
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
-              <Link
+              <StudentNavigationLink
                 aria-label={item.label}
                 className={`nav-link ${active === item.key ? "active" : ""}`}
                 href={item.href}
@@ -44,7 +44,7 @@ export async function AppFrame({ children, active }: AppFrameProps) {
                   {item.key === "progress" ? <StudentMessageNavDot /> : null}
                 </span>
                 <span>{item.label}</span>
-              </Link>
+              </StudentNavigationLink>
             );
           })}
         </nav>

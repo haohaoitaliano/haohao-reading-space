@@ -1,9 +1,10 @@
-import { ArrowRight, Layers3, Plus } from "lucide-react";
+import { Layers3, Plus } from "lucide-react";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppFrame } from "@/components/AppFrame";
 import { Header } from "@/components/Header";
+import { SelectLearningSpaceButton } from "@/components/SelectLearningSpaceButton";
 import { ACTIVE_CAMP_COOKIE } from "@/lib/active-camp-cookie";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { getStudentLearningSpaces } from "@/lib/learning-space";
@@ -50,9 +51,7 @@ export default async function SpacesPage({ searchParams }: SpacesPageProps) {
                 </div>
                 {camp.id === activeCampId ? <span className="pill olive">当前</span> : <span className="pill sky">进行中</span>}
               </div>
-              <button className="button full" type="submit">
-                进入这个训练营 <ArrowRight size={18} />
-              </button>
+              <SelectLearningSpaceButton />
             </form>
           ))}
 
