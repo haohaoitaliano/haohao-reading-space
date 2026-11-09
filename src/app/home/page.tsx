@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AppFrame } from "@/components/AppFrame";
 import { CloudSubmissionCard } from "@/components/CloudSubmissionCard";
 import { Header } from "@/components/Header";
+import { StudentApplauseCard } from "@/components/StudentApplauseCard";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { getCourseRouteId } from "@/lib/cloud-course";
 import {
@@ -18,6 +19,7 @@ export default async function HomePage() {
     courseResult: result,
     submissionError,
     stats,
+    applauseResult,
   } = await getStudentCampProgress(profile.id);
   const today = result.courses.filter((course) => course.dayNumber > 0 && course.isUnlocked).at(-1) ?? null;
   const [publicSubmissionResult, messageResult] = await Promise.all([
@@ -96,11 +98,20 @@ export default async function HomePage() {
             <span aria-hidden="true" className="message-dot" />
             <span className="message-home-alert-copy">
               <strong>{hasUnreadReplyOnOtherWork ? "你收到了" : "你的作业收到了"} {messageResult.unreadCount} 条新{hasUnreadReplyOnOtherWork ? "消息" : "评论"}！</strong>
-              <small>快来看看，及时改进，别忘了回复哦！</small>
+              <small>来看看老师和同学们给你的新消息吧！</small>
             </span>
             <ArrowRight aria-hidden="true" size={18} />
           </Link>
         ) : null}
+
+        <div style={{ marginTop: 14 }}>
+          <StudentApplauseCard
+            href="/progress#applause"
+            total={applauseResult.total}
+            today={applauseResult.today}
+            unavailable={applauseResult.error}
+          />
+        </div>
 
         <section style={{ marginTop: 18 }}>
           <div className="row"><h2>同学新作业</h2><Link className="pill sky" href="/circle">查看全部</Link></div>

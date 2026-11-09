@@ -1005,6 +1005,31 @@ p {
   display: block;
 }
 
+.applause-card {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  scroll-margin-top: 20px;
+}
+
+.applause-card-heading {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.applause-card-heading span {
+  color: var(--accent-deep);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.applause-card p {
+  margin: 3px 0 0;
+}
+
 .message-home-alert-copy small {
   color: var(--muted);
   line-height: 1.45;

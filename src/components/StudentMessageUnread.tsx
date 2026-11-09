@@ -42,7 +42,7 @@ export function StudentMessageEntry() {
   return (
     <Link className="quiet-card message-entry" href="/messages">
       <span className="message-entry-icon"><MessageCircleReply size={22} /></span>
-      <span><strong>我的消息</strong><small>查看别人给你的评论和回复</small></span>
+      <span><strong>我的消息</strong><small>来看看老师和同学们给你的新消息吧！</small></span>
       {unreadCount > 0 ? (
         <span className="message-entry-count"><span aria-hidden="true" className="message-dot" />{unreadCount}</span>
       ) : <ArrowRight size={18} />}

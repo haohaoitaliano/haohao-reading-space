@@ -1,15 +1,15 @@
-import { ArrowRight, BookOpenCheck, ChartNoAxesColumnIncreasing, Mic2, Repeat2 } from "lucide-react";
+import { ChartNoAxesColumnIncreasing } from "lucide-react";
 import Link from "next/link";
 import { AppFrame } from "@/components/AppFrame";
 import { Header } from "@/components/Header";
+import { StudentApplauseCard } from "@/components/StudentApplauseCard";
 import { StudentMessageEntry } from "@/components/StudentMessageUnread";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { getStudentCampProgress } from "@/lib/student-camp-progress";
 
 export default async function ProgressPage() {
   const { profile } = await requireAuthenticatedUser();
-  const { courseResult, submissionError, stats } = await getStudentCampProgress(profile.id);
-  const value = (number: number) => submissionError ? "—" : number;
+  const { courseResult, submissionError, stats, applauseResult } = await getStudentCampProgress(profile.id);
 
   return (
     <AppFrame active="progress">
@@ -37,19 +37,16 @@ export default async function ProgressPage() {
           </p>
         </section>
 
-        <section className="grid-two" style={{ marginTop: 14 }}>
-          <div className="metric"><BookOpenCheck /><strong>{value(stats.pendingTasks)}</strong><span>待完成任务</span></div>
-          <div className="metric"><ChartNoAxesColumnIncreasing /><strong>{value(stats.completedTasks)}</strong><span>已完成任务</span></div>
-          <Link className="metric metric-link" href="/my-work" aria-label={`查看 ${value(stats.completedOutputs)} 次已完成输出`}>
-            <Mic2 />
-            <strong>{value(stats.completedOutputs)}</strong>
-            <span>已完成输出</span>
-            <span className="metric-link-hint">查看 <ArrowRight size={15} /></span>
-          </Link>
-          <div className="metric"><Repeat2 /><strong>{value(stats.resubmissions)}</strong><span>重新提交</span></div>
-        </section>
-
         <StudentMessageEntry />
+
+        <div style={{ marginTop: 14 }}>
+          <StudentApplauseCard
+            id="applause"
+            total={applauseResult.total}
+            today={applauseResult.today}
+            unavailable={applauseResult.error}
+          />
+        </div>
 
         <Link className="button secondary full" href="/profile" style={{ marginTop: 14 }}>查看个人资料</Link>
       </section>
