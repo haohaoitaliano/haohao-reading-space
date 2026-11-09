@@ -211,6 +211,17 @@ export async function getCampCircleSubmissions(campId: string, currentUserId: st
   };
 }
 
+export async function getCampCompletedAssignmentCount(campId: string) {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("get_camp_completed_assignment_count", {
+    target_camp_id: campId,
+  });
+  if (error || typeof data !== "number" || !Number.isSafeInteger(data) || data < 0) {
+    return { count: 0, error: true };
+  }
+  return { count: data, error: false };
+}
+
 export async function getAdminCloudSubmissions() {
   const supabase = await createSupabaseServerClient();
   const [{ data, error }, targetDurations] = await Promise.all([

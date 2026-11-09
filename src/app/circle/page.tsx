@@ -4,7 +4,7 @@ import { CloudSubmissionCard } from "@/components/CloudSubmissionCard";
 import { Header } from "@/components/Header";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { getActiveCampForUser } from "@/lib/cloud-course-data";
-import { getCampCircleSubmissions } from "@/lib/cloud-submission-data";
+import { getCampCircleSubmissions, getCampCompletedAssignmentCount } from "@/lib/cloud-submission-data";
 import { getCampUnifiedAssignments } from "@/lib/photo-submission-data";
 
 type CirclePageProps = {
@@ -17,14 +17,16 @@ export default async function CirclePage({ searchParams }: CirclePageProps) {
   const focusedSubmissionId = typeof params.submission === "string" ? params.submission : "";
   const focusedCommentId = typeof params.comment === "string" ? params.comment : "";
   const campResult = await getActiveCampForUser(profile.id);
-  const [result, unifiedResult] = campResult.state === "ok"
+  const [result, unifiedResult, countResult] = campResult.state === "ok"
     ? await Promise.all([
       getCampCircleSubmissions(campResult.camp.id, profile.id),
       getCampUnifiedAssignments(campResult.camp.id, profile.id),
+      getCampCompletedAssignmentCount(campResult.camp.id),
     ])
     : [
       { submissions: [], error: campResult.state === "database_error" },
       { assignments: [], error: campResult.state === "database_error" },
+      { count: 0, error: campResult.state === "database_error" },
     ];
   const assignmentsById = new Map(unifiedResult.assignments.map((assignment) => [assignment.assignmentId, assignment]));
   const cards = [
@@ -61,11 +63,13 @@ export default async function CirclePage({ searchParams }: CirclePageProps) {
   return (
     <AppFrame active="circle">
       <section className="screen with-top">
-        <Header title="同学作业圈" subtitle={campResult.camp?.name ?? "只展示同班公开作业"} />
-        <div className="hero">
+        <Header title="同学作业圈" />
+        <div className="hero circle-hero">
           <p className="kicker">Compagni di lettura</p>
-          <h1>听见同学，也听见自己的进步。</h1>
-          <p>这里展示同一期训练营的公开录音与照片，以及你自己的全部提交。</p>
+          <h1>今天，也一起进步一点点！</h1>
+          {!countResult.error ? (
+            <p className="circle-total">我们一起完成了 <strong>{countResult.count}</strong> 份作业 👏</p>
+          ) : null}
         </div>
         <div className="stack">
           {cards.map(({ submission, assignment }) => (
@@ -81,7 +85,7 @@ export default async function CirclePage({ searchParams }: CirclePageProps) {
           {campResult.state === "no_selected_camp" ? <p className="notice">请先在<Link href="/spaces">我的学习空间</Link>选择当前训练营。</p> : null}
           {campResult.state === "no_membership" ? <p className="notice">尚未加入训练营。</p> : null}
           {!result.error && !unifiedResult.error && cards.length === 0 ? <p className="notice">当前训练营暂时没有可见作业。</p> : null}
-          {result.error || unifiedResult.error ? <p className="notice" role="alert">作业圈暂时无法读取，请稍后重试。</p> : null}
+          {result.error || unifiedResult.error || countResult.error ? <p className="notice" role="alert">作业圈暂时无法读取，请稍后重试。</p> : null}
         </div>
       </section>
     </AppFrame>

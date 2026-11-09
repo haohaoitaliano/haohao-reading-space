@@ -140,6 +140,20 @@ p {
   padding: 22px 0 16px;
 }
 
+.circle-hero h1 {
+  overflow-wrap: anywhere;
+}
+
+.circle-total {
+  margin-bottom: 0;
+}
+
+.circle-total strong {
+  color: var(--accent-deep);
+  font-size: 1.25em;
+  font-variant-numeric: tabular-nums;
+}
+
 .quiet-card,
 .item-card {
   background: var(--surface);
