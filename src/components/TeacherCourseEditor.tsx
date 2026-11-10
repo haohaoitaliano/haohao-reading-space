@@ -394,7 +394,7 @@ export function TeacherCourseEditor({
 
     setMessage(result.message);
     if (!initialCourse.id && result.courseId) {
-      window.location.assign(`/teacher/courses/${result.courseId}/edit`);
+      window.location.assign(`/teacher/courses/${result.courseId}/edit?camp=${encodeURIComponent(initialCourse.campId)}`);
       return;
     }
     router.refresh();

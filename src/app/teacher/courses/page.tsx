@@ -68,7 +68,7 @@ export default async function TeacherCoursesPage({ searchParams }: {
           {!courseResult.error && !selectedCamp ? <p className="notice">请先创建训练营。</p> : null}
 
           {visibleCourses.map((course) => (
-            <Link href={`/teacher/courses/${course.id}/edit`} key={course.id}>
+            <Link href={`/teacher/courses/${course.id}/edit?camp=${encodeURIComponent(course.campId)}`} key={course.id}>
               <article className="item-card">
                 <div className="row start">
                   <div>

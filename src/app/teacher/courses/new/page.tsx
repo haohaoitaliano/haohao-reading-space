@@ -52,7 +52,7 @@ export default async function NewTeacherCoursePage({ searchParams }: {
 
   return (
     <main className="app-shell"><section className="screen with-top">
-      <Header title="新建云端课程" subtitle={camp.name} backHref="/teacher" />
+      <Header title="新建云端课程" subtitle={camp.name} backHref={`/teacher/courses?camp=${encodeURIComponent(camp.id)}`} />
       <section className="hero"><p className="kicker">New Course</p><h1>创建一节课程。</h1><p>新课程默认为草稿，不会立即展示给学生。</p></section>
       <NewCourseCampSelector camps={camps} selectedCampId={camp.id} />
       <TeacherCourseEditor course={initialCourse} saveAction={saveAction} />
