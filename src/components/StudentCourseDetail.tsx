@@ -1,9 +1,9 @@
 "use client";
 
-import { Download, FileText, Lightbulb, MessageSquareText, Send } from "lucide-react";
+import { Download, FileText, Lightbulb, Maximize2, MessageSquareText, Minimize2, Pause, Play, Send } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BrowserRecorder, type PreparedRecording } from "@/components/BrowserRecorder";
 import { PdfPreviewDialog } from "@/components/MediaPreviewDialog";
 import { PhotoAssignmentUploader, type PreparedPhoto } from "@/components/PhotoAssignmentUploader";
@@ -57,6 +57,75 @@ function CloudCourseAudioPlayer({ audio }: { audio: CloudCourseAudio }) {
 }
 
 function CloudCourseVideoPlayer({ video }: { video: CloudCourseVideo }) {
+  const playerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [useNativeControls, setUseNativeControls] = useState(false);
+
+  useEffect(() => {
+    const videoElement = videoRef.current;
+    const handleFullscreenChange = () => setIsFullscreen(document.fullscreenElement === playerRef.current);
+    const handleNativeFullscreenStart = () => setIsFullscreen(true);
+    const handleNativeFullscreenEnd = () => {
+      setIsFullscreen(false);
+      setUseNativeControls(false);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    videoElement?.addEventListener("webkitbeginfullscreen", handleNativeFullscreenStart);
+    videoElement?.addEventListener("webkitendfullscreen", handleNativeFullscreenEnd);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      videoElement?.removeEventListener("webkitbeginfullscreen", handleNativeFullscreenStart);
+      videoElement?.removeEventListener("webkitendfullscreen", handleNativeFullscreenEnd);
+    };
+  }, []);
+
+  const togglePlayback = () => {
+    const player = videoRef.current;
+    if (!player) return;
+    if (player.paused) {
+      void player.play();
+    } else {
+      player.pause();
+    }
+  };
+
+  const toggleFullscreen = async () => {
+    const player = playerRef.current;
+    const videoElement = videoRef.current as (HTMLVideoElement & {
+      webkitEnterFullscreen?: () => void;
+    }) | null;
+    if (!player || !videoElement) return;
+
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+      return;
+    }
+
+    if (player.requestFullscreen) {
+      try {
+        await player.requestFullscreen();
+        return;
+      } catch {
+        // Fall through to the native iOS/WebView player when element fullscreen is unavailable.
+      }
+    }
+
+    if (videoElement.webkitEnterFullscreen) {
+      setUseNativeControls(true);
+      try {
+        videoElement.webkitEnterFullscreen();
+      } catch {
+        // Keep native controls visible so restricted WebViews still have a usable fallback.
+      }
+      return;
+    }
+
+    setUseNativeControls(true);
+  };
+
   return (
     <section className="quiet-card stack" aria-label="今日视频">
       <div>
@@ -64,9 +133,40 @@ function CloudCourseVideoPlayer({ video }: { video: CloudCourseVideo }) {
         <h2 style={{ marginBottom: 4 }}>今日视频</h2>
         <p style={{ margin: 0, fontSize: 13 }}>{video.fileName} · {formatFileSize(video.sizeBytes)}</p>
       </div>
-      <video controls preload="metadata" src={video.signedUrl} style={{ width: "100%", borderRadius: 8 }}>
-        当前浏览器不支持视频播放。
-      </video>
+      <div className="course-video-player" ref={playerRef}>
+        <video
+          controls={useNativeControls}
+          onEnded={() => setIsPlaying(false)}
+          onPause={() => setIsPlaying(false)}
+          onPlay={() => setIsPlaying(true)}
+          playsInline
+          preload="metadata"
+          ref={videoRef}
+          src={video.signedUrl}
+        >
+          当前浏览器不支持视频播放。
+        </video>
+        {!useNativeControls ? (
+          <div className="course-video-controls">
+            <button
+              aria-label={isPlaying ? "暂停视频" : "播放视频"}
+              className="course-video-control-button"
+              onClick={togglePlayback}
+              type="button"
+            >
+              {isPlaying ? <Pause aria-hidden="true" size={16} /> : <Play aria-hidden="true" size={16} />}
+            </button>
+            <button
+              aria-label={isFullscreen ? "退出全屏" : "进入全屏"}
+              className="course-video-control-button"
+              onClick={() => void toggleFullscreen()}
+              type="button"
+            >
+              {isFullscreen ? <Minimize2 aria-hidden="true" size={17} /> : <Maximize2 aria-hidden="true" size={17} />}
+            </button>
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }
