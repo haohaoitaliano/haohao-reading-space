@@ -359,6 +359,13 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
         </section>
 
         <div className="stack">
+          {course.readingText.trim() ? (
+            <section className="quiet-card">
+              <p className="kicker">Testo</p>
+              <p className="italian-text reading-text">{renderReadingText(course.readingText)}</p>
+            </section>
+          ) : null}
+
           {course.audio ? <CloudCourseAudioPlayer audio={course.audio} /> : null}
 
           {course.videos.map((video) => <CloudCourseVideoPlayer key={video.id} video={video} />)}
@@ -367,13 +374,6 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
             <section className="quiet-card stack" aria-label="PDF 课件">
               <div><p className="kicker">Materiali PDF</p><h2 style={{ marginBottom: 4 }}>PDF 课件</h2><p style={{ margin: 0 }}>点击“站内阅读”即可逐页查看，也可以单独下载。</p></div>
               {course.pdfs.map((pdf) => <CoursePdfReader key={pdf.id} pdf={pdf} />)}
-            </section>
-          ) : null}
-
-          {course.readingText.trim() ? (
-            <section className="quiet-card">
-              <p className="kicker">Testo</p>
-              <p className="italian-text reading-text">{renderReadingText(course.readingText)}</p>
             </section>
           ) : null}
 
@@ -421,8 +421,7 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
             <section className="assignment-transition" aria-labelledby="assignment-transition-title">
               <p className="kicker" lang="it">Tocca a te!</p>
               <h2 id="assignment-transition-title">现在轮到你啦！🌱</h2>
-              <p>听完老师的示范，试着自己读一读、写一写吧。</p>
-              <p>不用担心不够完美，我们一步一步来。</p>
+              <p>读一读，写一写，不用担心不够完美。</p>
             </section>
           ) : null}
 

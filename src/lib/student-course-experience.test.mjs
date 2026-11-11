@@ -38,6 +38,21 @@ test("course page hides optional modules that have no teacher content", async ()
   assert.match(detail, /本课无需提交作业/);
 });
 
+test("course page presents reading, videos, PDFs, guidance, and submission in order", async () => {
+  const detail = await readFile(new URL("../components/StudentCourseDetail.tsx", import.meta.url), "utf8");
+  const reading = detail.indexOf("course.readingText.trim()");
+  const videos = detail.indexOf("course.videos.map");
+  const pdfs = detail.indexOf("course.pdfs.length");
+  const guidance = detail.indexOf('className="assignment-transition"');
+  const submission = detail.indexOf('aria-label="提交作业"');
+
+  assert.ok([reading, videos, pdfs, guidance, submission].every((index) => index >= 0));
+  assert.ok(reading < videos);
+  assert.ok(videos < pdfs);
+  assert.ok(pdfs < guidance);
+  assert.ok(guidance < submission);
+});
+
 test("recording submissions are explicitly public inside the active camp without a privacy picker", async () => {
   const recorder = await readFile(new URL("../components/BrowserRecorder.tsx", import.meta.url), "utf8");
   const detail = await readFile(new URL("../components/StudentCourseDetail.tsx", import.meta.url), "utf8");
@@ -88,8 +103,9 @@ test("course assignments use warm beginner guidance without changing assignment 
 
   assert.match(detail, /Tocca a te!/);
   assert.match(detail, /现在轮到你啦！🌱/);
-  assert.match(detail, /听完老师的示范，试着自己读一读、写一写吧。/);
-  assert.match(detail, /不用担心不够完美，我们一步一步来。/);
+  assert.match(detail, /读一读，写一写，不用担心不够完美。/);
+  assert.doesNotMatch(detail, /听完老师的示范/);
+  assert.doesNotMatch(detail, /我们一步一步来/);
   assert.match(detail, /hasAssignment \? \(/);
 
   assert.match(recorder, />口语输出</);
