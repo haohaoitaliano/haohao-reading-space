@@ -38,7 +38,7 @@ export function PhotoGallery({ photos, ownerName }: { photos: GalleryPhoto[]; ow
               type="button"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img alt={`${ownerName}的作业照片 ${photo.position}`} src={photo.signedUrl} />
+              <img alt={`${ownerName}的作业照片 ${photo.position}`} decoding="async" loading="lazy" src={photo.signedUrl} />
             </button>
             <figcaption>
               <span>{photo.fileName} · {formatFileSize(photo.sizeBytes)}</span>

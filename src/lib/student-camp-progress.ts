@@ -1,8 +1,6 @@
 import "server-only";
 
 import { getStudentCourseList } from "./cloud-course-data";
-import { getOwnCloudSubmissions } from "./cloud-submission-data";
-import { getOwnPhotoSubmissions, getOwnUnifiedAssignments } from "./photo-submission-data";
 import { buildStudentCampStats } from "./learning-progress";
 import { getRomeDayBounds } from "./student-applause";
 import { createSupabaseServerClient } from "./supabase/server";
@@ -28,13 +26,63 @@ async function getStudentApplauseStats(userId: string, campId: string) {
   };
 }
 
+async function getOwnPhotoSubmissionSummaries(userId: string, campId: string) {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("student_photo_submissions")
+    .select("course_id, version")
+    .eq("user_id", userId)
+    .eq("camp_id", campId)
+    .is("assignment_submission_id", null);
+  return {
+    submissions: (data ?? []).map((row) => ({ courseId: row.course_id, version: row.version })),
+    error: Boolean(error),
+  };
+}
+
+async function getOwnRecordingSubmissionSummaries(userId: string, campId: string) {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("student_submissions")
+    .select("id, course_id, version")
+    .eq("user_id", userId)
+    .eq("camp_id", campId);
+  return {
+    submissions: (data ?? []).map((row) => ({
+      id: row.id,
+      courseId: row.course_id,
+      version: row.version,
+    })),
+    error: Boolean(error),
+  };
+}
+
+async function getOwnUnifiedAssignmentSummaries(userId: string, campId: string) {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("student_assignment_submissions")
+    .select("id, course_id, version, has_recording, photo_count")
+    .eq("user_id", userId)
+    .eq("camp_id", campId);
+  return {
+    assignments: (data ?? []).map((row) => ({
+      assignmentId: row.id,
+      courseId: row.course_id,
+      version: row.version,
+      hasRecording: row.has_recording,
+      photoCount: row.photo_count,
+    })),
+    error: Boolean(error),
+  };
+}
+
 export async function getStudentCampProgress(userId: string) {
   const courseResult = await getStudentCourseList(userId);
   const [submissionResult, photoSubmissionResult, unifiedResult, applauseResult] = courseResult.camp
     ? await Promise.all([
-      getOwnCloudSubmissions(userId, courseResult.camp.id),
-      getOwnPhotoSubmissions(userId, courseResult.camp.id),
-      getOwnUnifiedAssignments(userId, courseResult.camp.id),
+      getOwnRecordingSubmissionSummaries(userId, courseResult.camp.id),
+      getOwnPhotoSubmissionSummaries(userId, courseResult.camp.id),
+      getOwnUnifiedAssignmentSummaries(userId, courseResult.camp.id),
       getStudentApplauseStats(userId, courseResult.camp.id),
     ])
     : [
@@ -53,7 +101,7 @@ export async function getStudentCampProgress(userId: string) {
       courseId: assignment.courseId,
       version: assignment.version,
       hasRecording: assignment.hasRecording,
-      photoCount: assignment.photos.length,
+      photoCount: assignment.photoCount,
     })),
   });
 

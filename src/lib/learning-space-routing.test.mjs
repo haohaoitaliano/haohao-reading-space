@@ -38,7 +38,7 @@ test("student progress pages share the current-camp data source", async () => {
   ]);
 
   assert.match(sharedSource, /getStudentCourseList\(userId\)/);
-  assert.match(sharedSource, /getOwnCloudSubmissions\(userId, courseResult\.camp\.id\)/);
+  assert.match(sharedSource, /getOwnRecordingSubmissionSummaries\(userId, courseResult\.camp\.id\)/);
   assert.match(progressSource, /getStudentCampProgress\(profile\.id\)/);
   assert.match(profileSource, /getStudentCampProgress\(profile\.id\)/);
   assert.match(progressSource, /href="\/my-work"/);

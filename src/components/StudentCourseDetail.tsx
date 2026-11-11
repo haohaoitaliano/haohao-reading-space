@@ -49,7 +49,7 @@ function CloudCourseAudioPlayer({ audio }: { audio: CloudCourseAudio }) {
     <section className="audio-box" aria-label="老师示范音频">
       <strong className="file-name">老师示范 · {audio.fileName}</strong>
       <p style={{ margin: 0, fontSize: 13 }}>{formatFileSize(audio.sizeBytes)}</p>
-      <audio controls preload="metadata" src={audio.signedUrl} style={{ width: "100%" }}>
+      <audio controls preload="none" src={audio.signedUrl} style={{ width: "100%" }}>
         当前浏览器不支持音频播放。
       </audio>
     </section>
@@ -140,7 +140,7 @@ function CloudCourseVideoPlayer({ video }: { video: CloudCourseVideo }) {
           onPause={() => setIsPlaying(false)}
           onPlay={() => setIsPlaying(true)}
           playsInline
-          preload="metadata"
+          preload="none"
           ref={videoRef}
           src={video.signedUrl}
         >

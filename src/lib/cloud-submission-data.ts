@@ -32,14 +32,9 @@ type EncouragementRow = {
   user_id: string;
 };
 
-type CommentRow = {
-  id: string;
+type CommentTargetRow = {
   submission_id: string | null;
   assignment_submission_id: string | null;
-  user_id: string;
-  author_display_name: string;
-  content: string;
-  created_at: string;
 };
 
 function mapRow(row: SubmissionRow, targetDurations = new Map<string, number | null>()): SubmissionPresentationRow {
@@ -156,9 +151,8 @@ export async function getCampCircleSubmissions(campId: string, currentUserId: st
       .in("submission_id", publicSubmissionIds),
     supabase
       .from("submission_comments")
-      .select("id, submission_id, assignment_submission_id, user_id, author_display_name, content, created_at")
-      .or(`submission_id.in.(${publicSubmissionIds.join(",")}),assignment_submission_id.in.(${publicSubmissionIds.join(",")})`)
-      .order("created_at", { ascending: true }),
+      .select("submission_id, assignment_submission_id")
+      .or(`submission_id.in.(${publicSubmissionIds.join(",")}),assignment_submission_id.in.(${publicSubmissionIds.join(",")})`),
   ]);
 
   if (encouragementResult.error || commentResult.error) {
@@ -166,9 +160,8 @@ export async function getCampCircleSubmissions(campId: string, currentUserId: st
   }
 
   const encouragements = (encouragementResult.data ?? []) as EncouragementRow[];
-  const comments = (commentResult.data ?? []) as CommentRow[];
+  const comments = (commentResult.data ?? []) as CommentTargetRow[];
   const encouragementsBySubmission = new Map<string, EncouragementRow[]>();
-  const commentsBySubmission = new Map<string, CommentRow[]>();
   const commentCounts = countSubmissionCommentsByTarget(comments);
 
   for (const encouragement of encouragements) {
@@ -176,35 +169,15 @@ export async function getCampCircleSubmissions(campId: string, currentUserId: st
     current.push(encouragement);
     encouragementsBySubmission.set(encouragement.submission_id, current);
   }
-  for (const comment of comments) {
-    const targetId = comment.assignment_submission_id ?? comment.submission_id;
-    if (!targetId) continue;
-    const current = commentsBySubmission.get(targetId) ?? [];
-    current.push(comment);
-    commentsBySubmission.set(targetId, current);
-  }
-
   return {
     submissions: submissions.map((submission) => {
       const submissionEncouragements = encouragementsBySubmission.get(submission.id) ?? [];
-      const submissionComments = commentsBySubmission.get(submission.id) ?? [];
       return {
         ...submission,
         encouragementCount: submissionEncouragements.length,
         hasEncouraged: submissionEncouragements.some((item) => item.user_id === currentUserId),
         commentCount: commentCounts.get(submission.id) ?? 0,
-        comments: submissionComments.map((comment) => ({
-          id: comment.id,
-          authorName: comment.author_display_name.trim() || "同学",
-          authorRole: "student" as const,
-          content: comment.content,
-          createdAt: comment.created_at,
-          isOwn: comment.user_id === currentUserId,
-          parentCommentId: null,
-          replyToAuthorName: null,
-          audioUrl: null,
-          imageUrl: null,
-        })),
+        comments: [],
       };
     }),
     error: false,

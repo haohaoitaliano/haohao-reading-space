@@ -74,31 +74,44 @@ export type CloudUnifiedAssignment = CloudPhotoSubmission & {
 
 const selection = "id, camp_id, course_id, user_id, student_display_name, version, created_at, courses(day_number, italian_title), student_submission_photos(id, storage_path, file_name, mime_type, size_bytes, position)";
 
-async function mapSubmission(supabase: SupabaseClient, row: PhotoSubmissionRow, currentUserId?: string) {
-  const photos = await Promise.all(
-    [...row.student_submission_photos]
-      .sort((left, right) => left.position - right.position)
-      .map(async (photo) => {
-        const [inlineResult, downloadResult] = await Promise.all([
-          supabase.storage.from(STUDENT_PHOTO_BUCKET).createSignedUrl(photo.storage_path, STUDENT_PHOTO_SIGNED_URL_SECONDS),
-          supabase.storage.from(STUDENT_PHOTO_BUCKET).createSignedUrl(
-            photo.storage_path,
-            STUDENT_PHOTO_SIGNED_URL_SECONDS,
-            { download: photo.file_name },
-          ),
-        ]);
-        if (inlineResult.error || !inlineResult.data?.signedUrl) return null;
-        return {
-          id: photo.id,
-          fileName: photo.file_name,
-          mimeType: photo.mime_type,
-          sizeBytes: photo.size_bytes,
-          position: photo.position,
-          signedUrl: inlineResult.data.signedUrl,
-          downloadUrl: downloadResult.data?.signedUrl ?? inlineResult.data.signedUrl,
-        };
-      }),
-  );
+function addDownloadName(signedUrl: string, fileName: string) {
+  const url = new URL(signedUrl);
+  url.searchParams.set("download", fileName);
+  return url.toString();
+}
+
+async function createPhotoSignedUrls(
+  supabase: SupabaseClient,
+  rows: Array<Pick<PhotoSubmissionRow, "student_submission_photos">>,
+) {
+  const paths = [...new Set(rows.flatMap((row) => row.student_submission_photos.map((photo) => photo.storage_path)))];
+  if (paths.length === 0) return new Map<string, string>();
+
+  const { data, error } = await supabase.storage
+    .from(STUDENT_PHOTO_BUCKET)
+    .createSignedUrls(paths, STUDENT_PHOTO_SIGNED_URL_SECONDS);
+  if (error) return new Map<string, string>();
+
+  return new Map((data ?? []).flatMap((item) => (
+    item.path && item.signedUrl ? [[item.path, item.signedUrl] as const] : []
+  )));
+}
+
+function mapSubmission(row: PhotoSubmissionRow, signedUrls: Map<string, string>, currentUserId?: string) {
+  const photos = [...row.student_submission_photos]
+    .sort((left, right) => left.position - right.position)
+    .flatMap((photo) => {
+      const signedUrl = signedUrls.get(photo.storage_path);
+      return signedUrl ? [{
+        id: photo.id,
+        fileName: photo.file_name,
+        mimeType: photo.mime_type,
+        sizeBytes: photo.size_bytes,
+        position: photo.position,
+        signedUrl,
+        downloadUrl: addDownloadName(signedUrl, photo.file_name),
+      }] : [];
+    });
   return {
     id: row.id,
     campId: row.camp_id,
@@ -110,20 +123,20 @@ async function mapSubmission(supabase: SupabaseClient, row: PhotoSubmissionRow, 
     version: row.version,
     createdAt: row.created_at,
     isOwn: row.user_id === currentUserId,
-    photos: photos.filter((photo): photo is NonNullable<typeof photo> => Boolean(photo)),
+    photos,
   } satisfies CloudPhotoSubmission;
 }
 
-async function mapUnifiedAssignment(
-  supabase: SupabaseClient,
+function mapUnifiedAssignment(
   row: UnifiedAssignmentRow,
+  signedUrls: Map<string, string>,
   currentUserId?: string,
   commentCounts = new Map<string, number>(),
 ) {
   const photoSubmission = Array.isArray(row.student_photo_submissions)
     ? row.student_photo_submissions[0]
     : row.student_photo_submissions;
-  const mapped = await mapSubmission(supabase, {
+  const mapped = mapSubmission({
     id: row.id,
     camp_id: row.camp_id,
     course_id: row.course_id,
@@ -133,7 +146,7 @@ async function mapUnifiedAssignment(
     created_at: row.created_at,
     courses: row.courses,
     student_submission_photos: photoSubmission?.student_submission_photos ?? [],
-  }, currentUserId);
+  }, signedUrls, currentUserId);
   return {
     ...mapped,
     assignmentId: row.id,
@@ -155,8 +168,10 @@ export async function getOwnPhotoSubmissions(userId: string, campId: string, cou
   if (courseId) query = query.eq("course_id", courseId);
   const { data, error } = await query;
   if (error) return { submissions: [] as CloudPhotoSubmission[], error: true };
+  const rows = (data ?? []) as unknown as PhotoSubmissionRow[];
+  const signedUrls = await createPhotoSignedUrls(supabase, rows);
   return {
-    submissions: await Promise.all(((data ?? []) as unknown as PhotoSubmissionRow[]).map((row) => mapSubmission(supabase, row, userId))),
+    submissions: rows.map((row) => mapSubmission(row, signedUrls, userId)),
     error: false,
   };
 }
@@ -169,8 +184,10 @@ export async function getAdminPhotoSubmissions() {
     .is("assignment_submission_id", null)
     .order("created_at", { ascending: false });
   if (error) return { submissions: [] as CloudPhotoSubmission[], error: true };
+  const rows = (data ?? []) as unknown as PhotoSubmissionRow[];
+  const signedUrls = await createPhotoSignedUrls(supabase, rows);
   return {
-    submissions: await Promise.all(((data ?? []) as unknown as PhotoSubmissionRow[]).map((row) => mapSubmission(supabase, row))),
+    submissions: rows.map((row) => mapSubmission(row, signedUrls)),
     error: false,
   };
 }
@@ -197,8 +214,15 @@ export async function getCampUnifiedAssignments(campId: string, currentUserId: s
     : { data: [], error: null };
   if (commentError) return { assignments: [] as CloudUnifiedAssignment[], error: true };
   const commentCounts = countSubmissionCommentsByTarget(commentRows ?? []);
+  const photoRows = rows.map((row) => {
+    const photoSubmission = Array.isArray(row.student_photo_submissions)
+      ? row.student_photo_submissions[0]
+      : row.student_photo_submissions;
+    return { student_submission_photos: photoSubmission?.student_submission_photos ?? [] };
+  });
+  const signedUrls = await createPhotoSignedUrls(supabase, photoRows);
   return {
-    assignments: await Promise.all(rows.map((row) => mapUnifiedAssignment(supabase, row, currentUserId, commentCounts))),
+    assignments: rows.map((row) => mapUnifiedAssignment(row, signedUrls, currentUserId, commentCounts)),
     error: false,
   };
 }
@@ -222,8 +246,15 @@ export async function getOwnUnifiedAssignments(userId: string, campId: string) {
     : { data: [], error: null };
   if (commentError) return { assignments: [] as CloudUnifiedAssignment[], error: true };
   const commentCounts = countSubmissionCommentsByTarget(commentRows ?? []);
+  const photoRows = rows.map((row) => {
+    const photoSubmission = Array.isArray(row.student_photo_submissions)
+      ? row.student_photo_submissions[0]
+      : row.student_photo_submissions;
+    return { student_submission_photos: photoSubmission?.student_submission_photos ?? [] };
+  });
+  const signedUrls = await createPhotoSignedUrls(supabase, photoRows);
   return {
-    assignments: await Promise.all(rows.map((row) => mapUnifiedAssignment(supabase, row, userId, commentCounts))),
+    assignments: rows.map((row) => mapUnifiedAssignment(row, signedUrls, userId, commentCounts)),
     error: false,
   };
 }
@@ -235,8 +266,16 @@ export async function getAdminUnifiedAssignments() {
     .select(unifiedSelection)
     .order("created_at", { ascending: false });
   if (error) return { assignments: [] as CloudUnifiedAssignment[], error: true };
+  const rows = (data ?? []) as unknown as UnifiedAssignmentRow[];
+  const photoRows = rows.map((row) => {
+    const photoSubmission = Array.isArray(row.student_photo_submissions)
+      ? row.student_photo_submissions[0]
+      : row.student_photo_submissions;
+    return { student_submission_photos: photoSubmission?.student_submission_photos ?? [] };
+  });
+  const signedUrls = await createPhotoSignedUrls(supabase, photoRows);
   return {
-    assignments: await Promise.all(((data ?? []) as unknown as UnifiedAssignmentRow[]).map((row) => mapUnifiedAssignment(supabase, row))),
+    assignments: rows.map((row) => mapUnifiedAssignment(row, signedUrls)),
     error: false,
   };
 }

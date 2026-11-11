@@ -39,16 +39,34 @@ export function CloudSubmissionCard({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
-  const [audioLoading, setAudioLoading] = useState(hasAudio);
+  const [audioLoading, setAudioLoading] = useState(false);
+  const [shouldLoadAudio, setShouldLoadAudio] = useState(false);
   const [audioProcessing, setAudioProcessing] = useState(false);
   const [audioError, setAudioError] = useState(false);
   const [audioReloadKey, setAudioReloadKey] = useState(0);
   const audioRequestRef = useRef(0);
   const audioRefreshAttemptsRef = useRef(0);
+  const cardRef = useRef<HTMLElement>(null);
   const isPublic = submission.visibility === "public";
 
   useEffect(() => {
-    if (!hasAudio) return;
+    if (!hasAudio || shouldLoadAudio) return;
+    const card = cardRef.current;
+    if (!card || typeof IntersectionObserver === "undefined") {
+      setShouldLoadAudio(true);
+      return;
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return;
+      setShouldLoadAudio(true);
+      observer.disconnect();
+    }, { rootMargin: "500px 0px" });
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [hasAudio, shouldLoadAudio]);
+
+  useEffect(() => {
+    if (!hasAudio || !shouldLoadAudio) return;
     audioRefreshAttemptsRef.current = 0;
     let pollTimeoutId: number | undefined;
     let fetchTimeoutId: number | undefined;
@@ -106,7 +124,7 @@ export function CloudSubmissionCard({
       controller?.abort();
       audioRequestRef.current += 1;
     };
-  }, [audioReloadKey, hasAudio, submission.audioUrl]);
+  }, [audioReloadKey, hasAudio, shouldLoadAudio, submission.audioUrl]);
 
   function handleAudioError() {
     if (audioRefreshAttemptsRef.current === 0) {
@@ -136,7 +154,7 @@ export function CloudSubmissionCard({
   }
 
   return (
-    <article className="item-card local-submission-card">
+    <article className="item-card local-submission-card" ref={cardRef}>
       <div className="row start">
         <div className="avatar">{submission.studentName.charAt(0) || "读"}</div>
         <div className="submission-card-main">

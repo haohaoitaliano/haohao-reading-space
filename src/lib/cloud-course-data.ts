@@ -179,6 +179,61 @@ async function createSignedCourseVideos(supabase: SupabaseClient, rows: CourseVi
     .filter((video): video is CloudCourseVideo => Boolean(video));
 }
 
+function addDownloadName(signedUrl: string, fileName: string) {
+  const url = new URL(signedUrl);
+  url.searchParams.set("download", fileName);
+  return url.toString();
+}
+
+async function createSignedStudentCourseVideos(supabase: SupabaseClient, rows: CourseVideoRow[] | null) {
+  const videos = rows ?? [];
+  if (videos.length === 0) return [] as CloudCourseVideo[];
+  const { data, error } = await supabase.storage
+    .from(COURSE_VIDEO_BUCKET)
+    .createSignedUrls(videos.map((row) => row.storage_path), COURSE_VIDEO_SIGNED_URL_SECONDS);
+  if (error) return [] as CloudCourseVideo[];
+  const urls = new Map((data ?? []).flatMap((item) => (
+    item.path && item.signedUrl ? [[item.path, item.signedUrl] as const] : []
+  )));
+  return videos.flatMap((row) => {
+    const signedUrl = urls.get(row.storage_path);
+    return signedUrl ? [{
+      id: row.id,
+      position: row.position,
+      fileName: row.file_name,
+      mimeType: row.mime_type,
+      sizeBytes: row.size_bytes,
+      durationSeconds: row.duration_seconds,
+      updatedAt: row.updated_at,
+      signedUrl,
+    }] : [];
+  });
+}
+
+async function createSignedStudentCoursePdfs(supabase: SupabaseClient, rows: CoursePdfRow[] | null) {
+  const pdfs = rows ?? [];
+  if (pdfs.length === 0) return [] as CloudCoursePdf[];
+  const { data, error } = await supabase.storage
+    .from(COURSE_PDF_BUCKET)
+    .createSignedUrls(pdfs.map((row) => row.storage_path), COURSE_PDF_SIGNED_URL_SECONDS);
+  if (error) return [] as CloudCoursePdf[];
+  const urls = new Map((data ?? []).flatMap((item) => (
+    item.path && item.signedUrl ? [[item.path, item.signedUrl] as const] : []
+  )));
+  return pdfs.flatMap((row) => {
+    const signedUrl = urls.get(row.storage_path);
+    return signedUrl ? [{
+      id: row.id,
+      fileName: row.file_name,
+      sizeBytes: row.size_bytes,
+      position: row.position,
+      updatedAt: row.updated_at,
+      signedUrl,
+      downloadUrl: addDownloadName(signedUrl, row.file_name),
+    }] : [];
+  });
+}
+
 async function createSignedCoursePdf(supabase: SupabaseClient, row: CoursePdfRow) {
   const [inlineResult, downloadResult] = await Promise.all([
     supabase.storage.from(COURSE_PDF_BUCKET).createSignedUrl(row.storage_path, COURSE_PDF_SIGNED_URL_SECONDS),
@@ -368,7 +423,11 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
     return { state: "database_error" as const, camp: campResult.camp, course: null };
   }
 
-  const videos = await createSignedCourseVideos(supabase, videoRows as CourseVideoRow[] | null);
+  const [audio, videos, pdfs] = await Promise.all([
+    createSignedCourseAudio(supabase, audioRow),
+    createSignedStudentCourseVideos(supabase, videoRows as CourseVideoRow[] | null),
+    createSignedStudentCoursePdfs(supabase, pdfRows as CoursePdfRow[] | null),
+  ]);
   const detail: CloudCourseDetail = {
     ...summary,
     description: content.description ?? "",
@@ -388,11 +447,10 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
       word: item.word,
       meaningZh: item.meaning_zh ?? "",
     })),
-    audio: await createSignedCourseAudio(supabase, audioRow),
+    audio,
     videos,
     video: videos[0] ?? null,
-    pdfs: (await Promise.all(((pdfRows ?? []) as CoursePdfRow[]).map((row) => createSignedCoursePdf(supabase, row))))
-      .filter((pdf): pdf is CloudCoursePdf => Boolean(pdf)),
+    pdfs,
     submissionCount: 0,
   };
 
