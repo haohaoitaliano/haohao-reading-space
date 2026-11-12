@@ -66,3 +66,19 @@ export async function getAdminUserAssignments(userId: string, campId: string) {
   ]);
   return { recordings, legacyPhotos, unified };
 }
+
+export async function getAdminUserAssignmentCount(userId: string) {
+  const supabase = await createSupabaseServerClient();
+  const [unified, recordings, photos] = await Promise.all([
+    supabase.from("student_assignment_submissions").select("course_id").eq("user_id", userId),
+    supabase.from("student_submissions").select("course_id").eq("user_id", userId),
+    supabase.from("student_photo_submissions").select("course_id").eq("user_id", userId),
+  ]);
+  if (unified.error || recordings.error || photos.error) return { count: 0, error: true };
+  const courseIds = new Set([
+    ...(unified.data ?? []).map((row) => row.course_id as string),
+    ...(recordings.data ?? []).map((row) => row.course_id as string),
+    ...(photos.data ?? []).map((row) => row.course_id as string),
+  ]);
+  return { count: courseIds.size, error: false };
+}

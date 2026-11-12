@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const [page, data, actions, progress, comments, workCard, interactions, messages, labelForm] = await Promise.all([
+const [page, data, actions, progress, comments, workCard, interactions, messages, labelForm, workSection] = await Promise.all([
   readFile(new URL("../app/teacher/submissions/page.tsx", import.meta.url), "utf8"),
   readFile(new URL("./user-management-data.ts", import.meta.url), "utf8"),
   readFile(new URL("../app/teacher/submissions/actions.ts", import.meta.url), "utf8"),
@@ -12,6 +12,7 @@ const [page, data, actions, progress, comments, workCard, interactions, messages
   readFile(new URL("../components/SubmissionInteractions.tsx", import.meta.url), "utf8"),
   readFile(new URL("../app/messages/page.tsx", import.meta.url), "utf8"),
   readFile(new URL("../app/teacher/submissions/IdentityLabelForm.tsx", import.meta.url), "utf8"),
+  readFile(new URL("../app/teacher/submissions/WorkRecordsSection.tsx", import.meta.url), "utf8"),
 ]);
 
 test("user management searches nickname or email and includes users before membership or work", () => {
@@ -36,6 +37,20 @@ test("user management switches between a full-width list and detail while preser
   assert.match(page, /#user-\$\{selectedUser\.id\}/);
   assert.match(page, /id=\{`user-\$\{user\.id\}`\}/);
   assert.match(page, /camp: query\.camp, user: selectedUser\.id, workCamp: camp\.id/);
+});
+
+test("work records count courses across camps without loading media until requested", () => {
+  assert.match(data, /getAdminUserAssignmentCount\(userId: string\)/);
+  assert.match(data, /student_assignment_submissions"\)\.select\("course_id"\)\.eq\("user_id", userId\)/);
+  assert.match(data, /student_submissions"\)\.select\("course_id"\)\.eq\("user_id", userId\)/);
+  assert.match(data, /student_photo_submissions"\)\.select\("course_id"\)\.eq\("user_id", userId\)/);
+  assert.match(data, /new Set\(/);
+  assert.match(page, /selectedUser && selectedCampId && workExpanded/);
+  assert.match(page, /query\.work === "1"/);
+  assert.match(workSection, /作业记录 · 共/);
+  assert.match(workSection, /正在加载…/);
+  assert.match(workSection, /if \(pending\) return/);
+  assert.match(workSection, /router\.refresh\(\)/);
 });
 
 test("identity label saves do not mutate system roles", () => {
