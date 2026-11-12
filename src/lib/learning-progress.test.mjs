@@ -94,11 +94,12 @@ test("admin progress counts each unlocked published course once per student", ()
       { userId: "student-2", displayName: "Luca" },
     ],
     courses: [
-      { id: "intro", dayNumber: 0, title: "欢迎与试打卡", status: "published", effectiveUnlockAt: "2026-11-01T08:00:00Z" },
-      { id: "c1", dayNumber: 1, title: "Uno", status: "published", effectiveUnlockAt: "2026-11-01T08:00:00Z" },
-      { id: "c2", dayNumber: 2, title: "Due", status: "published", effectiveUnlockAt: "2026-11-02T08:00:00Z" },
-      { id: "future", dayNumber: 3, title: "Tre", status: "published", effectiveUnlockAt: "2026-11-04T08:00:00Z" },
-      { id: "draft", dayNumber: 4, title: "Quattro", status: "draft", effectiveUnlockAt: "2026-11-01T08:00:00Z" },
+      { id: "intro", dayNumber: 0, title: "欢迎与试打卡", status: "published", effectiveUnlockAt: "2026-11-01T08:00:00Z", recordingAssignmentEnabled: true, photoAssignmentEnabled: true },
+      { id: "c1", dayNumber: 1, title: "Uno", status: "published", effectiveUnlockAt: "2026-11-01T08:00:00Z", recordingAssignmentEnabled: true, photoAssignmentEnabled: false },
+      { id: "c2", dayNumber: 2, title: "Due", status: "published", effectiveUnlockAt: "2026-11-02T08:00:00Z", recordingAssignmentEnabled: false, photoAssignmentEnabled: true },
+      { id: "no-work", dayNumber: 3, title: "Nessun compito", status: "published", effectiveUnlockAt: "2026-11-01T08:00:00Z", recordingAssignmentEnabled: false, photoAssignmentEnabled: false },
+      { id: "future", dayNumber: 4, title: "Tre", status: "published", effectiveUnlockAt: "2026-11-04T08:00:00Z", recordingAssignmentEnabled: true, photoAssignmentEnabled: false },
+      { id: "draft", dayNumber: 5, title: "Quattro", status: "draft", effectiveUnlockAt: "2026-11-01T08:00:00Z", recordingAssignmentEnabled: true, photoAssignmentEnabled: false },
     ],
     submissions: [
       { userId: "student-1", courseId: "intro" },
@@ -106,6 +107,7 @@ test("admin progress counts each unlocked published course once per student", ()
       { userId: "student-1", courseId: "c1" },
       { userId: "student-1", courseId: "c1" },
       { userId: "student-1", courseId: "future" },
+      { userId: "student-1", courseId: "no-work" },
       { userId: "student-2", courseId: "c2" },
     ],
   });

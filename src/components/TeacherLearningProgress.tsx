@@ -41,6 +41,10 @@ export function TeacherLearningProgress({ camps, initialCampId }: {
   const completedCount = students.filter((student) => student.completed).length;
   const incompleteCount = students.length - completedCount;
   const completionRate = students.length ? Math.round((completedCount / students.length) * 100) : 0;
+  const cumulativeCompletionRate = students.length && selectedCamp.courses.length
+    ? Math.round((students.reduce((total, student) => total + student.submittedCount, 0)
+      / (students.length * selectedCamp.courses.length)) * 100)
+    : 0;
   const visibleStudents = students.filter((student) =>
     studentFilter === "all" || (studentFilter === "completed" ? student.completed : !student.completed)
   );
@@ -77,7 +81,7 @@ export function TeacherLearningProgress({ camps, initialCampId }: {
       <button aria-pressed={mode === "cumulative"} className={`button full ${mode === "cumulative" ? "" : "ghost"}`} onClick={() => changeMode("cumulative")} type="button">累计进度</button>
     </div>
 
-    {!selectedCamp.courses.length ? <p className="notice">当前训练营还没有已发布且已解锁的课程，暂不统计学员完成状态。</p> : null}
+    {!selectedCamp.courses.length ? <p className="notice">暂无需打卡课程</p> : null}
 
     {selectedCamp.courses.length && mode === "daily" ? <>
       <label className="field">选择课程
@@ -88,12 +92,12 @@ export function TeacherLearningProgress({ camps, initialCampId }: {
       <div className="row start"><div><p className="kicker">Daily Check-in</p><h2>{selectedCourse ? `${getStudentCourseDayLabel(selectedCourse.dayNumber)} · ${selectedCourse.title}` : "单日打卡"}</h2></div><BookOpenCheck color="var(--olive)" /></div>
     </> : null}
 
-    {selectedCamp.courses.length && mode === "cumulative" ? <>
-      <div className="row start"><div><h2>累计学习进度</h2><p style={{ margin: 0 }}>共 {selectedCamp.courses.length} 节已发布且已解锁课程</p></div><BookOpenCheck color="var(--olive)" /></div>
-    </> : null}
+    {selectedCamp.courses.length && mode === "cumulative" ? (
+      <h2 style={{ margin: 0 }}>累计打卡率 {cumulativeCompletionRate}%</h2>
+    ) : null}
 
     {selectedCamp.courses.length ? <>
-      <section aria-label="完成情况统计" className="quiet-card stack">
+      {mode === "daily" ? <section aria-label="完成情况统计" className="quiet-card stack">
         <div className="progress-summary-grid">
           <div className="metric"><strong>{students.length}</strong><span>学员总数</span></div>
           <div className="metric"><strong>{completedCount}</strong><span>已完成</span></div>
@@ -103,7 +107,7 @@ export function TeacherLearningProgress({ camps, initialCampId }: {
           <span style={{ "--value": `${completionRate}%` } as CSSProperties} />
         </div>
         <p style={{ margin: 0 }}>完成率 {completionRate}% · 已完成 {completedCount} / {students.length} 人</p>
-      </section>
+      </section> : null}
 
       <div aria-label="学员名单筛选" className="progress-filter-grid" role="group">
         <button aria-pressed={studentFilter === "all"} className={`button full ${studentFilter === "all" ? "" : "ghost"}`} onClick={() => setStudentFilter("all")} type="button">全部</button>
