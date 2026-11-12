@@ -24,6 +24,8 @@ export function TeacherLearningProgress({ camps, initialCampId }: {
   const [mode, setMode] = useState<"daily" | "cumulative">("daily");
   const [studentFilter, setStudentFilter] = useState<StudentFilter>("all");
   const selectedCamp = camps.find((item) => item.camp.id === campId) ?? camps[0];
+  const initialCamp = camps.find((item) => item.camp.id === initialCampId) ?? camps[0];
+  const [courseGroupIndex, setCourseGroupIndex] = useState(Math.max(0, Math.ceil((initialCamp?.courses.length ?? 0) / 10) - 1));
   const latestCourseId = selectedCamp?.courses.at(-1)?.id ?? "";
   const [courseId, setCourseId] = useState(latestCourseId);
 
@@ -45,6 +47,16 @@ export function TeacherLearningProgress({ camps, initialCampId }: {
     ? Math.round((students.reduce((total, student) => total + student.submittedCount, 0)
       / (students.length * selectedCamp.courses.length)) * 100)
     : 0;
+  const courseRates = useMemo(() => selectedCamp.courses.map((course) => {
+    const completed = selectedCamp.students.filter((student) => student.submittedCourseIds.includes(course.id)).length;
+    return {
+      ...course,
+      rate: selectedCamp.students.length ? Math.round((completed / selectedCamp.students.length) * 100) : 0,
+    };
+  }), [selectedCamp]);
+  const courseGroupCount = Math.max(1, Math.ceil(courseRates.length / 10));
+  const activeCourseGroupIndex = Math.min(courseGroupIndex, courseGroupCount - 1);
+  const visibleCourseRates = courseRates.slice(activeCourseGroupIndex * 10, activeCourseGroupIndex * 10 + 10);
   const visibleStudents = students.filter((student) =>
     studentFilter === "all" || (studentFilter === "completed" ? student.completed : !student.completed)
   );
@@ -55,6 +67,7 @@ export function TeacherLearningProgress({ camps, initialCampId }: {
     const nextCamp = camps.find((item) => item.camp.id === nextCampId);
     setCampId(nextCampId);
     setCourseId(nextCamp?.courses.at(-1)?.id ?? "");
+    setCourseGroupIndex(Math.max(0, Math.ceil((nextCamp?.courses.length ?? 0) / 10) - 1));
     setStudentFilter("all");
     router.replace(`/teacher/progress?camp=${encodeURIComponent(nextCampId)}`, { scroll: false });
   }
@@ -92,9 +105,23 @@ export function TeacherLearningProgress({ camps, initialCampId }: {
       <div className="row start"><div><p className="kicker">Daily Check-in</p><h2>{selectedCourse ? `${getStudentCourseDayLabel(selectedCourse.dayNumber)} · ${selectedCourse.title}` : "单日打卡"}</h2></div><BookOpenCheck color="var(--olive)" /></div>
     </> : null}
 
-    {selectedCamp.courses.length && mode === "cumulative" ? (
+    {selectedCamp.courses.length && mode === "cumulative" ? <>
       <h2 style={{ margin: 0 }}>累计打卡率 {cumulativeCompletionRate}%</h2>
-    ) : null}
+      <section aria-label="每节课打卡率" className="quiet-card cumulative-course-chart">
+        <div className="cumulative-course-chart-nav">
+          <button className="button ghost" disabled={activeCourseGroupIndex === 0} onClick={() => setCourseGroupIndex((value) => Math.max(0, value - 1))} type="button">上10节</button>
+          <span>{activeCourseGroupIndex + 1} / {courseGroupCount}</span>
+          <button className="button ghost" disabled={activeCourseGroupIndex >= courseGroupCount - 1} onClick={() => setCourseGroupIndex((value) => Math.min(courseGroupCount - 1, value + 1))} type="button">下10节</button>
+        </div>
+        <div className="cumulative-course-bars">
+          {visibleCourseRates.map((course) => <div className="cumulative-course-row" key={course.id}>
+            <span>Giorno {course.dayNumber}</span>
+            <div aria-label={`Giorno ${course.dayNumber} 打卡率 ${course.rate}%`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={course.rate} className="progress-bar cumulative-course-bar" role="progressbar"><span style={{ "--value": `${course.rate}%` } as CSSProperties} /></div>
+            <strong>{course.rate}%</strong>
+          </div>)}
+        </div>
+      </section>
+    </> : null}
 
     {selectedCamp.courses.length ? <>
       {mode === "daily" ? <section aria-label="完成情况统计" className="quiet-card stack">

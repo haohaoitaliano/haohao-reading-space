@@ -1932,6 +1932,63 @@ a[aria-disabled="true"] {
   margin-top: 10px;
 }
 
+.cumulative-course-chart {
+  gap: 14px;
+}
+
+.cumulative-course-chart-nav {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.cumulative-course-chart-nav .button:first-child {
+  justify-self: start;
+}
+
+.cumulative-course-chart-nav .button:last-child {
+  justify-self: end;
+}
+
+.cumulative-course-bars {
+  display: grid;
+  gap: 10px;
+}
+
+.cumulative-course-row {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.cumulative-course-row > span,
+.cumulative-course-row > strong {
+  white-space: nowrap;
+}
+
+.cumulative-course-row > strong {
+  text-align: right;
+}
+
+.cumulative-course-bar {
+  min-width: 0;
+}
+
+@media (max-width: 380px) {
+  .cumulative-course-row {
+    grid-template-columns: 66px minmax(0, 1fr) 40px;
+    gap: 7px;
+    font-size: 12px;
+  }
+}
+
 .wrap {
   flex-wrap: wrap;
 }
