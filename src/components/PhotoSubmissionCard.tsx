@@ -4,6 +4,7 @@ import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { CloudPhotoSubmission } from "@/lib/photo-submission-data";
+import { IDENTITY_LABEL_TEXT } from "@/lib/identity-label";
 import { PhotoGallery } from "./PhotoGallery";
 
 function formatSubmittedAt(value: string) {
@@ -40,6 +41,7 @@ export function PhotoSubmissionCard({ submission, manageable = false }: {
       <div className="row start">
         <div>
           <strong>{submission.studentName}</strong>
+          {submission.identityLabel && submission.identityLabel !== "student" ? <span className="pill olive">{IDENTITY_LABEL_TEXT[submission.identityLabel]}</span> : null}
           <p className="submission-course" lang="it">Giorno {submission.dayNumber} · {submission.courseTitle}</p>
           <p className="submission-meta">第 {submission.version} 次照片提交 · {formatSubmittedAt(submission.createdAt)}</p>
         </div>

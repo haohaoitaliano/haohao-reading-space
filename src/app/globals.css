@@ -1835,6 +1835,83 @@ a[aria-disabled="true"] {
   overflow-wrap: anywhere;
 }
 
+.user-filter-form {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.user-filter-form label,
+.identity-label-form label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.user-filter-form input,
+.user-filter-form select,
+.identity-label-form select {
+  width: 100%;
+  min-width: 0;
+}
+
+.user-management-layout,
+.identity-label-form {
+  display: grid;
+  gap: 14px;
+}
+
+.user-card {
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.user-card.is-selected {
+  border-color: var(--sky);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sky) 18%, transparent);
+}
+
+.user-card-copy {
+  min-width: 0;
+}
+
+.user-card-copy p {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.wrap {
+  flex-wrap: wrap;
+}
+
+@media (min-width: 800px) {
+  .user-filter-form {
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 0.6fr) auto;
+    align-items: end;
+  }
+
+  .user-management-layout {
+    grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.4fr);
+    align-items: start;
+  }
+
+  .user-list {
+    position: sticky;
+    top: 18px;
+  }
+
+  .identity-label-form {
+    grid-template-columns: minmax(0, 180px) auto;
+    align-items: end;
+  }
+
+  .identity-label-form .notice,
+  .identity-label-form .success-note {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (min-width: 700px) {
   .app-shell {
     margin-top: 20px;

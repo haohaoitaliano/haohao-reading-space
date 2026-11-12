@@ -8,6 +8,7 @@ export type SubmissionPresentationRow = {
   dayNumber: number;
   courseTitle: string;
   studentName: string;
+  identityLabel?: "student" | "teacher" | "helper";
   durationSeconds: number;
   targetDurationSeconds: number | null;
   visibility: SubmissionVisibility;
@@ -21,6 +22,7 @@ export type CloudSubmission = {
   dayNumber: number;
   courseTitle: string;
   studentName: string;
+  identityLabel?: "student" | "teacher" | "helper";
   durationSeconds: number;
   targetDurationSeconds: number | null;
   visibility: SubmissionVisibility;
@@ -38,6 +40,7 @@ export type SubmissionComment = {
   id: string;
   authorName: string;
   authorRole: "admin" | "student";
+  identityLabel?: "student" | "teacher" | "helper";
   content: string | null;
   createdAt: string;
   isOwn: boolean;
@@ -84,6 +87,7 @@ export function toCloudSubmission(
     hasEncouraged: false,
     commentCount: 0,
     comments: [],
+    ...(row.identityLabel ? { identityLabel: row.identityLabel } : {}),
     ...(currentUserId ? { isOwn: row.userId === currentUserId } : {}),
   };
 }

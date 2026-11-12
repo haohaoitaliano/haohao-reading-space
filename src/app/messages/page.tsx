@@ -4,6 +4,7 @@ import { AppFrame } from "@/components/AppFrame";
 import { Header } from "@/components/Header";
 import { requireAuthenticatedUser } from "@/lib/auth";
 import { getStudentMessages } from "@/lib/student-message-data";
+import { IDENTITY_LABEL_TEXT } from "@/lib/identity-label";
 
 function formatMessageTime(value: string) {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -50,7 +51,7 @@ export default async function MessagesPage() {
                   <span className="avatar message-avatar">{message.authorName.charAt(0) || "评"}</span>
                   <div className="message-card-author">
                     <strong>{message.authorName}</strong>
-                    {message.authorRole === "admin" ? <span className="pill olive">助教老师</span> : null}
+                    {message.identityLabel && message.identityLabel !== "student" ? <span className="pill olive">{IDENTITY_LABEL_TEXT[message.identityLabel]}</span> : null}
                   </div>
                   {!message.isRead ? <span aria-label="未读" className="message-dot" /> : null}
                 </div>

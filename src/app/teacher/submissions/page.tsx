@@ -1,80 +1,67 @@
+import Link from "next/link";
 import { CloudSubmissionCard } from "@/components/CloudSubmissionCard";
 import { Header } from "@/components/Header";
 import { PhotoSubmissionCard } from "@/components/PhotoSubmissionCard";
 import { requireAdmin } from "@/lib/auth";
-import { getAdminCloudSubmissions } from "@/lib/cloud-submission-data";
-import { getAdminPhotoSubmissions, getAdminUnifiedAssignments } from "@/lib/photo-submission-data";
+import { IDENTITY_LABEL_TEXT } from "@/lib/identity-label";
+import { getAdminUserAssignments, getAdminUsers } from "@/lib/user-management-data";
+import { IdentityLabelForm } from "./IdentityLabelForm";
 
-export default async function TeacherSubmissionsPage() {
+function href(values: { q?: string; camp?: string; user?: string }) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) if (value) params.set(key, value);
+  return `/teacher/submissions${params.size ? `?${params}` : ""}`;
+}
+
+export default async function TeacherUsersPage({ searchParams }: {
+  searchParams: Promise<{ q?: string; camp?: string; user?: string }>;
+}) {
   await requireAdmin();
-  const [result, photoResult, unifiedResult] = await Promise.all([
-    getAdminCloudSubmissions(),
-    getAdminPhotoSubmissions(),
-    getAdminUnifiedAssignments(),
-  ]);
-  const unifiedById = new Map(unifiedResult.assignments.map((assignment) => [assignment.assignmentId, assignment]));
-
-  return (
-    <main className="app-shell">
-      <section className="screen with-top">
-        <Header title="学生提交记录" subtitle="录音与照片" backHref="/teacher" />
-        <section className="hero">
-          <p className="kicker">Submissions</p>
-          <h1>查看学生作业。</h1>
-          <p>同一次提交的录音与照片合并展示；旧版独立提交继续保留。</p>
-        </section>
-
-        <section className="quiet-card stack" style={{ marginTop: 18 }}>
-          <div className="row"><h2>旧版照片作业历史</h2><span className="pill muted">历史</span></div>
-          {photoResult.submissions.map((submission) => (
-            <PhotoSubmissionCard key={submission.id} submission={submission} />
-          ))}
-          {!photoResult.error && photoResult.submissions.length === 0 ? <p className="notice">还没有学生提交照片作业。</p> : null}
-          {photoResult.error ? <p className="notice" role="alert">照片提交暂时无法读取。</p> : null}
-        </section>
-
-        <section className="quiet-card stack">
-          <div className="row"><h2>提交记录</h2><span className="pill sky">云端</span></div>
-          {result.submissions.map((submission) => {
-            const assignment = unifiedById.get(submission.id);
-            return <CloudSubmissionCard
-              assignmentId={assignment?.assignmentId}
-              key={submission.id}
-              photos={assignment?.photos}
-              showInteractions
-              submission={assignment ? { ...submission, version: assignment.version, createdAt: assignment.createdAt } : submission}
-            />;
-          })}
-          {unifiedResult.assignments.filter((assignment) => !assignment.hasRecording).map((assignment) => (
-            <CloudSubmissionCard
-              assignmentId={assignment.assignmentId}
-              key={assignment.assignmentId}
-              photos={assignment.photos}
-              showInteractions
-              submission={{
-                id: assignment.assignmentId,
-                courseId: assignment.courseId,
-                dayNumber: assignment.dayNumber,
-                courseTitle: assignment.courseTitle,
-                studentName: assignment.studentName,
-                durationSeconds: 0,
-                targetDurationSeconds: null,
-                visibility: assignment.visibility,
-                version: assignment.version,
-                createdAt: assignment.createdAt,
-                audioUrl: "",
-                encouragementCount: 0,
-                hasEncouraged: false,
-                commentCount: 0,
-                comments: [],
-              }}
-            />
-          ))}
-          {!result.error && result.submissions.length === 0 ? <p className="notice">还没有学生提交录音。</p> : null}
-          {result.error ? <p className="notice" role="alert">学生提交暂时无法读取。</p> : null}
-          {unifiedResult.error ? <p className="notice" role="alert">统一作业暂时无法读取。</p> : null}
-        </section>
-      </section>
-    </main>
+  const query = await searchParams;
+  const result = await getAdminUsers();
+  const needle = query.q?.trim().toLocaleLowerCase() ?? "";
+  const campOptions = new Map<string, string>();
+  result.users.forEach((user) => user.camps.forEach((camp) => campOptions.set(camp.id, camp.name)));
+  const users = result.users.filter((user) =>
+    (!needle || user.displayName.toLocaleLowerCase().includes(needle) || user.email.toLocaleLowerCase().includes(needle))
+    && (!query.camp || user.camps.some((camp) => camp.id === query.camp && camp.active))
   );
+  const selectedUser = result.users.find((user) => user.id === query.user);
+  const selectedCampId = selectedUser?.camps.some((camp) => camp.id === query.camp)
+    ? query.camp!
+    : (selectedUser?.camps.find((camp) => camp.active)?.id ?? selectedUser?.camps[0]?.id ?? "");
+  const work = selectedUser && selectedCampId
+    ? await getAdminUserAssignments(selectedUser.id, selectedCampId)
+    : null;
+  const unifiedById = new Map(work?.unified.assignments.map((item) => [item.assignmentId, item]) ?? []);
+
+  return <main className="app-shell"><section className="screen with-top">
+    <Header backHref="/teacher" subtitle="查找学员、查看所属训练营与作业" title="用户管理" />
+    {result.error ? <p className="notice" role="alert">用户暂时无法读取，请确认身份标签 migration 已应用。</p> : null}
+    <form className="quiet-card user-filter-form" method="get">
+      <label><span>搜索用户</span><input defaultValue={query.q ?? ""} name="q" placeholder="昵称或登录邮箱" /></label>
+      <label><span>训练营</span><select defaultValue={query.camp ?? ""} name="camp"><option value="">全部训练营</option>{[...campOptions].map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+      <button className="button" type="submit">查找</button>
+    </form>
+    <section className="user-management-layout">
+      <div className="stack user-list"><div className="row"><h2>用户</h2><span className="pill muted">{users.length} 人</span></div>
+        {users.map((user) => <Link className={`item-card user-card${selectedUser?.id === user.id ? " is-selected" : ""}`} href={href({ q: query.q, camp: query.camp, user: user.id })} key={user.id}>
+          <div className="row start"><span className="avatar">{user.displayName.charAt(0) || "用"}</span><div className="user-card-copy"><div className="row start"><strong>{user.displayName}</strong>{user.identityLabel === "student" ? <span className="pill muted">无特殊标签</span> : <span className="pill olive">{IDENTITY_LABEL_TEXT[user.identityLabel]}</span>}</div><p>{user.email}</p><p>{user.camps.filter((camp) => camp.active).map((camp) => camp.name).join("、") || "尚未加入训练营"}</p></div></div>
+        </Link>)}
+        {!result.error && users.length === 0 ? <p className="notice">没有符合条件的用户。</p> : null}
+      </div>
+      <div className="stack user-detail">
+        {!selectedUser ? <section className="quiet-card"><h2>选择一位用户</h2><p>查看训练营、作业并设置对外身份标签。</p></section> : <>
+          <section className="quiet-card stack"><div><h2>{selectedUser.displayName}</h2><p>{selectedUser.email}</p></div><IdentityLabelForm userId={selectedUser.id} value={selectedUser.identityLabel} /><p className="form-help">系统权限：{selectedUser.systemRole === "admin" ? "管理员" : "普通用户"}（标签不会改变权限）</p><div className="row start wrap">{selectedUser.camps.map((camp) => <Link className={`pill ${camp.id === selectedCampId ? "sky" : "muted"}`} href={href({ q: query.q, camp: camp.id, user: selectedUser.id })} key={camp.id}>{camp.name}{camp.active ? "" : "（已移除）"}</Link>)}{selectedUser.camps.length === 0 ? <span className="pill muted">尚未加入训练营</span> : null}</div></section>
+          {work ? <section className="stack"><h2>{campOptions.get(selectedCampId) ?? "训练营"}作业</h2>
+            {work.legacyPhotos.submissions.map((item) => <PhotoSubmissionCard key={item.id} submission={item} />)}
+            {work.recordings.submissions.map((item) => { const unified = unifiedById.get(item.id); return <CloudSubmissionCard assignmentId={unified?.assignmentId} key={item.id} photos={unified?.photos} showInteractions submission={unified ? { ...item, version: unified.version, createdAt: unified.createdAt } : item} />; })}
+            {work.unified.assignments.filter((item) => !item.hasRecording).map((item) => <CloudSubmissionCard assignmentId={item.assignmentId} key={item.assignmentId} photos={item.photos} showInteractions submission={{ id: item.assignmentId, courseId: item.courseId, dayNumber: item.dayNumber, courseTitle: item.courseTitle, studentName: item.studentName, identityLabel: item.identityLabel, durationSeconds: 0, targetDurationSeconds: null, visibility: item.visibility, version: item.version, createdAt: item.createdAt, audioUrl: "", encouragementCount: 0, hasEncouraged: false, commentCount: item.commentCount, comments: [] }} />)}
+            {!work.recordings.error && !work.legacyPhotos.error && !work.unified.error && work.recordings.submissions.length === 0 && work.legacyPhotos.submissions.length === 0 && work.unified.assignments.length === 0 ? <p className="notice">该用户在此训练营尚未提交作业。</p> : null}
+            {work.recordings.error || work.legacyPhotos.error || work.unified.error ? <p className="notice" role="alert">部分作业暂时无法读取。</p> : null}
+          </section> : null}
+        </>}
+      </div>
+    </section>
+  </section></main>;
 }

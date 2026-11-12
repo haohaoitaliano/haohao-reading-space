@@ -8,6 +8,7 @@ import {
   type SubmissionPresentationRow,
 } from "./circle-submission";
 import { createSupabaseServerClient } from "./supabase/server";
+import { getVisibleIdentityLabels } from "./identity-label-data";
 
 export type { CloudSubmission } from "./circle-submission";
 
@@ -37,7 +38,7 @@ type CommentTargetRow = {
   assignment_submission_id: string | null;
 };
 
-function mapRow(row: SubmissionRow, targetDurations = new Map<string, number | null>()): SubmissionPresentationRow {
+function mapRow(row: SubmissionRow, targetDurations = new Map<string, number | null>(), identityLabels = new Map()): SubmissionPresentationRow {
   return {
     id: row.id,
     campId: row.camp_id,
@@ -46,6 +47,7 @@ function mapRow(row: SubmissionRow, targetDurations = new Map<string, number | n
     dayNumber: row.courses?.day_number ?? 0,
     courseTitle: row.courses?.italian_title ?? "课程",
     studentName: row.student_display_name,
+    identityLabel: identityLabels.get(row.user_id),
     durationSeconds: Number(row.duration_seconds),
     targetDurationSeconds: targetDurations.get(row.course_id) ?? null,
     visibility: row.visibility,
@@ -81,9 +83,11 @@ export async function getOwnCloudSubmissions(userId: string, campId: string) {
     getTargetDurations(campId),
   ]);
   if (error) return { submissions: [] as CloudSubmission[], error: true };
+  const rows = (data ?? []) as unknown as SubmissionRow[];
+  const identityLabels = await getVisibleIdentityLabels(rows.map((row) => row.user_id));
   return {
-    submissions: ((data ?? []) as unknown as SubmissionRow[])
-      .map((row) => mapRow(row, targetDurations))
+    submissions: rows
+      .map((row) => mapRow(row, targetDurations, identityLabels))
       .map((row) => toCloudSubmission(row, userId)),
     error: false,
   };
@@ -109,9 +113,11 @@ export async function getPublicCampSubmissions(
 
   const [{ data, error }, targetDurations] = await Promise.all([query, getTargetDurations(campId)]);
   if (error) return { submissions: [] as CloudSubmission[], error: true };
+  const rows = (data ?? []) as unknown as SubmissionRow[];
+  const identityLabels = await getVisibleIdentityLabels(rows.map((row) => row.user_id));
   return {
     submissions: buildCircleSubmissions(
-      ((data ?? []) as unknown as SubmissionRow[]).map((row) => mapRow(row, targetDurations)),
+      rows.map((row) => mapRow(row, targetDurations, identityLabels)),
       campId,
     ),
     error: false,
@@ -131,8 +137,10 @@ export async function getCampCircleSubmissions(campId: string, currentUserId: st
   ]);
 
   if (error) return { submissions: [] as CloudSubmission[], error: true };
+  const rows = (data ?? []) as unknown as SubmissionRow[];
+  const identityLabels = await getVisibleIdentityLabels(rows.map((row) => row.user_id));
   const submissions = buildCircleSubmissions(
-    ((data ?? []) as unknown as SubmissionRow[]).map((row) => mapRow(row, targetDurations)),
+    rows.map((row) => mapRow(row, targetDurations, identityLabels)),
     campId,
     currentUserId,
   );
@@ -195,19 +203,24 @@ export async function getCampCompletedAssignmentCount(campId: string) {
   return { count: data, error: false };
 }
 
-export async function getAdminCloudSubmissions() {
+export async function getAdminCloudSubmissions(filters?: { userId?: string; campId?: string }) {
   const supabase = await createSupabaseServerClient();
+  let query = supabase
+    .from("student_submissions")
+    .select(selection)
+    .order("created_at", { ascending: false });
+  if (filters?.userId) query = query.eq("user_id", filters.userId);
+  if (filters?.campId) query = query.eq("camp_id", filters.campId);
   const [{ data, error }, targetDurations] = await Promise.all([
-    supabase
-      .from("student_submissions")
-      .select(selection)
-      .order("created_at", { ascending: false }),
-    getTargetDurations(null),
+    query,
+    getTargetDurations(filters?.campId ?? null),
   ]);
   if (error) return { submissions: [] as CloudSubmission[], error: true };
+  const rows = (data ?? []) as unknown as SubmissionRow[];
+  const identityLabels = await getVisibleIdentityLabels(rows.map((row) => row.user_id));
   return {
-    submissions: ((data ?? []) as unknown as SubmissionRow[])
-      .map((row) => mapRow(row, targetDurations))
+    submissions: rows
+      .map((row) => mapRow(row, targetDurations, identityLabels))
       .map((row) => toCloudSubmission(row)),
     error: false,
   };

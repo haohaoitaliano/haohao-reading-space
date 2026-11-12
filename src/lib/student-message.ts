@@ -18,6 +18,7 @@ export type StudentMessageCommentRow = {
   audio_storage_path: string | null;
   image_storage_path: string | null;
   created_at: string;
+  identity_label?: "student" | "teacher" | "helper";
 };
 
 export type StudentMessage = {
@@ -25,6 +26,7 @@ export type StudentMessage = {
   targetId: string;
   authorName: string;
   authorRole: "admin" | "student";
+  identityLabel?: "student" | "teacher" | "helper";
   content: string;
   createdAt: string;
   dayNumber: number;
@@ -71,6 +73,7 @@ export function buildStudentMessages(input: {
       targetId,
       authorName: comment.author_display_name.trim() || "同学",
       authorRole: comment.author_role,
+      identityLabel: comment.identity_label,
       content: getMessageContent(comment),
       createdAt: comment.created_at,
       dayNumber: target.dayNumber,

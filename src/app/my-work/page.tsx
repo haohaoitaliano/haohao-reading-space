@@ -84,6 +84,7 @@ export default async function MyWorkPage() {
                 dayNumber: assignment.dayNumber,
                 courseTitle: assignment.courseTitle,
                 studentName: assignment.studentName,
+                identityLabel: assignment.identityLabel,
                 durationSeconds: 0,
                 targetDurationSeconds: null,
                 visibility: assignment.visibility,

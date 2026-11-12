@@ -11,7 +11,7 @@ export default async function TeacherPage() {
     { label: "邀请码管理", icon: KeyRound, text: "创建、查看次数和停用", href: "/teacher/invites" },
     { label: "课程管理", icon: BookPlus, text: "查看、新建和编辑课程", href: "/teacher/courses" },
     { label: "素材库", icon: Headphones, text: "管理音频、视频和课程素材", href: "/teacher/media" },
-    { label: "查看学生提交记录", icon: MessageSquareText, text: "查看和播放云端录音", href: "/teacher/submissions" },
+    { label: "用户管理", icon: MessageSquareText, text: "查找学员、查看所属训练营与作业", href: "/teacher/submissions" },
     { label: "查看学习完成情况", icon: ChartBar, text: "查看已提交和未提交课程", href: "/teacher/progress" },
     { label: "管理线上见面", icon: Video, text: "创建、编辑和删除会议", href: "/teacher/meetings" },
   ];

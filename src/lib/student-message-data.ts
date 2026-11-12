@@ -8,6 +8,7 @@ import {
   type StudentMessageTarget,
 } from "./student-message";
 import { createSupabaseServerClient } from "./supabase/server";
+import { getVisibleIdentityLabels } from "./identity-label-data";
 
 type WorkRow = {
   id: string;
@@ -84,8 +85,10 @@ export const getStudentMessages = cache(async (userId: string) => {
     return { state: "database_error" as const, camp: campResult.camp, messages: [], unreadCount: 0 };
   }
 
+  const comments = (commentResult.data ?? []) as unknown as StudentMessageCommentRow[];
+  const identityLabels = await getVisibleIdentityLabels(comments.map((comment) => comment.user_id));
   const messages = buildStudentMessages({
-    comments: (commentResult.data ?? []) as unknown as StudentMessageCommentRow[],
+    comments: comments.map((comment) => ({ ...comment, identity_label: identityLabels.get(comment.user_id) })),
     targets,
     readCommentIds: new Set((readResult.data ?? []).map((row) => row.comment_id as string)),
     currentUserId: userId,

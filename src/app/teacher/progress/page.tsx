@@ -19,7 +19,7 @@ export default async function TeacherProgressPage({ searchParams }: {
     ? requestedCampId!
     : (result.camps[0]?.camp.id ?? "");
   return <main className="app-shell"><section className="screen with-top">
-    <Header backHref="/teacher" subtitle="已发布且已解锁课程" title="学习完成情况" />
+    <Header backHref="/teacher" subtitle="仅统计身份标签为学员的成员" title="学习完成情况" />
     {result.error ? <p className="notice" role="alert">学习完成情况暂时无法读取。</p> : null}
     {!result.error ? <TeacherLearningProgress camps={result.camps} initialCampId={initialCampId} /> : null}
   </section></main>;

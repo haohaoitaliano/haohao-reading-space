@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CloudSubmission } from "@/lib/cloud-submission-data";
 import type { CloudPhotoSubmission } from "@/lib/photo-submission-data";
 import { formatRecordingDuration } from "@/lib/recording-utils";
+import { IDENTITY_LABEL_TEXT } from "@/lib/identity-label";
 import { PhotoGallery } from "./PhotoGallery";
 import { SubmissionInteractions } from "./SubmissionInteractions";
 
@@ -160,6 +161,7 @@ export function CloudSubmissionCard({
         <div className="submission-card-main">
           <div className="row" style={{ justifyContent: "flex-start" }}>
             <strong>{submission.studentName}</strong>
+            {submission.identityLabel && submission.identityLabel !== "student" ? <span className="pill olive">{IDENTITY_LABEL_TEXT[submission.identityLabel]}</span> : null}
             {submission.isOwn ? <span className="pill muted">我的作业</span> : null}
           </div>
           <p className="submission-course" lang="it">

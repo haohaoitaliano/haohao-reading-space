@@ -12,6 +12,7 @@ import {
 import { getSubmissionInteractionContext } from "@/lib/submission-interaction-server";
 import { dispatchSubmissionCommentTranscode } from "@/lib/submission-comment-transcode-dispatch";
 import { getStudentRecordingExtension, normalizeStudentRecordingMimeType } from "@/lib/student-recording";
+import { getVisibleIdentityLabels } from "@/lib/identity-label-data";
 
 type RouteProps = { params: Promise<{ id: string }> };
 type CommentRow = {
@@ -44,11 +45,12 @@ function mediaUploadFailure(kind: "录音" | "照片", error: { message?: string
   return failure(`${kind}上传失败，请稍后重试。`, 500);
 }
 
-function serializeComment(row: CommentRow, currentUserId: string, targetId: string, authorNames: Map<string, string>) {
+function serializeComment(row: CommentRow, currentUserId: string, targetId: string, authorNames: Map<string, string>, identityLabels: Map<string, "student" | "teacher" | "helper">) {
   return {
     id: row.id,
     authorName: row.author_display_name.trim() || "同学",
     authorRole: row.author_role,
+    identityLabel: identityLabels.get(row.user_id),
     content: row.content,
     parentCommentId: row.parent_comment_id,
     replyToAuthorName: row.parent_comment_id ? authorNames.get(row.parent_comment_id) ?? "对方" : null,
@@ -79,10 +81,11 @@ export async function GET(_: NextRequest, { params }: RouteProps) {
   const { data, error } = await commentsQuery;
   if (error) return failure("评论暂时无法读取，请稍后重试。", 500);
   const rows = (data ?? []) as CommentRow[];
+  const identityLabels = await getVisibleIdentityLabels(rows.map((row) => row.user_id));
   const authorNames = new Map(rows.map((row) => [row.id, row.author_display_name.trim() || "同学"]));
   return NextResponse.json({
     success: true,
-    comments: rows.map((row) => serializeComment(row, context.auth.profile.id, id, authorNames)),
+    comments: rows.map((row) => serializeComment(row, context.auth.profile.id, id, authorNames, identityLabels)),
   });
 }
 
@@ -185,6 +188,7 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
     return failure("评论保存失败，请稍后重试。", 500);
   }
   if (data.audio_transcode_status === "pending") void dispatchSubmissionCommentTranscode(data.id);
+  const identityLabels = await getVisibleIdentityLabels([data.user_id]);
 
   let replyToAuthorName: string | null = null;
   if (data.parent_comment_id) {
@@ -195,6 +199,6 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
   }
   return NextResponse.json({
     success: true,
-    comment: { ...serializeComment(data, context.auth.profile.id, id, new Map()), replyToAuthorName },
+    comment: { ...serializeComment(data, context.auth.profile.id, id, new Map(), identityLabels), replyToAuthorName },
   });
 }

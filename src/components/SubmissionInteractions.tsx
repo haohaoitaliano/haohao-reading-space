@@ -14,6 +14,7 @@ import {
   type PreparedCommentAudio,
 } from "./SubmissionCommentMediaPicker";
 import { useStudentMessageUnread } from "./StudentMessageUnread";
+import { IDENTITY_LABEL_TEXT } from "@/lib/identity-label";
 
 type ApiMessage = { message?: string };
 
@@ -256,7 +257,7 @@ export function SubmissionInteractions({
       {commentsOpen ? <div className="submission-comments">
         {comments.length ? <div className="submission-comment-list">{comments.map((comment) => (
           <article className={`submission-comment ${comment.parentCommentId ? "is-reply" : ""}${comment.id === focusCommentId ? " is-focused" : ""}`} id={`comment-${comment.id}`} key={comment.id} tabIndex={comment.id === focusCommentId ? -1 : undefined}>
-            <header><strong>{comment.authorName}</strong>{comment.authorRole === "admin" ? <span className="pill olive">管理员</span> : null}<time dateTime={comment.createdAt}>{formatCommentTime(comment.createdAt)}</time></header>
+            <header><strong>{comment.authorName}</strong>{comment.identityLabel && comment.identityLabel !== "student" ? <span className="pill olive">{IDENTITY_LABEL_TEXT[comment.identityLabel]}</span> : null}<time dateTime={comment.createdAt}>{formatCommentTime(comment.createdAt)}</time></header>
             {comment.replyToAuthorName ? <p className="comment-reply-target">回复 {comment.replyToAuthorName}</p> : null}
             {comment.content ? <p className="comment-content">{comment.content}</p> : null}
             {comment.audioUrl ? <CommentAudioPlayer endpoint={comment.audioUrl} /> : null}

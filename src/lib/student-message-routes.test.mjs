@@ -33,8 +33,8 @@ test("message queries reuse the selected active camp and current authenticated u
 
 test("messages are individually linked without a bulk-read action", () => {
   assert.match(messagesPageSource, /submission=.*comment=/);
-  assert.match(messagesPageSource, /助教老师/);
-  assert.doesNotMatch(messagesPageSource, /\? "助教老师" : "同学"/);
+  assert.match(messagesPageSource, /IDENTITY_LABEL_TEXT\[message\.identityLabel\]/);
+  assert.doesNotMatch(messagesPageSource, /助教老师/);
   assert.match(messagesPageSource, /unreadCount/);
   assert.doesNotMatch(messagesPageSource, /全部标记|mark.*all/i);
   assert.match(unreadUiSource, /href="\/messages"/);

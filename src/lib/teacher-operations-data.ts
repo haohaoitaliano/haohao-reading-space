@@ -209,7 +209,7 @@ export async function getStudentMeetingData(userId: string) {
 type MemberRow = {
   camp_id: string;
   user_id: string;
-  profiles: { display_name: string | null; role: string; status: string } | null;
+  profiles: { display_name: string | null; identity_label: string; status: string } | null;
 };
 type ScheduleRow = {
   id: string; camp_id: string; day_number: number; italian_title: string;
@@ -223,7 +223,7 @@ export async function getAdminLearningProgress() {
     getAdminCampOptions(),
     supabase
       .from("camp_members")
-      .select("camp_id, user_id, profiles(display_name, role, status)")
+      .select("camp_id, user_id, profiles(display_name, identity_label, status)")
       .eq("status", "active"),
     supabase.rpc("get_course_schedule", { target_camp_id: null }),
     supabase.from("student_assignment_submissions").select("camp_id, user_id, course_id"),
@@ -241,7 +241,7 @@ export async function getAdminLearningProgress() {
       const progress = buildAdminLearningProgress({
         members: members.filter((row) =>
           row.camp_id === camp.id
-          && row.profiles?.role === "student"
+          && row.profiles?.identity_label === "student"
           && row.profiles.status === "active"
         ).map((row) => ({
           userId: row.user_id,

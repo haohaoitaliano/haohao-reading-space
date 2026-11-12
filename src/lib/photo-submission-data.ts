@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { countSubmissionCommentsByTarget } from "./circle-submission";
 import { STUDENT_PHOTO_BUCKET, STUDENT_PHOTO_SIGNED_URL_SECONDS } from "./student-photo";
 import { createSupabaseServerClient } from "./supabase/server";
+import { getVisibleIdentityLabels } from "./identity-label-data";
 
 type PhotoRow = {
   id: string;
@@ -49,6 +50,7 @@ export type CloudPhotoSubmission = {
   courseId: string;
   userId: string;
   studentName: string;
+  identityLabel?: "student" | "teacher" | "helper";
   dayNumber: number;
   courseTitle: string;
   version: number;
@@ -97,7 +99,7 @@ async function createPhotoSignedUrls(
   )));
 }
 
-function mapSubmission(row: PhotoSubmissionRow, signedUrls: Map<string, string>, currentUserId?: string) {
+function mapSubmission(row: PhotoSubmissionRow, signedUrls: Map<string, string>, currentUserId?: string, identityLabels = new Map()) {
   const photos = [...row.student_submission_photos]
     .sort((left, right) => left.position - right.position)
     .flatMap((photo) => {
@@ -118,6 +120,7 @@ function mapSubmission(row: PhotoSubmissionRow, signedUrls: Map<string, string>,
     courseId: row.course_id,
     userId: row.user_id,
     studentName: row.student_display_name,
+    identityLabel: identityLabels.get(row.user_id),
     dayNumber: row.courses?.day_number ?? 0,
     courseTitle: row.courses?.italian_title ?? "课程",
     version: row.version,
@@ -132,6 +135,7 @@ function mapUnifiedAssignment(
   signedUrls: Map<string, string>,
   currentUserId?: string,
   commentCounts = new Map<string, number>(),
+  identityLabels = new Map(),
 ) {
   const photoSubmission = Array.isArray(row.student_photo_submissions)
     ? row.student_photo_submissions[0]
@@ -146,7 +150,7 @@ function mapUnifiedAssignment(
     created_at: row.created_at,
     courses: row.courses,
     student_submission_photos: photoSubmission?.student_submission_photos ?? [],
-  }, signedUrls, currentUserId);
+  }, signedUrls, currentUserId, identityLabels);
   return {
     ...mapped,
     assignmentId: row.id,
@@ -169,25 +173,30 @@ export async function getOwnPhotoSubmissions(userId: string, campId: string, cou
   const { data, error } = await query;
   if (error) return { submissions: [] as CloudPhotoSubmission[], error: true };
   const rows = (data ?? []) as unknown as PhotoSubmissionRow[];
+  const identityLabels = await getVisibleIdentityLabels(rows.map((row) => row.user_id));
   const signedUrls = await createPhotoSignedUrls(supabase, rows);
   return {
-    submissions: rows.map((row) => mapSubmission(row, signedUrls, userId)),
+    submissions: rows.map((row) => mapSubmission(row, signedUrls, userId, identityLabels)),
     error: false,
   };
 }
 
-export async function getAdminPhotoSubmissions() {
+export async function getAdminPhotoSubmissions(filters?: { userId?: string; campId?: string }) {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("student_photo_submissions")
     .select(selection)
     .is("assignment_submission_id", null)
     .order("created_at", { ascending: false });
+  if (filters?.userId) query = query.eq("user_id", filters.userId);
+  if (filters?.campId) query = query.eq("camp_id", filters.campId);
+  const { data, error } = await query;
   if (error) return { submissions: [] as CloudPhotoSubmission[], error: true };
   const rows = (data ?? []) as unknown as PhotoSubmissionRow[];
+  const identityLabels = await getVisibleIdentityLabels(rows.map((row) => row.user_id));
   const signedUrls = await createPhotoSignedUrls(supabase, rows);
   return {
-    submissions: rows.map((row) => mapSubmission(row, signedUrls)),
+    submissions: rows.map((row) => mapSubmission(row, signedUrls, undefined, identityLabels)),
     error: false,
   };
 }
@@ -205,6 +214,7 @@ export async function getCampUnifiedAssignments(campId: string, currentUserId: s
     .order("created_at", { ascending: false });
   if (error) return { assignments: [] as CloudUnifiedAssignment[], error: true };
   const rows = (data ?? []) as unknown as UnifiedAssignmentRow[];
+  const identityLabels = await getVisibleIdentityLabels(rows.map((row) => row.user_id));
   const assignmentIds = rows.map((row) => row.id);
   const { data: commentRows, error: commentError } = assignmentIds.length
     ? await supabase
@@ -222,7 +232,7 @@ export async function getCampUnifiedAssignments(campId: string, currentUserId: s
   });
   const signedUrls = await createPhotoSignedUrls(supabase, photoRows);
   return {
-    assignments: rows.map((row) => mapUnifiedAssignment(row, signedUrls, currentUserId, commentCounts)),
+    assignments: rows.map((row) => mapUnifiedAssignment(row, signedUrls, currentUserId, commentCounts, identityLabels)),
     error: false,
   };
 }
@@ -237,6 +247,7 @@ export async function getOwnUnifiedAssignments(userId: string, campId: string) {
     .order("created_at", { ascending: false });
   if (error) return { assignments: [] as CloudUnifiedAssignment[], error: true };
   const rows = (data ?? []) as unknown as UnifiedAssignmentRow[];
+  const identityLabels = await getVisibleIdentityLabels(rows.map((row) => row.user_id));
   const assignmentIds = rows.map((row) => row.id);
   const { data: commentRows, error: commentError } = assignmentIds.length
     ? await supabase
@@ -254,19 +265,23 @@ export async function getOwnUnifiedAssignments(userId: string, campId: string) {
   });
   const signedUrls = await createPhotoSignedUrls(supabase, photoRows);
   return {
-    assignments: rows.map((row) => mapUnifiedAssignment(row, signedUrls, userId, commentCounts)),
+    assignments: rows.map((row) => mapUnifiedAssignment(row, signedUrls, userId, commentCounts, identityLabels)),
     error: false,
   };
 }
 
-export async function getAdminUnifiedAssignments() {
+export async function getAdminUnifiedAssignments(filters?: { userId?: string; campId?: string }) {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("student_assignment_submissions")
     .select(unifiedSelection)
     .order("created_at", { ascending: false });
+  if (filters?.userId) query = query.eq("user_id", filters.userId);
+  if (filters?.campId) query = query.eq("camp_id", filters.campId);
+  const { data, error } = await query;
   if (error) return { assignments: [] as CloudUnifiedAssignment[], error: true };
   const rows = (data ?? []) as unknown as UnifiedAssignmentRow[];
+  const identityLabels = await getVisibleIdentityLabels(rows.map((row) => row.user_id));
   const photoRows = rows.map((row) => {
     const photoSubmission = Array.isArray(row.student_photo_submissions)
       ? row.student_photo_submissions[0]
@@ -275,7 +290,7 @@ export async function getAdminUnifiedAssignments() {
   });
   const signedUrls = await createPhotoSignedUrls(supabase, photoRows);
   return {
-    assignments: rows.map((row) => mapUnifiedAssignment(row, signedUrls)),
+    assignments: rows.map((row) => mapUnifiedAssignment(row, signedUrls, undefined, new Map(), identityLabels)),
     error: false,
   };
 }
