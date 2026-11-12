@@ -21,6 +21,14 @@ test("user management searches nickname or email and includes users before membe
   assert.match(page, /尚未加入训练营/);
 });
 
+test("user management keeps RPC diagnostics server-side without showing a migration guess", () => {
+  assert.match(data, /console\.error\("get_admin_users RPC failed"/);
+  assert.match(data, /code: error\.code/);
+  assert.match(data, /details: error\.details/);
+  assert.doesNotMatch(page, /请确认身份标签 migration 已应用/);
+  assert.match(page, /请检查服务端错误日志/);
+});
+
 test("identity label saves do not mutate system roles", () => {
   assert.match(actions, /set_user_identity_label/);
   assert.doesNotMatch(actions, /\.update\(|role\s*:/);

@@ -30,7 +30,15 @@ export type ManagedUser = {
 export async function getAdminUsers() {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("get_admin_users");
-  if (error) return { users: [] as ManagedUser[], error: true };
+  if (error) {
+    console.error("get_admin_users RPC failed", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    return { users: [] as ManagedUser[], error: true };
+  }
   const users = new Map<string, ManagedUser>();
   for (const row of (data ?? []) as AdminUserRow[]) {
     const user = users.get(row.id) ?? {

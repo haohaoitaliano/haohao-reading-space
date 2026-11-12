@@ -37,7 +37,7 @@ export default async function TeacherUsersPage({ searchParams }: {
 
   return <main className="app-shell"><section className="screen with-top">
     <Header backHref="/teacher" subtitle="查找学员、查看所属训练营与作业" title="用户管理" />
-    {result.error ? <p className="notice" role="alert">用户暂时无法读取，请确认身份标签 migration 已应用。</p> : null}
+    {result.error ? <p className="notice" role="alert">用户暂时无法读取，请稍后刷新；如持续出现，请检查服务端错误日志。</p> : null}
     <form className="quiet-card user-filter-form" method="get">
       <label><span>搜索用户</span><input defaultValue={query.q ?? ""} name="q" placeholder="昵称或登录邮箱" /></label>
       <label><span>训练营</span><select defaultValue={query.camp ?? ""} name="camp"><option value="">全部训练营</option>{[...campOptions].map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
