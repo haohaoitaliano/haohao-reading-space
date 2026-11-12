@@ -29,6 +29,15 @@ test("user management keeps RPC diagnostics server-side without showing a migrat
   assert.match(page, /请检查服务端错误日志/);
 });
 
+test("user management switches between a full-width list and detail while preserving filters", () => {
+  assert.match(page, /!selectedUser \? <>/);
+  assert.doesNotMatch(page, /选择一位用户/);
+  assert.match(page, /返回用户列表/);
+  assert.match(page, /#user-\$\{selectedUser\.id\}/);
+  assert.match(page, /id=\{`user-\$\{user\.id\}`\}/);
+  assert.match(page, /camp: query\.camp, user: selectedUser\.id, workCamp: camp\.id/);
+});
+
 test("identity label saves do not mutate system roles", () => {
   assert.match(actions, /set_user_identity_label/);
   assert.doesNotMatch(actions, /\.update\(|role\s*:/);

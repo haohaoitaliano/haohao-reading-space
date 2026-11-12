@@ -1855,7 +1855,6 @@ a[aria-disabled="true"] {
   min-width: 0;
 }
 
-.user-management-layout,
 .identity-label-form {
   display: grid;
   gap: 14px;
@@ -1867,11 +1866,6 @@ a[aria-disabled="true"] {
   min-width: 0;
 }
 
-.user-card.is-selected {
-  border-color: var(--sky);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sky) 18%, transparent);
-}
-
 .user-card-copy {
   min-width: 0;
 }
@@ -1879,6 +1873,21 @@ a[aria-disabled="true"] {
 .user-card-copy p {
   margin: 4px 0 0;
   overflow-wrap: anywhere;
+}
+
+.user-card,
+.user-detail,
+.user-detail .quiet-card,
+.user-detail .item-card {
+  max-width: 100%;
+}
+
+.user-card {
+  scroll-margin-top: 18px;
+}
+
+.user-list-back {
+  justify-self: start;
 }
 
 .wrap {
@@ -1889,16 +1898,6 @@ a[aria-disabled="true"] {
   .user-filter-form {
     grid-template-columns: minmax(0, 1fr) minmax(180px, 0.6fr) auto;
     align-items: end;
-  }
-
-  .user-management-layout {
-    grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.4fr);
-    align-items: start;
-  }
-
-  .user-list {
-    position: sticky;
-    top: 18px;
   }
 
   .identity-label-form {
