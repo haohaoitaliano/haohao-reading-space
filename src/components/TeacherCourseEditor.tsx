@@ -610,7 +610,7 @@ export function TeacherCourseEditor({
         {renderFeedback("audio")}
       </section>
 
-      <section className="quiet-card stack">
+      <section className="quiet-card stack teacher-course-video-section">
         <div className="row start"><div><p className="kicker">Private Storage</p><h2>云端示范视频</h2></div><Video color="var(--olive)" /></div>
         {!initialCourse.id ? <p className="notice">请先创建课程，再上传示范视频。</p> : null}
         <label className="button secondary full upload-picker">
@@ -619,22 +619,22 @@ export function TeacherCourseEditor({
         </label>
 
         {selectedVideoFile && videoPreviewUrl ? (
-          <div className="audio-box">
-            <div className="row start"><div><strong className="file-name">待上传 · {selectedVideoFile.name}</strong><p>{formatFileSize(selectedVideoFile.size)}</p></div>
+          <div className="audio-box teacher-course-video-card">
+            <div className="row start teacher-course-video-meta"><div><strong className="file-name">待上传 · {selectedVideoFile.name}</strong><p>{formatFileSize(selectedVideoFile.size)}</p></div>
               <button aria-label="取消选择视频" className="button ghost" onClick={() => setSelectedVideoFile(null)} type="button"><Trash2 size={18} /></button>
             </div>
-            <video controls preload="metadata" src={videoPreviewUrl} style={{ width: "100%", borderRadius: 8 }} />
+            <video className="teacher-course-video-preview" controls preload="metadata" src={videoPreviewUrl} />
             <button className="button full" disabled={uploadingVideo} onClick={uploadVideo} type="button"><Upload size={18} /> {uploadingVideo ? "正在上传" : "上传视频到云端"}</button>
           </div>
         ) : null}
 
         {videos.length ? videos.map((video) => (
-          <div className="audio-box" key={video.id}>
-            <div className="row start"><div><strong className="file-name">已上传 · {video.fileName}</strong><p>{formatFileSize(video.sizeBytes)}</p></div>
+          <div className="audio-box teacher-course-video-card" key={video.id}>
+            <div className="row start teacher-course-video-meta"><div><strong className="file-name">已上传 · {video.fileName}</strong><p>{formatFileSize(video.sizeBytes)}</p></div>
               <button aria-label={`删除 ${video.fileName}`} className="button ghost" disabled={deletingVideoId === video.id} onClick={() => void deleteVideo(video)} type="button"><Trash2 size={18} /></button>
             </div>
             {video.signedUrl ? (
-              <video controls preload="metadata" src={video.signedUrl} style={{ width: "100%", borderRadius: 8 }} />
+              <video className="teacher-course-video-preview" controls preload="metadata" src={video.signedUrl} />
             ) : (
               <p className="notice" style={{ margin: 0 }}>视频已保存，预览链接暂时不可用；请刷新页面重试。</p>
             )}

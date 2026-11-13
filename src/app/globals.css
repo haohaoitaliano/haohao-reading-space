@@ -635,6 +635,27 @@ a[aria-disabled="true"] {
   border-radius: 8px;
 }
 
+.teacher-course-video-section,
+.teacher-course-video-card,
+.teacher-course-video-meta > div {
+  min-width: 0;
+}
+
+.teacher-course-video-meta .file-name {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.teacher-course-video-preview {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
 .course-video-player {
   position: relative;
   overflow: hidden;
