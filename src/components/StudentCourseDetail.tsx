@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BrowserRecorder, type PreparedRecording } from "@/components/BrowserRecorder";
-import { PdfPreviewDialog } from "@/components/MediaPreviewDialog";
+import { ImagePreviewDialog, PdfPreviewDialog } from "@/components/MediaPreviewDialog";
 import { PhotoAssignmentUploader, type PreparedPhoto } from "@/components/PhotoAssignmentUploader";
 import { PhotoSubmissionCard } from "@/components/PhotoSubmissionCard";
 import { Header } from "@/components/Header";
@@ -42,6 +42,37 @@ function renderReadingText(text: string) {
 
   nodes.push(text.slice(cursor));
   return nodes;
+}
+
+function ReadingContent({ course }: { course: CloudCourseDetail }) {
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const imageMap = new Map(course.readingImages.map((image) => [image.id, image]));
+  const previewImages = course.readingImages.map((image) => ({
+    id: image.id,
+    src: image.signedUrl,
+    downloadUrl: image.signedUrl,
+    fileName: image.fileName,
+    alt: image.fileName || "阅读配图",
+  }));
+  const hasContent = course.readingBlocks.some((block) => block.type === "image" ? imageMap.has(block.imageId) : Boolean(block.text.trim()));
+  if (!hasContent) return null;
+  return (
+    <section className="quiet-card reading-content">
+      <p className="kicker">Testo</p>
+      {course.readingBlocks.map((block) => {
+        if (block.type === "text") return block.text ? <p className="italian-text reading-text" key={block.id}>{renderReadingText(block.text)}</p> : null;
+        const image = imageMap.get(block.imageId);
+        if (!image) return null;
+        const index = previewImages.findIndex((item) => item.id === image.id);
+        return (
+          <button aria-label={`查看大图：${image.fileName}`} className="reading-content-image" key={block.id} onClick={() => setPreviewIndex(index)} type="button">
+            <img alt={image.fileName || "阅读配图"} height={image.height ?? undefined} src={image.signedUrl} width={image.width ?? undefined} /> {/* eslint-disable-line @next/next/no-img-element */}
+          </button>
+        );
+      })}
+      {previewIndex !== null ? <ImagePreviewDialog images={previewImages} initialIndex={previewIndex} onClose={() => setPreviewIndex(null)} /> : null}
+    </section>
+  );
 }
 
 function CloudCourseAudioPlayer({ audio }: { audio: CloudCourseAudio }) {
@@ -359,12 +390,7 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
         </section>
 
         <div className="stack">
-          {course.readingText.trim() ? (
-            <section className="quiet-card">
-              <p className="kicker">Testo</p>
-              <p className="italian-text reading-text">{renderReadingText(course.readingText)}</p>
-            </section>
-          ) : null}
+          <ReadingContent course={course} />
 
           {course.audio ? <CloudCourseAudioPlayer audio={course.audio} /> : null}
 

@@ -10,6 +10,7 @@ import {
 import { COURSE_AUDIO_BUCKET, COURSE_AUDIO_SIGNED_URL_SECONDS } from "./course-audio";
 import { COURSE_VIDEO_BUCKET, COURSE_VIDEO_SIGNED_URL_SECONDS } from "./course-video";
 import { COURSE_PDF_BUCKET, COURSE_PDF_SIGNED_URL_SECONDS } from "./course-pdf";
+import { COURSE_READING_IMAGE_BUCKET, COURSE_READING_IMAGE_SIGNED_URL_SECONDS, normalizeReadingBlocks, type ReadingContentBlock } from "./course-reading";
 import { getCurrentLearningSpace } from "./learning-space";
 import { createSupabaseServerClient } from "./supabase/server";
 
@@ -44,6 +45,8 @@ export type CloudCourseSummary = {
 export type CloudCourseDetail = CloudCourseSummary & {
   description: string;
   readingText: string;
+  readingBlocks: ReadingContentBlock[];
+  readingImages: CloudCourseReadingImage[];
   reflectionPromptZh: string;
   reflectionPromptIt: string;
   vocabulary: CloudVocabularyItem[];
@@ -90,6 +93,16 @@ export type CloudCoursePdf = {
   downloadUrl: string;
 };
 
+export type CloudCourseReadingImage = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  signedUrl: string;
+};
+
 export type CloudCourseMediaItem = {
   id: string;
   kind: "audio" | "video";
@@ -134,6 +147,29 @@ type CoursePdfRow = {
   position: number;
   updated_at: string;
 };
+
+type CourseReadingImageRow = {
+  id: string;
+  storage_path: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  width: number | null;
+  height: number | null;
+};
+
+async function createSignedReadingImages(supabase: SupabaseClient, rows: CourseReadingImageRow[] | null) {
+  const images = rows ?? [];
+  if (!images.length) return [] as CloudCourseReadingImage[];
+  const { data, error } = await supabase.storage.from(COURSE_READING_IMAGE_BUCKET)
+    .createSignedUrls(images.map((row) => row.storage_path), COURSE_READING_IMAGE_SIGNED_URL_SECONDS);
+  if (error) return [] as CloudCourseReadingImage[];
+  const urls = new Map((data ?? []).flatMap((item) => item.path && item.signedUrl ? [[item.path, item.signedUrl] as const] : []));
+  return images.flatMap((row) => {
+    const signedUrl = urls.get(row.storage_path);
+    return signedUrl ? [{ id: row.id, fileName: row.file_name, mimeType: row.mime_type, sizeBytes: row.size_bytes, width: row.width, height: row.height, signedUrl }] : [];
+  });
+}
 
 type CourseAssignmentRow = {
   course_id: string;
@@ -359,17 +395,19 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
     { data: audioRow, error: audioError },
     { data: videoRows, error: videoError },
     { data: pdfRows, error: pdfError },
+    { data: readingImageRows, error: readingImageError },
     { data: latestSubmissionRow, error: latestSubmissionError },
     { data: latestPhotoSubmissionRow, error: latestPhotoSubmissionError },
   ] =
     await Promise.all([
       supabase
         .from("course_contents")
-        .select("description, reading_text, reflection_prompt_zh, reflection_prompt_it, recording_assignment_enabled, photo_assignment_enabled")
+        .select("description, reading_text, reading_blocks, reflection_prompt_zh, reflection_prompt_it, recording_assignment_enabled, photo_assignment_enabled")
         .eq("course_id", summary.id)
         .maybeSingle<{
           description: string | null;
           reading_text: string | null;
+          reading_blocks: unknown;
           reflection_prompt_zh: string | null;
           reflection_prompt_it: string | null;
           recording_assignment_enabled: boolean;
@@ -396,6 +434,10 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
         .eq("course_id", summary.id)
         .order("position", { ascending: true }),
       supabase
+        .from("course_reading_images")
+        .select("id, storage_path, file_name, mime_type, size_bytes, width, height")
+        .eq("course_id", summary.id),
+      supabase
         .from("student_submissions")
         .select("version, duration_seconds, created_at")
         .eq("user_id", userId)
@@ -419,19 +461,22 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
         .maybeSingle<{ version: number; created_at: string }>(),
     ]);
 
-  if (contentError || vocabularyError || audioError || videoError || pdfError || latestSubmissionError || latestPhotoSubmissionError || !content) {
+  if (contentError || vocabularyError || audioError || videoError || pdfError || readingImageError || latestSubmissionError || latestPhotoSubmissionError || !content) {
     return { state: "database_error" as const, camp: campResult.camp, course: null };
   }
 
-  const [audio, videos, pdfs] = await Promise.all([
+  const [audio, videos, pdfs, readingImages] = await Promise.all([
     createSignedCourseAudio(supabase, audioRow),
     createSignedStudentCourseVideos(supabase, videoRows as CourseVideoRow[] | null),
     createSignedStudentCoursePdfs(supabase, pdfRows as CoursePdfRow[] | null),
+    createSignedReadingImages(supabase, readingImageRows as CourseReadingImageRow[] | null),
   ]);
   const detail: CloudCourseDetail = {
     ...summary,
     description: content.description ?? "",
     readingText: content.reading_text ?? "",
+    readingBlocks: normalizeReadingBlocks((content as { reading_blocks?: unknown }).reading_blocks, content.reading_text ?? ""),
+    readingImages,
     reflectionPromptZh: content.reflection_prompt_zh ?? "",
     reflectionPromptIt: content.reflection_prompt_it ?? "",
     recordingAssignmentEnabled: content.recording_assignment_enabled,
@@ -502,16 +547,18 @@ export async function getAdminCourse(courseId: string) {
     { data: audioRow },
     { data: videoRows },
     { data: pdfRows },
+    { data: readingImageRows },
     submissionResult,
     photoSubmissionResult,
   ] = await Promise.all([
     supabase
       .from("course_contents")
-      .select("description, reading_text, reflection_prompt_zh, reflection_prompt_it, recording_assignment_enabled, photo_assignment_enabled")
+      .select("description, reading_text, reading_blocks, reflection_prompt_zh, reflection_prompt_it, recording_assignment_enabled, photo_assignment_enabled")
       .eq("course_id", courseId)
       .maybeSingle<{
         description: string | null;
         reading_text: string | null;
+        reading_blocks: unknown;
         reflection_prompt_zh: string | null;
         reflection_prompt_it: string | null;
         recording_assignment_enabled: boolean;
@@ -538,6 +585,10 @@ export async function getAdminCourse(courseId: string) {
       .eq("course_id", courseId)
       .order("position", { ascending: true }),
     supabase
+      .from("course_reading_images")
+      .select("id, storage_path, file_name, mime_type, size_bytes, width, height")
+      .eq("course_id", courseId),
+    supabase
       .from("student_submissions")
       .select("id", { count: "exact", head: true })
       .eq("course_id", courseId),
@@ -552,6 +603,8 @@ export async function getAdminCourse(courseId: string) {
     ...summary,
     description: content?.description ?? "",
     readingText: content?.reading_text ?? "",
+    readingBlocks: normalizeReadingBlocks(content?.reading_blocks, content?.reading_text ?? ""),
+    readingImages: await createSignedReadingImages(supabase, readingImageRows as CourseReadingImageRow[] | null),
     reflectionPromptZh: content?.reflection_prompt_zh ?? "",
     reflectionPromptIt: content?.reflection_prompt_it ?? "",
     recordingAssignmentEnabled: content?.recording_assignment_enabled ?? true,

@@ -18,7 +18,7 @@ test("student course detail batches and parallelizes media signing", async () =>
   const source = await readFile(courseDataUrl, "utf8");
   assert.match(source, /createSignedStudentCourseVideos/);
   assert.match(source, /createSignedStudentCoursePdfs/);
-  assert.match(source, /const \[audio, videos, pdfs\] = await Promise\.all/);
+  assert.match(source, /const \[audio, videos, pdfs, readingImages\] = await Promise\.all/);
   assert.match(source, /\.createSignedUrls\(videos\.map/);
   assert.match(source, /\.createSignedUrls\(pdfs\.map/);
 });

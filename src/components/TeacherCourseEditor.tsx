@@ -14,6 +14,7 @@ import { validateCourseVideoFile } from "@/lib/course-video";
 import { validateCoursePdfFile } from "@/lib/course-pdf";
 import type { CloudCourseAudio, CloudCourseDetail, CloudCoursePdf, CloudCourseVideo } from "@/lib/cloud-course-data";
 import { formatDateTimeLocalInZone, formatUnlockDateTime } from "@/lib/course-schedule";
+import { ReadingContentEditor } from "@/components/ReadingContentEditor";
 import {
   readJsonResponse,
   uploadFileDirectly,
@@ -31,6 +32,7 @@ function toEditorInput(course: CloudCourseDetail): CourseEditorInput {
     chineseTitle: course.chineseTitle,
     description: course.description,
     readingText: course.readingText,
+    readingBlocks: course.readingBlocks,
     reflectionPromptZh: course.reflectionPromptZh,
     reflectionPromptIt: course.reflectionPromptIt,
     unlockMode: course.unlockMode,
@@ -62,6 +64,7 @@ export function TeacherCourseEditor({
   const [audio, setAudio] = useState<CloudCourseAudio | null>(initialCourse.audio);
   const [videos, setVideos] = useState<CloudCourseVideo[]>(initialCourse.videos);
   const [pdfs, setPdfs] = useState<CloudCoursePdf[]>(initialCourse.pdfs);
+  const [readingImages, setReadingImages] = useState(initialCourse.readingImages);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
   const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
@@ -71,6 +74,7 @@ export function TeacherCourseEditor({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [uploadingPdfs, setUploadingPdfs] = useState(false);
+  const [uploadingReadingImage, setUploadingReadingImage] = useState(false);
   const [pdfUploadProgress, setPdfUploadProgress] = useState(0);
   const [deletingAudio, setDeletingAudio] = useState(false);
   const [deletingVideoId, setDeletingVideoId] = useState("");
@@ -430,7 +434,7 @@ export function TeacherCourseEditor({
   function confirmPermanentDelete() {
     if (!initialCourse.id || !deleteAction) return;
     const confirmed = window.confirm(
-      "确定要永久删除这节课程吗？这个操作不可恢复，示范音频、视频和 PDF 文件也会同步删除。",
+      "确定要永久删除这节课程吗？这个操作不可恢复，阅读配图、示范音频、视频和 PDF 文件也会同步删除。",
     );
     if (!confirmed) return;
     void runLifecycleAction(deleteAction, true);
@@ -481,9 +485,14 @@ export function TeacherCourseEditor({
         <label className="field">今日解锁说明
           <textarea onChange={(event) => updateField("description", event.target.value)} rows={3} value={course.description} />
         </label>
-        <label className="field">阅读材料（选填）
-          <textarea onChange={(event) => updateField("readingText", event.target.value)} rows={7} value={course.readingText} />
-        </label>
+        <ReadingContentEditor
+          blocks={course.readingBlocks}
+          courseId={initialCourse.id}
+          images={readingImages}
+          onBlocksChange={(blocks) => updateField("readingBlocks", blocks)}
+          onBusyChange={setUploadingReadingImage}
+          onImagesChange={setReadingImages}
+        />
         <label className="field">阅读后的感想中文引导语
           <textarea onChange={(event) => updateField("reflectionPromptZh", event.target.value)} rows={4} value={course.reflectionPromptZh} />
         </label>
@@ -659,7 +668,7 @@ export function TeacherCourseEditor({
             {course.status === "archived" ? (
               <button
                 className="button secondary"
-                disabled={lifecycleBusy || saving || uploading || uploadingVideo || uploadingPdfs}
+                disabled={lifecycleBusy || saving || uploading || uploadingVideo || uploadingPdfs || uploadingReadingImage}
                 onClick={() => void runLifecycleAction(reactivateAction, false, "published")}
                 type="button"
               >
@@ -668,7 +677,7 @@ export function TeacherCourseEditor({
             ) : (
               <button
                 className="button secondary"
-                disabled={lifecycleBusy || saving || uploading || uploadingVideo || uploadingPdfs}
+                disabled={lifecycleBusy || saving || uploading || uploadingVideo || uploadingPdfs || uploadingReadingImage}
                 onClick={() => void runLifecycleAction(archiveAction, false, "archived")}
                 type="button"
               >
@@ -677,7 +686,7 @@ export function TeacherCourseEditor({
             )}
             <button
               className="button ghost"
-              disabled={lifecycleBusy || saving || uploading || uploadingVideo || uploadingPdfs || initialCourse.submissionCount > 0}
+              disabled={lifecycleBusy || saving || uploading || uploadingVideo || uploadingPdfs || uploadingReadingImage || initialCourse.submissionCount > 0}
               onClick={confirmPermanentDelete}
               type="button"
             >
@@ -694,7 +703,7 @@ export function TeacherCourseEditor({
       ) : null}
 
       <p className="notice">课程文字、媒体和作业配置保存到 Supabase；上传前的临时文件只保存在当前浏览器。</p>
-      <button className="button full" disabled={saving || uploading || uploadingVideo || uploadingPdfs} onClick={saveChanges} type="button">
+      <button className="button full" disabled={saving || uploading || uploadingVideo || uploadingPdfs || uploadingReadingImage} onClick={saveChanges} type="button">
         <Save size={18} /> {saving ? "正在保存..." : "保存课程"}
       </button>
       {renderFeedback("course")}

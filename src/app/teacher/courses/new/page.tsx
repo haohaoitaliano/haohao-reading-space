@@ -28,6 +28,8 @@ export default async function NewTeacherCoursePage({ searchParams }: {
     chineseTitle: "",
     description: "",
     readingText: "",
+    readingBlocks: [{ id: crypto.randomUUID(), type: "text", text: "" }],
+    readingImages: [],
     reflectionPromptZh: "",
     reflectionPromptIt: "",
     unlockAt: null,

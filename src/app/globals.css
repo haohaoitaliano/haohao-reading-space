@@ -603,6 +603,18 @@ a[aria-disabled="true"] {
   text-underline-offset: 0.15em;
 }
 
+.reading-editor-field { min-width: 0; }
+.reading-editor-toolbar { display: flex; gap: 8px; margin-top: 4px; }
+.reading-editor-canvas { display: grid; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--cream) 70%, white); }
+.reading-editor-canvas textarea { width: 100%; min-width: 0; resize: vertical; }
+.reading-editor-image { display: grid; gap: 8px; margin: 0; min-width: 0; }
+.reading-editor-image img { display: block; width: 100%; max-width: 100%; height: auto; max-height: 520px; object-fit: contain; border-radius: 14px; background: white; }
+.reading-editor-image .button { justify-self: end; }
+.reading-content { display: grid; gap: 14px; min-width: 0; }
+.reading-content .reading-text { margin: 0; white-space: pre-wrap; }
+.reading-content-image { display: block; width: 100%; min-width: 0; padding: 0; border: 0; border-radius: 14px; background: transparent; cursor: zoom-in; overflow: hidden; }
+.reading-content-image img { display: block; width: 100%; max-width: 100%; height: auto; object-fit: contain; }
+
 .meeting-description,
 .meeting-number p,
 .copy-status {

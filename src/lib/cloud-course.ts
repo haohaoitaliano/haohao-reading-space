@@ -14,6 +14,7 @@ export type CourseEditorInput = {
   chineseTitle: string;
   description: string;
   readingText: string;
+  readingBlocks: import("./course-reading").ReadingContentBlock[];
   reflectionPromptZh: string;
   reflectionPromptIt: string;
   unlockMode: CloudCourseUnlockMode;

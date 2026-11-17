@@ -6,6 +6,7 @@ import { validateCourseEditorInput, type CourseEditorInput } from "@/lib/cloud-c
 import { COURSE_AUDIO_BUCKET } from "@/lib/course-audio";
 import { COURSE_VIDEO_BUCKET } from "@/lib/course-video";
 import { COURSE_PDF_BUCKET } from "@/lib/course-pdf";
+import { COURSE_READING_IMAGE_BUCKET, normalizeReadingBlocks, readingBlocksPlainText } from "@/lib/course-reading";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type CourseActionResult = { success: boolean; message: string; courseId?: string };
@@ -55,6 +56,7 @@ export async function updateCloudCourse(
   if (validationError) return { success: false, message: validationError };
 
   const supabase = await createSupabaseServerClient();
+  const readingBlocks = normalizeReadingBlocks(input.readingBlocks, input.readingText);
   const { data: existing } = await supabase
     .from("courses")
     .select("id")
@@ -80,7 +82,8 @@ export async function updateCloudCourse(
   const { error: contentError } = await supabase.from("course_contents").upsert({
     course_id: courseId,
     description: input.description.trim() || null,
-    reading_text: input.readingText.trim() || null,
+    reading_text: readingBlocksPlainText(readingBlocks).trim() || null,
+    reading_blocks: readingBlocks,
     reflection_prompt_zh: input.reflectionPromptZh.trim() || null,
     reflection_prompt_it: input.reflectionPromptIt.trim() || null,
     recording_assignment_enabled: input.recordingAssignmentEnabled,
@@ -161,6 +164,10 @@ export async function permanentlyDeleteCloudCourse(courseId: string): Promise<Co
     .from("course_pdfs")
     .select("storage_path")
     .eq("course_id", courseId);
+  const { data: readingImages } = await supabase
+    .from("course_reading_images")
+    .select("storage_path")
+    .eq("course_id", courseId);
   if (audio?.storage_path) {
     const { error: storageError } = await supabase.storage
       .from(COURSE_AUDIO_BUCKET)
@@ -181,6 +188,11 @@ export async function permanentlyDeleteCloudCourse(courseId: string): Promise<Co
       .remove(pdfPaths);
     if (storageError) return { success: false, message: "PDF 文件删除失败，请稍后重试。" };
   }
+  const readingImagePaths = (readingImages ?? []).map((image) => image.storage_path).filter(Boolean);
+  if (readingImagePaths.length) {
+    const { error: storageError } = await supabase.storage.from(COURSE_READING_IMAGE_BUCKET).remove(readingImagePaths);
+    if (storageError) return { success: false, message: "阅读配图文件删除失败，请稍后重试。" };
+  }
 
   const { error: deleteError } = await supabase.from("courses").delete().eq("id", courseId);
   if (deleteError) return { success: false, message: "课程删除失败；已有学生提交的课程只能归档。" };
@@ -197,6 +209,7 @@ export async function createCloudCourse(
   if (validationError) return { success: false, message: validationError };
 
   const supabase = await createSupabaseServerClient();
+  const readingBlocks = normalizeReadingBlocks(input.readingBlocks, input.readingText);
   const { data: camp } = await supabase.from("camps").select("id").eq("id", campId).maybeSingle();
   if (!camp) return { success: false, message: "训练营不存在或无权限。" };
 
@@ -230,7 +243,8 @@ export async function createCloudCourse(
   const { error: contentError } = await supabase.from("course_contents").insert({
     course_id: course.id,
     description: input.description.trim() || null,
-    reading_text: input.readingText.trim() || null,
+    reading_text: readingBlocksPlainText(readingBlocks).trim() || null,
+    reading_blocks: readingBlocks,
     reflection_prompt_zh: input.reflectionPromptZh.trim() || null,
     reflection_prompt_it: input.reflectionPromptIt.trim() || null,
     recording_assignment_enabled: input.recordingAssignmentEnabled,

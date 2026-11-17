@@ -6,6 +6,7 @@ import { normalizeCampTimeZone } from "@/lib/course-schedule";
 import { COURSE_AUDIO_BUCKET } from "@/lib/course-audio";
 import { COURSE_VIDEO_BUCKET } from "@/lib/course-video";
 import { COURSE_PDF_BUCKET } from "@/lib/course-pdf";
+import { COURSE_READING_IMAGE_BUCKET } from "@/lib/course-reading";
 import { STUDENT_RECORDING_BUCKET } from "@/lib/student-recording";
 import { STUDENT_PHOTO_BUCKET } from "@/lib/student-photo";
 import { getCampMemberCount } from "@/lib/teacher-operations-data";
@@ -181,18 +182,19 @@ export async function permanentlyDeleteCamp(campId: string): Promise<CampSchedul
   }
 
   const courseIds = (coursesResult.data ?? []).map((course) => course.id);
-  const [audioResult, videoResult, pdfResult] = courseIds.length
+  const [audioResult, videoResult, pdfResult, readingImageResult] = courseIds.length
     ? await Promise.all([
         supabase.from("course_audio").select("storage_path").in("course_id", courseIds),
         supabase.from("course_videos").select("storage_path").in("course_id", courseIds),
         supabase.from("course_pdfs").select("storage_path").in("course_id", courseIds),
+        supabase.from("course_reading_images").select("storage_path").in("course_id", courseIds),
       ])
-    : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
+    : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
   const photoSubmissionIds = (photoSubmissionsResult.data ?? []).map((submission) => submission.id);
   const photoResult = photoSubmissionIds.length
     ? await supabase.from("student_submission_photos").select("storage_path").in("submission_id", photoSubmissionIds)
     : { data: [], error: null };
-  if (audioResult.error || videoResult.error || pdfResult.error || photoResult.error) {
+  if (audioResult.error || videoResult.error || pdfResult.error || readingImageResult.error || photoResult.error) {
     return { success: false, message: "无法确认训练营课程文件，请稍后重试。" };
   }
 
@@ -218,6 +220,10 @@ export async function permanentlyDeleteCamp(campId: string): Promise<CampSchedul
     {
       bucket: COURSE_PDF_BUCKET,
       paths: (pdfResult.data ?? []).map((row) => row.storage_path),
+    },
+    {
+      bucket: COURSE_READING_IMAGE_BUCKET,
+      paths: (readingImageResult.data ?? []).map((row) => row.storage_path),
     },
     {
       bucket: STUDENT_RECORDING_BUCKET,

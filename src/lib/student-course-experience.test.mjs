@@ -26,7 +26,7 @@ test("course page hides optional modules that have no teacher content", async ()
 
   assert.match(detail, /course\.videos\.map\(\(video\) => <CloudCourseVideoPlayer key=\{video\.id\} video=\{video\} \/>\)/);
   assert.match(detail, /course\.vocabulary\.length > 0/);
-  assert.match(detail, /course\.readingText\.trim\(\) \? \(/);
+  assert.match(detail, /const hasContent = course\.readingBlocks\.some/);
   assert.match(detail, /const hasReflection = Boolean\(/);
   assert.match(detail, /\{hasReflection \? \(/);
   assert.doesNotMatch(detail, /今天暂无视频/);
@@ -40,7 +40,7 @@ test("course page hides optional modules that have no teacher content", async ()
 
 test("course page presents reading, videos, PDFs, guidance, and submission in order", async () => {
   const detail = await readFile(new URL("../components/StudentCourseDetail.tsx", import.meta.url), "utf8");
-  const reading = detail.indexOf("course.readingText.trim()");
+  const reading = detail.indexOf("<ReadingContent course={course} />");
   const videos = detail.indexOf("course.videos.map");
   const pdfs = detail.indexOf("course.pdfs.length");
   const guidance = detail.indexOf('className="assignment-transition"');
@@ -195,7 +195,7 @@ test("course reading text preserves teacher-entered line breaks without horizont
   const detail = await readFile(new URL("../components/StudentCourseDetail.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
-  assert.match(detail, /className="italian-text reading-text">\{renderReadingText\(course\.readingText\)\}<\/p>/);
+  assert.match(detail, /className="italian-text reading-text" key=\{block\.id\}>\{renderReadingText\(block\.text\)\}<\/p>/);
   assert.match(detail, /<a href=\{href\} key=\{start\} rel="noopener noreferrer" target="_blank">\{href\}<\/a>/);
   assert.match(styles, /\.reading-text\s*\{[^}]*overflow-wrap:\s*anywhere;[^}]*white-space:\s*pre-wrap;[^}]*\}/);
 });
