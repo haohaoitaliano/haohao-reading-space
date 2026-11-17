@@ -27,6 +27,16 @@ test("maps microphone permission refusal to the required message", () => {
   );
 });
 
+test("uses the student recorder Safari guidance after a rejected permission request", () => {
+  assert.equal(
+    getMicrophoneErrorMessage(
+      { name: "NotAllowedError" },
+      "请在 Safari 的网站设置中允许麦克风，然后再点一次录音。",
+    ),
+    "请在 Safari 的网站设置中允许麦克风，然后再点一次录音。",
+  );
+});
+
 test("maps microphone initialization failures to a clear message", () => {
   assert.equal(
     getMicrophoneErrorMessage({ name: "NotReadableError" }),

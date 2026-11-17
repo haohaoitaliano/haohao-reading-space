@@ -224,8 +224,8 @@ test("recorder enforces the task maximum while target duration remains feedback"
   assert.match(recorder, /getRecordingTargetFeedback\(duration, targetDurationSeconds\)/);
   assert.match(recorder, />口语输出</);
   assert.match(recorder, /无法直接录音？上传已有音频/);
-  assert.match(recorder, /仅支持 M4A \/ MP3，最大 3 MB/);
+  assert.match(recorder, /仅支持 M4A \/ MP3，最大 8 MB/);
   assert.match(route, /source === "manual_upload"[\s\S]*validateManualStudentRecordingFile/);
-  assert.match(route, /duration > maxDurationSeconds/);
+  assert.match(route, /duration > STUDENT_RECORDING_MAX_SECONDS/);
   assert.doesNotMatch(route, /duration > .*target/i);
 });

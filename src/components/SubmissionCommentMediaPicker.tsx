@@ -123,7 +123,7 @@ export function SubmissionCommentMediaPicker({
     try {
       const seconds = await getAudioDuration(file);
       if (!Number.isFinite(seconds) || seconds <= 0 || seconds > SUBMISSION_COMMENT_AUDIO_MAX_SECONDS) {
-        return setMessage("录音时长必须在 45 秒以内。");
+        return setMessage(`录音时长必须在 ${SUBMISSION_COMMENT_AUDIO_MAX_SECONDS} 秒以内。`);
       }
       commitAudio({ file, durationSeconds: seconds, source: "manual_upload" });
     } catch {

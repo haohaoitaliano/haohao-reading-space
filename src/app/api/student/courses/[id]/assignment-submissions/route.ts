@@ -17,6 +17,7 @@ import {
   getStudentRecordingExtension,
   normalizeStudentRecordingMimeType,
   STUDENT_RECORDING_BUCKET,
+  STUDENT_RECORDING_MAX_SECONDS,
   validateManualStudentRecordingFile,
   validateStudentRecordingFile,
 } from "@/lib/student-recording";
@@ -125,12 +126,8 @@ function buildUploadPlan(context: AssignmentContext, body: RequestBody): UploadP
       : validateStudentRecordingFile(audio);
     if (validationError) return failure(validationError, 400);
     const duration = Number(body.audio.durationSeconds);
-    const maxDurationSeconds = Number.isInteger(context.course.max_duration_seconds)
-      && Number(context.course.max_duration_seconds) > 0
-      ? Number(context.course.max_duration_seconds)
-      : 120;
-    if (!Number.isFinite(duration) || duration < 0 || duration > maxDurationSeconds) {
-      return failure(`录音时长无效或超过 ${maxDurationSeconds} 秒。`, 400);
+    if (!Number.isFinite(duration) || duration < 0 || duration > STUDENT_RECORDING_MAX_SECONDS) {
+      return failure(`录音时长无效或超过 ${STUDENT_RECORDING_MAX_SECONDS} 秒。`, 400);
     }
     const extension = getStudentRecordingExtension(audio.name, audio.type);
     const mimeType = normalizeStudentRecordingMimeType(audio.type)

@@ -16,6 +16,9 @@ import type { StudentCourseSubmissionSummary } from "@/lib/cloud-course-data";
 
 type RecorderState = "idle" | "requesting" | "recording" | "ready" | "error" | "submit_error";
 
+const SAFARI_MICROPHONE_PERMISSION_MESSAGE =
+  "请在 Safari 的网站设置中允许麦克风，然后再点一次录音。";
+
 const stateLabels: Record<RecorderState, string> = {
   idle: "尚未录音",
   requesting: "正在请求权限",
@@ -171,7 +174,7 @@ export function BrowserRecorder({
       stopTimer();
       stopTracks();
       setState("error");
-      setMessage(getMicrophoneErrorMessage(error));
+      setMessage(getMicrophoneErrorMessage(error, SAFARI_MICROPHONE_PERMISSION_MESSAGE));
     }
   };
 
@@ -365,7 +368,7 @@ export function BrowserRecorder({
       <details className="manual-upload-fallback">
         <summary>无法直接录音？上传已有音频</summary>
         <div className="manual-upload-content">
-          <p>仅支持 M4A / MP3，最大 3 MB</p>
+          <p>仅支持 M4A / MP3，最大 8 MB</p>
           <button
             className="button ghost full"
             disabled={!canUseRecording}

@@ -80,14 +80,14 @@ export function getRecordingTargetFeedback(durationSeconds: number, targetDurati
   };
 }
 
-export function getMicrophoneErrorMessage(error: unknown) {
+export function getMicrophoneErrorMessage(error: unknown, permissionDeniedMessage?: string) {
   const name = typeof error === "object" && error && "name" in error ? String(error.name) : "";
 
   if (name === "TimeoutError") {
     return MICROPHONE_REQUEST_TIMEOUT_MESSAGE;
   }
   if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") {
-    return "无法使用麦克风，请在浏览器设置中允许麦克风权限。";
+    return permissionDeniedMessage ?? "无法使用麦克风，请在浏览器设置中允许麦克风权限。";
   }
   if (name === "NotReadableError" || name === "TrackStartError" || name === "AbortError") {
     return "麦克风可能被其他程序占用，或初始化失败。请关闭其他正在使用麦克风的程序后重试。";

@@ -5,6 +5,8 @@ import {
   getSubmissionCommentImageExtension,
   getSubmissionCommentImageMimeType,
   hasSubmissionCommentImageSignature,
+  SUBMISSION_COMMENT_AUDIO_MAX_BYTES,
+  SUBMISSION_COMMENT_AUDIO_MAX_SECONDS,
   SUBMISSION_COMMENT_MEDIA_BUCKET,
   validateSubmissionCommentAudio,
   validateSubmissionCommentImage,
@@ -116,10 +118,10 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
     if (audioSource !== "browser_recording" && audioSource !== "manual_upload") {
       return failure("无法确认录音来源，请重新录制或选择。", 400);
     }
-    const audioError = validateSubmissionCommentAudio(audioFile, audioSource);
+    const audioError = validateSubmissionCommentAudio(audioFile, audioSource, SUBMISSION_COMMENT_AUDIO_MAX_BYTES);
     if (audioError) return failure(audioError, 400);
-    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 45) {
-      return failure("录音时长必须在 45 秒以内。", 400);
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > SUBMISSION_COMMENT_AUDIO_MAX_SECONDS) {
+      return failure(`录音时长必须在 ${SUBMISSION_COMMENT_AUDIO_MAX_SECONDS} 秒以内。`, 400);
     }
   }
   const imageMimeType = imageFile ? getSubmissionCommentImageMimeType(imageFile) : null;

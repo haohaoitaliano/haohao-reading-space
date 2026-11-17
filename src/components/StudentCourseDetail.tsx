@@ -24,7 +24,7 @@ import {
   type DirectUploadTicket,
 } from "@/lib/direct-storage-upload";
 import type { CloudPhotoSubmission } from "@/lib/photo-submission-data";
-import { getDirectStudentRecordingMimeType } from "@/lib/student-recording";
+import { getDirectStudentRecordingMimeType, STUDENT_RECORDING_MAX_SECONDS } from "@/lib/student-recording";
 
 function renderReadingText(text: string) {
   const nodes: ReactNode[] = [];
@@ -428,7 +428,7 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
           {course.recordingAssignmentEnabled ? (
             <BrowserRecorder
               latestSubmission={latestSubmission}
-              maxDurationSeconds={course.maxDurationSeconds}
+              maxDurationSeconds={STUDENT_RECORDING_MAX_SECONDS}
               onPreparedChange={handleRecordingPrepared}
               targetDurationSeconds={course.targetDurationSeconds}
             />

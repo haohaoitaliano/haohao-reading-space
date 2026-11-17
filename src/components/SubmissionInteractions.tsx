@@ -211,6 +211,7 @@ export function SubmissionInteractions({
     setCommentBusy(true);
     setUploadProgress(0);
     setMessage("");
+    const sentMedia = Boolean(audio || image);
     try {
       const { response, result } = await uploadComment(endpoint, formData, setUploadProgress);
       if (!response.ok || !result.comment) throw new Error(result.message || "评论发送失败，附件仍保留，可以重试。");
@@ -220,7 +221,7 @@ export function SubmissionInteractions({
       setAudio(null);
       setImage(null);
       setReplyTo(null);
-      setPickerKey((value) => value + 1);
+      if (sentMedia) setPickerKey((value) => value + 1);
       setCommentsLoaded(true);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "评论发送失败，附件仍保留，可以重试。");

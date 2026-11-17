@@ -2,8 +2,8 @@ import { getStudentRecordingExtension, normalizeStudentRecordingMimeType } from 
 import { compressPhotoForUpload, PHOTO_COMPRESSION_TRIGGER_BYTES } from "./photo-compression.ts";
 
 export const SUBMISSION_COMMENT_MEDIA_BUCKET = "submission-comment-media";
-export const SUBMISSION_COMMENT_AUDIO_MAX_BYTES = 3 * 1024 * 1024;
-export const SUBMISSION_COMMENT_AUDIO_MAX_SECONDS = 45;
+export const SUBMISSION_COMMENT_AUDIO_MAX_BYTES = 8 * 1024 * 1024;
+export const SUBMISSION_COMMENT_AUDIO_MAX_SECONDS = 120;
 export const SUBMISSION_COMMENT_IMAGE_MAX_BYTES = PHOTO_COMPRESSION_TRIGGER_BYTES;
 export const SUBMISSION_COMMENT_SIGNED_URL_SECONDS = 5 * 60;
 
@@ -16,9 +16,10 @@ const imageMimeExtensions = {
 export function validateSubmissionCommentAudio(
   file: Pick<File, "name" | "size" | "type">,
   source: "browser_recording" | "manual_upload",
+  maxBytes = SUBMISSION_COMMENT_AUDIO_MAX_BYTES,
 ) {
   if (file.size <= 0) return "录音内容为空，请重新录制。";
-  if (file.size > SUBMISSION_COMMENT_AUDIO_MAX_BYTES) return "录音文件不能超过 3 MB。";
+  if (file.size > maxBytes) return `录音文件不能超过 ${Math.round(maxBytes / 1024 / 1024)} MB。`;
   const extension = getStudentRecordingExtension(file.name, file.type);
   const mimeType = normalizeStudentRecordingMimeType(file.type);
   if (source === "manual_upload") {

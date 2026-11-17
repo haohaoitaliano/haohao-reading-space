@@ -5,6 +5,7 @@ import {
   buildStudentRecordingPath,
   MANUAL_STUDENT_RECORDING_MAX_BYTES,
   STUDENT_RECORDING_MAX_BYTES,
+  STUDENT_RECORDING_MAX_SECONDS,
   validateManualStudentRecordingFile,
   validateStudentRecordingFile,
 } from "./student-recording.ts";
@@ -36,7 +37,7 @@ test("normalizes Android WebView audio-only WebM before direct upload", () => {
   assert.equal(getDirectStudentRecordingMimeType("audio/mp4", "manual_upload"), "audio/mp4");
 });
 
-test("manual uploads accept only M4A and MP3 files up to 3 MB", () => {
+test("manual uploads accept only M4A and MP3 files up to 8 MB", () => {
   assert.equal(validateManualStudentRecordingFile({ name: "practice.m4a", type: "audio/mp4", size: 1024 }), null);
   assert.equal(validateManualStudentRecordingFile({ name: "practice.mp3", type: "audio/mpeg", size: 1024 }), null);
   assert.equal(
@@ -49,12 +50,16 @@ test("manual uploads accept only M4A and MP3 files up to 3 MB", () => {
       type: "audio/mpeg",
       size: MANUAL_STUDENT_RECORDING_MAX_BYTES + 1,
     }),
-    "音频文件过大，单个文件请勿超过 3 MB。建议使用 M4A 或 MP3 格式，或压缩音频后重新上传。",
+    "音频文件过大，单个文件请勿超过 8 MB。建议使用 M4A 或 MP3 格式，或压缩音频后重新上传。",
   );
   assert.equal(
     validateManualStudentRecordingFile({ name: "practice.webm", type: "audio/webm", size: 1024 }),
     "手动上传仅支持 M4A 或 MP3 格式。",
   );
+});
+
+test("student recordings use the shared 120-second maximum", () => {
+  assert.equal(STUDENT_RECORDING_MAX_SECONDS, 120);
 });
 
 test("rejects empty, unsupported, and oversized recordings", () => {

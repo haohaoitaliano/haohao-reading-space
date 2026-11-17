@@ -1,6 +1,7 @@
 export const STUDENT_RECORDING_BUCKET = "student-recordings";
+export const STUDENT_RECORDING_MAX_SECONDS = 120;
 export const STUDENT_RECORDING_MAX_BYTES = 30 * 1024 * 1024;
-export const MANUAL_STUDENT_RECORDING_MAX_BYTES = 3 * 1024 * 1024;
+export const MANUAL_STUDENT_RECORDING_MAX_BYTES = 8 * 1024 * 1024;
 export const STUDENT_RECORDING_SIGNED_URL_SECONDS = 300;
 
 const mimeExtensions: Record<string, string> = {
@@ -57,7 +58,7 @@ export function validateManualStudentRecordingFile(file: AudioFileLike) {
   }
   if (file.size <= 0) return "音频内容为空，请重新选择文件。";
   if (file.size > MANUAL_STUDENT_RECORDING_MAX_BYTES) {
-    return "音频文件过大，单个文件请勿超过 3 MB。建议使用 M4A 或 MP3 格式，或压缩音频后重新上传。";
+    return "音频文件过大，单个文件请勿超过 8 MB。建议使用 M4A 或 MP3 格式，或压缩音频后重新上传。";
   }
   return null;
 }

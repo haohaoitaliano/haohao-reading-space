@@ -5,6 +5,7 @@ import {
   getStudentRecordingExtension,
   normalizeStudentRecordingMimeType,
   STUDENT_RECORDING_BUCKET,
+  STUDENT_RECORDING_MAX_SECONDS,
   validateManualStudentRecordingFile,
   validateStudentRecordingFile,
 } from "@/lib/student-recording";
@@ -67,12 +68,8 @@ export async function POST(request: NextRequest, { params }: RouteProps) {
   if (!Number.isFinite(duration) || duration < 0 || duration > 7200) {
     return failure("录音时长无效，请重新录制。", 400);
   }
-  const maxDurationSeconds = Number.isInteger(course.max_duration_seconds)
-    && Number(course.max_duration_seconds) > 0
-    ? Number(course.max_duration_seconds)
-    : 120;
-  if (duration > maxDurationSeconds) {
-    return failure(`音频超过本任务最大时长 ${maxDurationSeconds} 秒，请重新录制或选择其他文件。`, 400);
+  if (duration > STUDENT_RECORDING_MAX_SECONDS) {
+    return failure(`音频超过每条最大时长 ${STUDENT_RECORDING_MAX_SECONDS} 秒，请重新录制或选择其他文件。`, 400);
   }
 
   const submissionId = crypto.randomUUID();

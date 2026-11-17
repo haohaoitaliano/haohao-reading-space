@@ -2,16 +2,23 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildSubmissionCommentMediaPath,
+  SUBMISSION_COMMENT_AUDIO_MAX_BYTES,
+  SUBMISSION_COMMENT_AUDIO_MAX_SECONDS,
   validateSubmissionCommentAudio,
   validateSubmissionCommentImage,
 } from "./submission-comment-media.ts";
 
-test("comment audio accepts browser recordings and manual M4A or MP3 under 3 MB", () => {
+test("comment audio accepts browser recordings and manual M4A or MP3 under 8 MB", () => {
   assert.equal(validateSubmissionCommentAudio({ name: "voice.m4a", type: "audio/mp4", size: 1024 }, "manual_upload"), null);
   assert.equal(validateSubmissionCommentAudio({ name: "voice.mp3", type: "audio/mpeg", size: 1024 }, "manual_upload"), null);
   assert.equal(validateSubmissionCommentAudio({ name: "voice.webm", type: "audio/webm", size: 1024 }, "browser_recording"), null);
   assert.match(validateSubmissionCommentAudio({ name: "voice.webm", type: "audio/webm", size: 1024 }, "manual_upload"), /M4A.*MP3/);
-  assert.match(validateSubmissionCommentAudio({ name: "voice.mp3", type: "audio/mpeg", size: 3 * 1024 * 1024 + 1 }, "manual_upload"), /3 MB/);
+  assert.equal(validateSubmissionCommentAudio({ name: "voice.mp3", type: "audio/mpeg", size: 4 * 1024 * 1024 }, "manual_upload"), null);
+  assert.match(validateSubmissionCommentAudio({ name: "voice.mp3", type: "audio/mpeg", size: SUBMISSION_COMMENT_AUDIO_MAX_BYTES + 1 }, "manual_upload"), /8 MB/);
+});
+
+test("all comment recordings share the 120-second allowance", () => {
+  assert.equal(SUBMISSION_COMMENT_AUDIO_MAX_SECONDS, 120);
 });
 
 test("comment images accept JPG PNG and WebP and use camp-scoped paths", () => {
