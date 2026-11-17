@@ -160,6 +160,25 @@ test("unified assignment route is idempotent and cleans partial uploads before r
   assert.match(route, /dispatchStudentRecordingTranscode\(completed\.audio_submission_id\)/);
 });
 
+test("new optional courses do not inherit legacy progress eligibility", async () => {
+  const actions = await readFile(
+    new URL("../app/teacher/course-actions.ts", import.meta.url),
+    "utf8",
+  );
+  const updateBody = actions.slice(
+    actions.indexOf("export async function updateCloudCourse"),
+    actions.indexOf("async function updateCourseStatus"),
+  );
+  const createBody = actions.slice(actions.indexOf("export async function createCloudCourse"));
+
+  assert.doesNotMatch(updateBody, /recording_assignment_enabled/);
+  assert.doesNotMatch(updateBody, /photo_assignment_enabled/);
+  assert.match(createBody, /recording_assignment_enabled: false/);
+  assert.match(createBody, /photo_assignment_enabled: false/);
+  assert.match(createBody, /recording_assignment_required: input\.recordingAssignmentRequired/);
+  assert.match(createBody, /photo_assignment_required: input\.photoAssignmentRequired/);
+});
+
 test("video and unified student assignments use official signed uploads while PDF keeps its prior upload", async () => {
   const uploader = await readFile(new URL("./direct-storage-upload.ts", import.meta.url), "utf8");
   const editor = await readFile(new URL("../components/TeacherCourseEditor.tsx", import.meta.url), "utf8");

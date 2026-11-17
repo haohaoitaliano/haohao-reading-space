@@ -6,6 +6,7 @@ export type ProgressCourse = {
   effectiveUnlockAt: string | null;
   recordingAssignmentRequired: boolean;
   photoAssignmentRequired: boolean;
+  legacyAssignmentEnabled?: boolean;
 };
 
 export type ProgressMember = { userId: string; displayName: string };
@@ -154,7 +155,11 @@ export function buildAdminLearningProgress(input: {
   const now = input.now ?? new Date();
   const courses = input.courses
     .filter((course) => {
-      if (!course.recordingAssignmentRequired && !course.photoAssignmentRequired) return false;
+      if (
+        !course.legacyAssignmentEnabled
+        && !course.recordingAssignmentRequired
+        && !course.photoAssignmentRequired
+      ) return false;
       if (course.status !== "published" || !course.effectiveUnlockAt) return false;
       const unlockTime = new Date(course.effectiveUnlockAt).getTime();
       return Number.isFinite(unlockTime) && unlockTime <= now.getTime();

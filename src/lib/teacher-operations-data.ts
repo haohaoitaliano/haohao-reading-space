@@ -217,6 +217,8 @@ type ScheduleRow = {
 };
 type CourseContentRow = {
   course_id: string;
+  recording_assignment_enabled: boolean;
+  photo_assignment_enabled: boolean;
   recording_assignment_required: boolean;
   photo_assignment_required: boolean;
 };
@@ -233,7 +235,7 @@ export async function getAdminLearningProgress() {
     supabase.rpc("get_course_schedule", { target_camp_id: null }),
     supabase
       .from("course_contents")
-      .select("course_id, recording_assignment_required, photo_assignment_required"),
+      .select("course_id, recording_assignment_enabled, photo_assignment_enabled, recording_assignment_required, photo_assignment_required"),
     supabase.from("student_assignment_submissions").select("camp_id, user_id, course_id"),
   ]);
   if (membersResult.error || coursesResult.error || courseContentsResult.error || submissionsResult.error) {
@@ -268,6 +270,9 @@ export async function getAdminLearningProgress() {
             effectiveUnlockAt: row.effective_unlock_at,
             recordingAssignmentRequired: content?.recording_assignment_required ?? false,
             photoAssignmentRequired: content?.photo_assignment_required ?? false,
+            legacyAssignmentEnabled: Boolean(
+              content?.recording_assignment_enabled || content?.photo_assignment_enabled
+            ),
           };
         }),
         submissions: submissions.filter((row) => row.camp_id === camp.id).map((row) => ({

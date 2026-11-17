@@ -97,7 +97,8 @@ test("admin progress counts each unlocked published course once per student", ()
       { id: "intro", dayNumber: 0, title: "欢迎与试打卡", status: "published", effectiveUnlockAt: "2026-11-01T08:00:00Z", recordingAssignmentRequired: true, photoAssignmentRequired: true },
       { id: "c1", dayNumber: 1, title: "Uno", status: "published", effectiveUnlockAt: "2026-11-01T08:00:00Z", recordingAssignmentRequired: true, photoAssignmentRequired: false },
       { id: "c2", dayNumber: 2, title: "Due", status: "published", effectiveUnlockAt: "2026-11-02T08:00:00Z", recordingAssignmentRequired: false, photoAssignmentRequired: true },
-      { id: "no-work", dayNumber: 3, title: "Nessun compito", status: "published", effectiveUnlockAt: "2026-11-01T08:00:00Z", recordingAssignmentRequired: false, photoAssignmentRequired: false },
+      { id: "legacy", dayNumber: 3, title: "Storico", status: "published", effectiveUnlockAt: "2026-11-02T08:00:00Z", recordingAssignmentRequired: false, photoAssignmentRequired: false, legacyAssignmentEnabled: true },
+      { id: "no-work", dayNumber: 4, title: "Nessun compito", status: "published", effectiveUnlockAt: "2026-11-01T08:00:00Z", recordingAssignmentRequired: false, photoAssignmentRequired: false },
       { id: "future", dayNumber: 4, title: "Tre", status: "published", effectiveUnlockAt: "2026-11-04T08:00:00Z", recordingAssignmentRequired: true, photoAssignmentRequired: false },
       { id: "draft", dayNumber: 5, title: "Quattro", status: "draft", effectiveUnlockAt: "2026-11-01T08:00:00Z", recordingAssignmentRequired: true, photoAssignmentRequired: false },
     ],
@@ -108,11 +109,12 @@ test("admin progress counts each unlocked published course once per student", ()
       { userId: "student-1", courseId: "c1" },
       { userId: "student-1", courseId: "future" },
       { userId: "student-1", courseId: "no-work" },
+      { userId: "student-1", courseId: "legacy" },
       { userId: "student-2", courseId: "c2" },
     ],
   });
 
-  assert.deepEqual(result.courses.map((course) => course.id), ["intro", "c1", "c2"]);
-  assert.deepEqual(result.students[0].submittedCourseIds, ["intro", "c1"]);
+  assert.deepEqual(result.courses.map((course) => course.id), ["intro", "c1", "c2", "legacy"]);
+  assert.deepEqual(result.students[0].submittedCourseIds, ["intro", "c1", "legacy"]);
   assert.deepEqual(result.students[1].submittedCourseIds, ["c2"]);
 });
