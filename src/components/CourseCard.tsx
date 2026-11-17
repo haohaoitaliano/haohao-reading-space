@@ -1,5 +1,5 @@
 import { Lock, Sparkles } from "lucide-react";
-import { getCourseRouteId, getStudentCourseDayLabel } from "@/lib/cloud-course";
+import { getCourseRouteId } from "@/lib/cloud-course";
 import type { CloudCourseSummary } from "@/lib/cloud-course-data";
 import { formatUnlockDateTime } from "@/lib/course-schedule";
 import { StudentNavigationLink } from "./StudentNavigationLink";
@@ -14,7 +14,6 @@ export function CourseCard({ course }: { course: CloudCourseSummary }) {
         <div style={{ flex: 1 }}>
           <div className="row start">
             <div>
-              <p className="kicker">{getStudentCourseDayLabel(course.dayNumber)}</p>
               <h3>{course.italianTitle}</h3>
             </div>
             <span className={`pill ${course.isUnlocked ? "sky" : "muted"}`}>
