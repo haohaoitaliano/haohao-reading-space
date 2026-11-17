@@ -39,7 +39,7 @@ type UploadTicket = { bucket: string; path: string; token: string; mimeType: str
 type AssignmentContext = {
   auth: NonNullable<Awaited<ReturnType<typeof getAuthContext>>>;
   course: { id: string; camp_id: string; day_number: number; max_duration_seconds?: number };
-  requirements: { recording_assignment_enabled: boolean; photo_assignment_enabled: boolean };
+  requirements: { recording_assignment_required: boolean; photo_assignment_required: boolean };
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
 };
 type UploadPlan = {
@@ -79,9 +79,9 @@ async function getAssignmentContext(courseId: string): Promise<AssignmentContext
   }
   const { data: requirements } = await supabase
     .from("course_contents")
-    .select("recording_assignment_enabled, photo_assignment_enabled")
+    .select("recording_assignment_required, photo_assignment_required")
     .eq("course_id", course.id)
-    .maybeSingle<{ recording_assignment_enabled: boolean; photo_assignment_enabled: boolean }>();
+    .maybeSingle<{ recording_assignment_required: boolean; photo_assignment_required: boolean }>();
   if (!requirements) return failure("无法读取本课作业要求。", 503);
   return { auth, course, requirements, supabase };
 }
@@ -100,14 +100,11 @@ function buildUploadPlan(context: AssignmentContext, body: RequestBody): UploadP
   if (!uuidPattern.test(assignmentId)) return failure("提交标识无效，请刷新页面后重试。", 400);
 
   const hasAudio = Boolean(body.audio);
-  if (context.requirements.recording_assignment_enabled !== hasAudio) {
-    return failure(context.requirements.recording_assignment_enabled ? "请先完成录音。" : "本课不需要录音。", 400);
-  }
+  if (context.requirements.recording_assignment_required && !hasAudio) return failure("缺少必交录音，请先完成录音。", 400);
   const photos = Array.isArray(body.photos) ? body.photos : [];
-  if (context.requirements.photo_assignment_enabled && (photos.length < 1 || photos.length > STUDENT_PHOTO_MAX_COUNT)) {
-    return failure("请先选择 1 至 3 张照片。", 400);
-  }
-  if (!context.requirements.photo_assignment_enabled && photos.length) return failure("本课不需要照片作业。", 400);
+  if (context.requirements.photo_assignment_required && photos.length < 1) return failure("缺少必交照片，请先选择 1 至 3 张照片。", 400);
+  if (photos.length > STUDENT_PHOTO_MAX_COUNT) return failure("每次最多选择 3 张照片。", 400);
+  if (!hasAudio && photos.length === 0) return failure("请至少选择录音或照片后再提交；本课没有必交内容时也可以直接跳过。", 400);
   const photoIds = photos.map((photo) => String(photo.id ?? ""));
   if (new Set(photoIds).size !== photoIds.length || photoIds.some((id) => !uuidPattern.test(id))) {
     return failure("照片提交标识无效，请重新选择照片。", 400);

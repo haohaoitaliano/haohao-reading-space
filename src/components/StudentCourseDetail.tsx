@@ -255,13 +255,14 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
     setSubmissionMessage("");
   }, []);
   const allRequiredMaterialsReady = useMemo(() => (
-    (!course.recordingAssignmentEnabled || Boolean(preparedRecording))
-    && (!course.photoAssignmentEnabled || preparedPhotos.length > 0)
-  ), [course.photoAssignmentEnabled, course.recordingAssignmentEnabled, preparedPhotos.length, preparedRecording]);
-  const hasAssignment = course.recordingAssignmentEnabled || course.photoAssignmentEnabled;
+    (!course.recordingAssignmentRequired || Boolean(preparedRecording))
+    && (!course.photoAssignmentRequired || preparedPhotos.length > 0)
+  ), [course.photoAssignmentRequired, course.recordingAssignmentRequired, preparedPhotos.length, preparedRecording]);
+  const hasPreparedMaterial = Boolean(preparedRecording) || preparedPhotos.length > 0;
+  const canSubmit = allRequiredMaterialsReady && hasPreparedMaterial;
 
   async function submitAssignment() {
-    if (!allRequiredMaterialsReady || submissionState === "submitting" || submissionInFlightRef.current) return;
+    if (!canSubmit || submissionState === "submitting" || submissionInFlightRef.current) return;
     submissionInFlightRef.current = true;
     if (!assignmentIdRef.current) assignmentIdRef.current = crypto.randomUUID();
     let audioFile: Blob | null = null;
@@ -272,7 +273,7 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
       source: PreparedRecording["source"];
       durationSeconds: number;
     } | null = null;
-    if (course.recordingAssignmentEnabled && preparedRecording) {
+    if (preparedRecording) {
       const mimeType = getDirectStudentRecordingMimeType(preparedRecording.mimeType, preparedRecording.source);
       const extension = mimeType.includes("mpeg") ? "mp3"
         : mimeType.includes("wav") ? "wav"
@@ -443,48 +444,41 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
             </section>
           ) : null}
 
-          {hasAssignment ? (
-            <section className="assignment-transition" aria-labelledby="assignment-transition-title">
-              <p className="kicker" lang="it">Tocca a te!</p>
-              <h2 id="assignment-transition-title">现在轮到你啦！🌱</h2>
-              <p>读一读，写一写，不用担心不够完美。</p>
-            </section>
+          <section className="assignment-transition" aria-labelledby="assignment-transition-title">
+            <p className="kicker" lang="it">Tocca a te!</p>
+            <h2 id="assignment-transition-title">现在轮到你啦！🌱</h2>
+            <p>读一读，写一写，不用担心不够完美。</p>
+          </section>
+
+          <BrowserRecorder
+            latestSubmission={latestSubmission}
+            maxDurationSeconds={STUDENT_RECORDING_MAX_SECONDS}
+            onPreparedChange={handleRecordingPrepared}
+            targetDurationSeconds={course.targetDurationSeconds}
+          />
+
+          <PhotoAssignmentUploader onPreparedChange={handlePhotosPrepared} />
+
+          {!course.recordingAssignmentRequired && !course.photoAssignmentRequired ? (
+            <p className="success-notice">本课没有必交内容。你可以任选录音、照片或两项一起提交，也可以直接跳过。</p>
           ) : null}
 
-          {course.recordingAssignmentEnabled ? (
-            <BrowserRecorder
-              latestSubmission={latestSubmission}
-              maxDurationSeconds={STUDENT_RECORDING_MAX_SECONDS}
-              onPreparedChange={handleRecordingPrepared}
-              targetDurationSeconds={course.targetDurationSeconds}
-            />
-          ) : null}
-
-          {course.photoAssignmentEnabled ? (
-            <PhotoAssignmentUploader onPreparedChange={handlePhotosPrepared} />
-          ) : null}
-
-          {!hasAssignment ? (
-            <p className="success-notice">本课无需提交作业，完成课程内容即可。</p>
-          ) : null}
-
-          {hasAssignment ? (
-            <section className="quiet-card stack" aria-label="提交作业">
+          <section className="quiet-card stack" aria-label="提交作业">
               <div>
                 <p className="kicker">提交前确认</p>
                 <h2 style={{ marginBottom: 4 }}>本次作业</h2>
               </div>
-              {course.recordingAssignmentEnabled ? (
-                <p className={preparedRecording ? "success-notice" : "notice"} style={{ margin: 0 }}>
-                  {preparedRecording ? `✓ 录音已准备 · ${Math.round(preparedRecording.durationSeconds)} 秒` : "请先完成录音并试听。"}
-                </p>
-              ) : null}
-              {course.photoAssignmentEnabled ? (
-                <p className={preparedPhotos.length ? "success-notice" : "notice"} style={{ margin: 0 }}>
-                  {preparedPhotos.length ? `✓ 已选择 ${preparedPhotos.length} 张照片` : "请先选择 1–3 张照片。"}
-                </p>
-              ) : null}
-              {allRequiredMaterialsReady ? <p className="success-notice" style={{ margin: 0 }}>✓ 所有必需材料已准备完成</p> : null}
+              <p className={preparedRecording ? "success-notice" : "notice"} style={{ margin: 0 }}>
+                {preparedRecording
+                  ? `✓ 录音已准备 · ${Math.round(preparedRecording.durationSeconds)} 秒`
+                  : course.recordingAssignmentRequired ? "缺少必交录音，请先完成录音并试听。" : "录音可选。"}
+              </p>
+              <p className={preparedPhotos.length ? "success-notice" : "notice"} style={{ margin: 0 }}>
+                {preparedPhotos.length
+                  ? `✓ 已选择 ${preparedPhotos.length} 张照片`
+                  : course.photoAssignmentRequired ? "缺少必交照片，请先选择 1–3 张照片。" : "照片可选。"}
+              </p>
+              {allRequiredMaterialsReady && hasPreparedMaterial ? <p className="success-notice" style={{ margin: 0 }}>✓ 所有必交内容已准备完成</p> : null}
               <p className="notice" style={{ margin: 0 }}>提交后，作业会向同一训练营的活跃成员公开。</p>
               {submissionState === "success" ? (
                 <div className="success-notice stack" role="status">
@@ -493,15 +487,14 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
                   <Link className="button full" href="/circle">去作业圈看看</Link>
                 </div>
               ) : (
-                <button className="button full" disabled={!allRequiredMaterialsReady || submissionState === "submitting"} onClick={submitAssignment} type="button">
-                  <Send size={18} />{submissionState === "submitting" ? `正在提交${uploadProgress ? ` · ${uploadProgress}%` : "…"}` : submissionState === "error" ? "重试提交作业" : "提交作业"}
+                <button className="button full" disabled={!canSubmit || submissionState === "submitting"} onClick={submitAssignment} type="button">
+                  <Send size={18} />{submissionState === "submitting" ? `正在提交${uploadProgress ? ` · ${uploadProgress}%` : "…"}` : submissionState === "error" ? "重试提交作业" : !hasPreparedMaterial ? "可直接跳过，或选择内容后提交" : "提交作业"}
                 </button>
               )}
               {submissionMessage ? <p className="notice" role="alert">{submissionMessage}</p> : null}
-            </section>
-          ) : null}
+          </section>
 
-          {course.photoAssignmentEnabled && photoSubmissions.length ? (
+          {photoSubmissions.length ? (
             <section className="stack">
               <div><p className="kicker">历史版本</p><h2>我的照片作业</h2></div>
               {photoSubmissions.map((submission) => <PhotoSubmissionCard key={submission.id} manageable submission={submission} />)}

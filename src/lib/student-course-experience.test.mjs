@@ -31,11 +31,11 @@ test("course page hides optional modules that have no teacher content", async ()
   assert.match(detail, /\{hasReflection \? \(/);
   assert.doesNotMatch(detail, /今天暂无视频/);
   assert.match(detail, /course\.pdfs\.length/);
-  assert.match(detail, /course\.recordingAssignmentEnabled \? \(/);
-  assert.match(detail, /course\.photoAssignmentEnabled \? \(/);
+  assert.match(detail, /<BrowserRecorder/);
+  assert.match(detail, /<PhotoAssignmentUploader/);
   assert.match(detail, /course\.audio \? <CloudCourseAudioPlayer audio=\{course\.audio\} \/> : null/);
   assert.doesNotMatch(detail, /暂无示范音频/);
-  assert.match(detail, /本课无需提交作业/);
+  assert.match(detail, /本课没有必交内容/);
 });
 
 test("course page presents reading, videos, PDFs, guidance, and submission in order", async () => {
@@ -106,7 +106,9 @@ test("course assignments use warm beginner guidance without changing assignment 
   assert.match(detail, /读一读，写一写，不用担心不够完美。/);
   assert.doesNotMatch(detail, /听完老师的示范/);
   assert.doesNotMatch(detail, /我们一步一步来/);
-  assert.match(detail, /hasAssignment \? \(/);
+  assert.match(detail, /const canSubmit = allRequiredMaterialsReady && hasPreparedMaterial/);
+  assert.match(detail, /缺少必交录音/);
+  assert.match(detail, /缺少必交照片/);
 
   assert.match(recorder, />口语输出</);
   assert.match(recorder, /跟着老师的示范，大声读出来吧！可以反复练习，选择满意的一次提交。/);
@@ -151,6 +153,10 @@ test("unified assignment route is idempotent and cleans partial uploads before r
   assert.match(route, /complete_student_assignment/);
   assert.match(route, /cleanupUploadPlan/);
   assert.match(route, /verifyUploadedPlan/);
+  assert.match(route, /recording_assignment_required && !hasAudio/);
+  assert.match(route, /photo_assignment_required && photos\.length < 1/);
+  assert.doesNotMatch(route, /本课不需要录音/);
+  assert.doesNotMatch(route, /本课不需要照片作业/);
   assert.match(route, /dispatchStudentRecordingTranscode\(completed\.audio_submission_id\)/);
 });
 

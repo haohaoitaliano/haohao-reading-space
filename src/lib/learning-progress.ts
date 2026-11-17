@@ -4,8 +4,8 @@ export type ProgressCourse = {
   title: string;
   status: "draft" | "published" | "archived";
   effectiveUnlockAt: string | null;
-  recordingAssignmentEnabled: boolean;
-  photoAssignmentEnabled: boolean;
+  recordingAssignmentRequired: boolean;
+  photoAssignmentRequired: boolean;
 };
 
 export type ProgressMember = { userId: string; displayName: string };
@@ -35,18 +35,18 @@ export function getTodayTaskStatus(input: {
   if (input.submissionError) return "状态暂时无法读取";
   if (!input.recordingRequired && !input.photoRequired) return "无需提交作业";
   return isCourseAssignmentComplete({
-    recordingAssignmentEnabled: input.recordingRequired,
-    photoAssignmentEnabled: input.photoRequired,
+    recordingAssignmentRequired: input.recordingRequired,
+    photoAssignmentRequired: input.photoRequired,
   }, input.hasRecordingSubmission, input.hasPhotoSubmission) ? "已完成" : "待完成";
 }
 
 export function isCourseAssignmentComplete(
-  course: { recordingAssignmentEnabled: boolean; photoAssignmentEnabled: boolean },
+  course: { recordingAssignmentRequired: boolean; photoAssignmentRequired: boolean },
   hasRecordingSubmission: boolean,
   hasPhotoSubmission: boolean,
 ) {
-  return (!course.recordingAssignmentEnabled || hasRecordingSubmission)
-    && (!course.photoAssignmentEnabled || hasPhotoSubmission);
+  return (!course.recordingAssignmentRequired || hasRecordingSubmission)
+    && (!course.photoAssignmentRequired || hasPhotoSubmission);
 }
 
 export function buildStudentCampStats(input: {
@@ -54,8 +54,8 @@ export function buildStudentCampStats(input: {
     id: string;
     dayNumber: number;
     isUnlocked: boolean;
-    recordingAssignmentEnabled: boolean;
-    photoAssignmentEnabled: boolean;
+    recordingAssignmentRequired: boolean;
+    photoAssignmentRequired: boolean;
   }>;
   recordingSubmissions: Array<{ courseId: string; version: number }>;
   photoSubmissions: Array<{ courseId: string; version: number }>;
@@ -74,7 +74,7 @@ export function buildStudentCampStats(input: {
   const openedCourses = input.courses.filter((course) =>
     course.dayNumber > 0
     && course.isUnlocked
-    && (course.recordingAssignmentEnabled || course.photoAssignmentEnabled)
+    && (course.recordingAssignmentRequired || course.photoAssignmentRequired)
   );
   const completedTasks = openedCourses.filter((course) => isCourseAssignmentComplete(
     course,
@@ -106,7 +106,7 @@ export function buildLearningProgress(input: {
   const availableCourses = input.courses
     .filter((course) => {
       if (course.dayNumber === 0) return false;
-      if (!course.recordingAssignmentEnabled && !course.photoAssignmentEnabled) return false;
+      if (!course.recordingAssignmentRequired && !course.photoAssignmentRequired) return false;
       if (course.status !== "published" || !course.effectiveUnlockAt) return false;
       const unlockTime = new Date(course.effectiveUnlockAt).getTime();
       return Number.isFinite(unlockTime) && unlockTime <= now.getTime();
@@ -154,7 +154,7 @@ export function buildAdminLearningProgress(input: {
   const now = input.now ?? new Date();
   const courses = input.courses
     .filter((course) => {
-      if (!course.recordingAssignmentEnabled && !course.photoAssignmentEnabled) return false;
+      if (!course.recordingAssignmentRequired && !course.photoAssignmentRequired) return false;
       if (course.status !== "published" || !course.effectiveUnlockAt) return false;
       const unlockTime = new Date(course.effectiveUnlockAt).getTime();
       return Number.isFinite(unlockTime) && unlockTime <= now.getTime();

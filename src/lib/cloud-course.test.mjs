@@ -65,8 +65,8 @@ test("validates required admin course fields and vocabulary positions", () => {
     status: "published",
     maxDurationSeconds: 120,
     targetDurationSeconds: null,
-    recordingAssignmentEnabled: true,
-    photoAssignmentEnabled: false,
+    recordingAssignmentRequired: true,
+    photoAssignmentRequired: false,
     vocabulary: [{ position: 1, word: "forno", meaningZh: "烤炉" }],
   };
 

@@ -22,8 +22,8 @@ export type CourseEditorInput = {
   status: CloudCourseStatus;
   maxDurationSeconds: number;
   targetDurationSeconds: number | null;
-  recordingAssignmentEnabled: boolean;
-  photoAssignmentEnabled: boolean;
+  recordingAssignmentRequired: boolean;
+  photoAssignmentRequired: boolean;
   vocabulary: CloudVocabularyItem[];
 };
 
@@ -71,8 +71,8 @@ export function validateCourseEditorInput(input: CourseEditorInput) {
   if (!(["auto", "manual"] as string[]).includes(input.unlockMode)) {
     return "解锁方式不正确";
   }
-  if (typeof input.recordingAssignmentEnabled !== "boolean" || typeof input.photoAssignmentEnabled !== "boolean") {
-    return "作业类型设置不正确";
+  if (typeof input.recordingAssignmentRequired !== "boolean" || typeof input.photoAssignmentRequired !== "boolean") {
+    return "必交内容设置不正确";
   }
   if (input.unlockMode === "manual" && !input.unlockAtLocal) {
     return "请选择手动解锁时间";

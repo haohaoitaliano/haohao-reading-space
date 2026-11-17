@@ -40,8 +40,8 @@ function toEditorInput(course: CloudCourseDetail): CourseEditorInput {
     status: course.status,
     maxDurationSeconds: course.maxDurationSeconds,
     targetDurationSeconds: course.targetDurationSeconds,
-    recordingAssignmentEnabled: course.recordingAssignmentEnabled,
-    photoAssignmentEnabled: course.photoAssignmentEnabled,
+    recordingAssignmentRequired: course.recordingAssignmentRequired,
+    photoAssignmentRequired: course.photoAssignmentRequired,
     vocabulary: course.vocabulary.map((item) => ({ ...item })),
   };
 }
@@ -525,16 +525,16 @@ export function TeacherCourseEditor({
           <small>这是准确、清晰、自然表达下的挑战目标，不是提交限制。</small>
         </label>
         <fieldset className="assignment-options">
-          <legend>本课作业类型</legend>
+          <legend>本课必交内容</legend>
           <label>
-            <input checked={course.recordingAssignmentEnabled} onChange={(event) => updateField("recordingAssignmentEnabled", event.target.checked)} type="checkbox" />
-            开启录音作业
+            <input checked={course.recordingAssignmentRequired} onChange={(event) => updateField("recordingAssignmentRequired", event.target.checked)} type="checkbox" />
+            录音必交
           </label>
           <label>
-            <input checked={course.photoAssignmentEnabled} onChange={(event) => updateField("photoAssignmentEnabled", event.target.checked)} type="checkbox" />
-            开启照片作业
+            <input checked={course.photoAssignmentRequired} onChange={(event) => updateField("photoAssignmentRequired", event.target.checked)} type="checkbox" />
+            照片必交
           </label>
-          <small>两项可以同时开启；全部关闭时，本课无需提交作业。</small>
+          <small>录音和照片始终都可上传；未勾选必交项时，学员可以任选、同时提交或跳过。</small>
         </fieldset>
       </section>
 

@@ -86,8 +86,10 @@ export async function updateCloudCourse(
     reading_blocks: readingBlocks,
     reflection_prompt_zh: input.reflectionPromptZh.trim() || null,
     reflection_prompt_it: input.reflectionPromptIt.trim() || null,
-    recording_assignment_enabled: input.recordingAssignmentEnabled,
-    photo_assignment_enabled: input.photoAssignmentEnabled,
+    recording_assignment_enabled: true,
+    photo_assignment_enabled: true,
+    recording_assignment_required: input.recordingAssignmentRequired,
+    photo_assignment_required: input.photoAssignmentRequired,
     updated_by: profile.id,
     updated_at: new Date().toISOString(),
   });
@@ -247,8 +249,10 @@ export async function createCloudCourse(
     reading_blocks: readingBlocks,
     reflection_prompt_zh: input.reflectionPromptZh.trim() || null,
     reflection_prompt_it: input.reflectionPromptIt.trim() || null,
-    recording_assignment_enabled: input.recordingAssignmentEnabled,
-    photo_assignment_enabled: input.photoAssignmentEnabled,
+    recording_assignment_enabled: true,
+    photo_assignment_enabled: true,
+    recording_assignment_required: input.recordingAssignmentRequired,
+    photo_assignment_required: input.photoAssignmentRequired,
     updated_by: profile.id,
   });
 

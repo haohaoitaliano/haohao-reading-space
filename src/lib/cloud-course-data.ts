@@ -38,8 +38,8 @@ export type CloudCourseSummary = {
   isUnlocked: boolean;
   maxDurationSeconds: number;
   targetDurationSeconds: number | null;
-  recordingAssignmentEnabled: boolean;
-  photoAssignmentEnabled: boolean;
+  recordingAssignmentRequired: boolean;
+  photoAssignmentRequired: boolean;
 };
 
 export type CloudCourseDetail = CloudCourseSummary & {
@@ -173,8 +173,8 @@ async function createSignedReadingImages(supabase: SupabaseClient, rows: CourseR
 
 type CourseAssignmentRow = {
   course_id: string;
-  recording_assignment_enabled: boolean;
-  photo_assignment_enabled: boolean;
+  recording_assignment_required: boolean;
+  photo_assignment_required: boolean;
 };
 
 async function createSignedCourseAudio(supabase: SupabaseClient, row: CourseAudioRow | null) {
@@ -328,8 +328,8 @@ function mapSummary(row: CourseScheduleRow, assignment?: CourseAssignmentRow): C
     targetDurationSeconds: Number.isInteger(row.target_duration_seconds) && row.target_duration_seconds! > 0
       ? row.target_duration_seconds
       : null,
-    recordingAssignmentEnabled: assignment?.recording_assignment_enabled ?? true,
-    photoAssignmentEnabled: assignment?.photo_assignment_enabled ?? false,
+    recordingAssignmentRequired: assignment?.recording_assignment_required ?? false,
+    photoAssignmentRequired: assignment?.photo_assignment_required ?? false,
   };
 }
 
@@ -337,7 +337,7 @@ async function getAssignmentMap(supabase: SupabaseClient, courseIds: string[]) {
   if (!courseIds.length) return new Map<string, CourseAssignmentRow>();
   const { data, error } = await supabase
     .from("course_contents")
-    .select("course_id, recording_assignment_enabled, photo_assignment_enabled")
+    .select("course_id, recording_assignment_required, photo_assignment_required")
     .in("course_id", courseIds);
   if (error) return null;
   return new Map(((data ?? []) as CourseAssignmentRow[]).map((row) => [row.course_id, row]));
@@ -402,7 +402,7 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
     await Promise.all([
       supabase
         .from("course_contents")
-        .select("description, reading_text, reading_blocks, reflection_prompt_zh, reflection_prompt_it, recording_assignment_enabled, photo_assignment_enabled")
+        .select("description, reading_text, reading_blocks, reflection_prompt_zh, reflection_prompt_it, recording_assignment_required, photo_assignment_required")
         .eq("course_id", summary.id)
         .maybeSingle<{
           description: string | null;
@@ -410,8 +410,8 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
           reading_blocks: unknown;
           reflection_prompt_zh: string | null;
           reflection_prompt_it: string | null;
-          recording_assignment_enabled: boolean;
-          photo_assignment_enabled: boolean;
+          recording_assignment_required: boolean;
+          photo_assignment_required: boolean;
         }>(),
       supabase
         .from("course_vocabulary")
@@ -479,8 +479,8 @@ export async function getStudentCourseByDay(userId: string, dayNumber: number) {
     readingImages,
     reflectionPromptZh: content.reflection_prompt_zh ?? "",
     reflectionPromptIt: content.reflection_prompt_it ?? "",
-    recordingAssignmentEnabled: content.recording_assignment_enabled,
-    photoAssignmentEnabled: content.photo_assignment_enabled,
+    recordingAssignmentRequired: content.recording_assignment_required,
+    photoAssignmentRequired: content.photo_assignment_required,
     vocabulary: ((vocabulary ?? []) as Array<{
       id: string;
       position: number;
@@ -553,7 +553,7 @@ export async function getAdminCourse(courseId: string) {
   ] = await Promise.all([
     supabase
       .from("course_contents")
-      .select("description, reading_text, reading_blocks, reflection_prompt_zh, reflection_prompt_it, recording_assignment_enabled, photo_assignment_enabled")
+      .select("description, reading_text, reading_blocks, reflection_prompt_zh, reflection_prompt_it, recording_assignment_required, photo_assignment_required")
       .eq("course_id", courseId)
       .maybeSingle<{
         description: string | null;
@@ -561,8 +561,8 @@ export async function getAdminCourse(courseId: string) {
         reading_blocks: unknown;
         reflection_prompt_zh: string | null;
         reflection_prompt_it: string | null;
-        recording_assignment_enabled: boolean;
-        photo_assignment_enabled: boolean;
+        recording_assignment_required: boolean;
+        photo_assignment_required: boolean;
       }>(),
     supabase
       .from("course_vocabulary")
@@ -607,8 +607,8 @@ export async function getAdminCourse(courseId: string) {
     readingImages: await createSignedReadingImages(supabase, readingImageRows as CourseReadingImageRow[] | null),
     reflectionPromptZh: content?.reflection_prompt_zh ?? "",
     reflectionPromptIt: content?.reflection_prompt_it ?? "",
-    recordingAssignmentEnabled: content?.recording_assignment_enabled ?? true,
-    photoAssignmentEnabled: content?.photo_assignment_enabled ?? false,
+    recordingAssignmentRequired: content?.recording_assignment_required ?? false,
+    photoAssignmentRequired: content?.photo_assignment_required ?? false,
     vocabulary: ((vocabulary ?? []) as Array<{
       id: string;
       position: number;
