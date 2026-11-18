@@ -459,10 +459,6 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
 
           <PhotoAssignmentUploader onPreparedChange={handlePhotosPrepared} />
 
-          {!course.recordingAssignmentRequired && !course.photoAssignmentRequired ? (
-            <p className="success-notice">本课没有必交内容。你可以任选录音、照片或两项一起提交，也可以直接跳过。</p>
-          ) : null}
-
           <section className="quiet-card stack" aria-label="提交作业">
               <div>
                 <p className="kicker">提交前确认</p>
