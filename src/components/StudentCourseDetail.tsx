@@ -484,7 +484,7 @@ export function StudentCourseDetail({ course, latestSubmission, photoSubmissions
                 </div>
               ) : (
                 <button className="button full" disabled={!canSubmit || submissionState === "submitting"} onClick={submitAssignment} type="button">
-                  <Send size={18} />{submissionState === "submitting" ? `正在提交${uploadProgress ? ` · ${uploadProgress}%` : "…"}` : submissionState === "error" ? "重试提交作业" : !hasPreparedMaterial ? "可直接跳过，或选择内容后提交" : "提交作业"}
+                  <Send size={18} />{submissionState === "submitting" ? `正在提交${uploadProgress ? ` · ${uploadProgress}%` : "…"}` : submissionState === "error" ? "重试提交作业" : "提交作业"}
                 </button>
               )}
               {submissionMessage ? <p className="notice" role="alert">{submissionMessage}</p> : null}

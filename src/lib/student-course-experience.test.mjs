@@ -38,7 +38,7 @@ test("course page hides optional modules that have no teacher content", async ()
   assert.doesNotMatch(detail, /本课没有必交内容。你可以任选录音、照片或两项一起提交，也可以直接跳过。/);
   assert.match(detail, /录音可选。/);
   assert.match(detail, /照片可选。/);
-  assert.match(detail, /可直接跳过，或选择内容后提交/);
+  assert.doesNotMatch(detail, /可直接跳过，或选择内容后提交/);
 });
 
 test("course page presents reading, videos, PDFs, guidance, and submission in order", async () => {
