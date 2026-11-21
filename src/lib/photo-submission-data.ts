@@ -203,6 +203,7 @@ export async function getAdminPhotoSubmissions(filters?: { userId?: string; camp
 
 
 const unifiedSelection = "id, camp_id, course_id, user_id, student_display_name, version, visibility, has_recording, created_at, courses(day_number, italian_title), student_photo_submissions(student_submission_photos(id, storage_path, file_name, mime_type, size_bytes, position))";
+const COMMENT_QUERY_BATCH_SIZE = 50;
 
 export async function getCampUnifiedAssignments(campId: string, currentUserId: string) {
   const supabase = await createSupabaseServerClient();
@@ -216,14 +217,22 @@ export async function getCampUnifiedAssignments(campId: string, currentUserId: s
   const rows = (data ?? []) as unknown as UnifiedAssignmentRow[];
   const identityLabels = await getVisibleIdentityLabels(rows.map((row) => row.user_id));
   const assignmentIds = rows.map((row) => row.id);
-  const { data: commentRows, error: commentError } = assignmentIds.length
-    ? await supabase
+  const commentResults = await Promise.all(Array.from(
+    { length: Math.ceil(assignmentIds.length / COMMENT_QUERY_BATCH_SIZE) },
+    (_, index) => assignmentIds.slice(
+      index * COMMENT_QUERY_BATCH_SIZE,
+      (index + 1) * COMMENT_QUERY_BATCH_SIZE,
+    ),
+  ).map((ids) => supabase
       .from("submission_comments")
       .select("submission_id, assignment_submission_id")
-      .or(`submission_id.in.(${assignmentIds.join(",")}),assignment_submission_id.in.(${assignmentIds.join(",")})`)
-    : { data: [], error: null };
-  if (commentError) return { assignments: [] as CloudUnifiedAssignment[], error: true };
-  const commentCounts = countSubmissionCommentsByTarget(commentRows ?? []);
+      .or(`submission_id.in.(${ids.join(",")}),assignment_submission_id.in.(${ids.join(",")})`)));
+  if (commentResults.some((result) => result.error)) {
+    return { assignments: [] as CloudUnifiedAssignment[], error: true };
+  }
+  const commentCounts = countSubmissionCommentsByTarget(
+    commentResults.flatMap((result) => result.data ?? []),
+  );
   const photoRows = rows.map((row) => {
     const photoSubmission = Array.isArray(row.student_photo_submissions)
       ? row.student_photo_submissions[0]

@@ -38,6 +38,15 @@ type CommentTargetRow = {
   assignment_submission_id: string | null;
 };
 
+const INTERACTION_QUERY_BATCH_SIZE = 50;
+
+function chunkIds(ids: string[]) {
+  return Array.from(
+    { length: Math.ceil(ids.length / INTERACTION_QUERY_BATCH_SIZE) },
+    (_, index) => ids.slice(index * INTERACTION_QUERY_BATCH_SIZE, (index + 1) * INTERACTION_QUERY_BATCH_SIZE),
+  );
+}
+
 function mapRow(row: SubmissionRow, targetDurations = new Map<string, number | null>(), identityLabels = new Map()): SubmissionPresentationRow {
   return {
     id: row.id,
@@ -152,23 +161,24 @@ export async function getCampCircleSubmissions(campId: string, currentUserId: st
     return { submissions, error: false };
   }
 
-  const [encouragementResult, commentResult] = await Promise.all([
-    supabase
+  const batches = chunkIds(publicSubmissionIds);
+  const [encouragementResults, commentResults] = await Promise.all([
+    Promise.all(batches.map((ids) => supabase
       .from("submission_encouragements")
       .select("submission_id, user_id")
-      .in("submission_id", publicSubmissionIds),
-    supabase
+      .in("submission_id", ids))),
+    Promise.all(batches.map((ids) => supabase
       .from("submission_comments")
       .select("submission_id, assignment_submission_id")
-      .or(`submission_id.in.(${publicSubmissionIds.join(",")}),assignment_submission_id.in.(${publicSubmissionIds.join(",")})`),
+      .or(`submission_id.in.(${ids.join(",")}),assignment_submission_id.in.(${ids.join(",")})`))),
   ]);
 
-  if (encouragementResult.error || commentResult.error) {
+  if (encouragementResults.some((result) => result.error) || commentResults.some((result) => result.error)) {
     return { submissions: [] as CloudSubmission[], error: true };
   }
 
-  const encouragements = (encouragementResult.data ?? []) as EncouragementRow[];
-  const comments = (commentResult.data ?? []) as CommentTargetRow[];
+  const encouragements = encouragementResults.flatMap((result) => result.data ?? []) as EncouragementRow[];
+  const comments = commentResults.flatMap((result) => result.data ?? []) as CommentTargetRow[];
   const encouragementsBySubmission = new Map<string, EncouragementRow[]>();
   const commentCounts = countSubmissionCommentsByTarget(comments);
 

@@ -30,3 +30,13 @@ test("circle loads only comment targets for collapsed counts", async () => {
   assert.match(source, /\.select\("submission_id, assignment_submission_id"\)/);
   assert.doesNotMatch(source, /\.select\("id, submission_id, assignment_submission_id, user_id, author_display_name, content, created_at"\)/);
 });
+
+test("circle batches interaction queries before ID lists exceed gateway limits", async () => {
+  const cloudSource = await readFile(new URL("./cloud-submission-data.ts", import.meta.url), "utf8");
+  const photoSource = await readFile(new URL("./photo-submission-data.ts", import.meta.url), "utf8");
+
+  assert.match(cloudSource, /INTERACTION_QUERY_BATCH_SIZE = 50/);
+  assert.match(cloudSource, /Promise\.all\(batches\.map/);
+  assert.match(photoSource, /COMMENT_QUERY_BATCH_SIZE = 50/);
+  assert.match(photoSource, /assignment_submission_id\.in\.\(\$\{ids\.join\(","\)\}\)/);
+});
