@@ -133,15 +133,19 @@ export async function getPublicCampSubmissions(
   };
 }
 
-export async function getCampCircleSubmissions(campId: string, currentUserId: string) {
+export async function getCampCircleSubmissions(campId: string, currentUserId: string, ids: string[]) {
   const supabase = await createSupabaseServerClient();
+  if (ids.length === 0) return { submissions: [] as CloudSubmission[], error: false };
+  let query = supabase
+    .from("student_submissions")
+    .select(selection)
+    .eq("camp_id", campId)
+    .or(`visibility.eq.public,user_id.eq.${currentUserId}`)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
+  query = query.in("id", ids);
   const [{ data, error }, targetDurations] = await Promise.all([
-    supabase
-      .from("student_submissions")
-      .select(selection)
-      .eq("camp_id", campId)
-      .or(`visibility.eq.public,user_id.eq.${currentUserId}`)
-      .order("created_at", { ascending: false }),
+    query,
     getTargetDurations(campId),
   ]);
 

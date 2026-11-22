@@ -55,7 +55,7 @@ test("public submission queries are camp-scoped and limited in the database", as
 test("circle includes the current student's own submissions without cross-camp data", async () => {
   const source = await readFile(new URL("./cloud-submission-data.ts", import.meta.url), "utf8");
 
-  assert.match(source, /getCampCircleSubmissions\(campId: string, currentUserId: string\)/);
+  assert.match(source, /getCampCircleSubmissions\(campId: string, currentUserId: string, ids: string\[\]\)/);
   assert.match(source, /\.eq\("camp_id", campId\)[\s\S]*\.or\(`visibility\.eq\.public,user_id\.eq\.\$\{currentUserId\}`\)/);
   assert.doesNotMatch(
     source.slice(source.indexOf("export async function getCampCircleSubmissions")),

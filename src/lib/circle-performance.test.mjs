@@ -40,3 +40,10 @@ test("circle batches interaction queries before ID lists exceed gateway limits",
   assert.match(photoSource, /COMMENT_QUERY_BATCH_SIZE = 50/);
   assert.match(photoSource, /assignment_submission_id\.in\.\(\$\{ids\.join\(","\)\}\)/);
 });
+
+test("circle loads only one server page of interaction targets", async () => {
+  const pageSource = await readFile(new URL("./circle-page-data.ts", import.meta.url), "utf8");
+  assert.match(pageSource, /pageIds = page\.map/);
+  assert.match(pageSource, /getCampCircleSubmissions\(campId, currentUserId, pageIds\)/);
+  assert.match(pageSource, /getCampUnifiedAssignments\(campId, currentUserId, pageIds\)/);
+});
