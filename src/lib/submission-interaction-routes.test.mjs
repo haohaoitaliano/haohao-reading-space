@@ -7,7 +7,7 @@ const encouragementUrl = new URL("../app/api/student/submissions/[id]/encouragem
 const commentUrl = new URL("../app/api/student/submissions/[id]/comments/route.ts", import.meta.url);
 const deleteCommentUrl = new URL("../app/api/student/submissions/[id]/comments/[commentId]/route.ts", import.meta.url);
 const cloudSubmissionDataUrl = new URL("./cloud-submission-data.ts", import.meta.url);
-const circlePageUrl = new URL("../app/circle/page.tsx", import.meta.url);
+const circlePageDataUrl = new URL("./circle-page-data.ts", import.meta.url);
 const interactionsUrl = new URL("../components/SubmissionInteractions.tsx", import.meta.url);
 
 const [contextSource, encouragementSource, commentSource, deleteCommentSource, cloudSubmissionDataSource, circlePageSource, interactionsSource] = await Promise.all([
@@ -16,7 +16,7 @@ const [contextSource, encouragementSource, commentSource, deleteCommentSource, c
   readFile(commentUrl, "utf8"),
   readFile(deleteCommentUrl, "utf8"),
   readFile(cloudSubmissionDataUrl, "utf8"),
-  readFile(circlePageUrl, "utf8"),
+  readFile(circlePageDataUrl, "utf8"),
   readFile(interactionsUrl, "utf8"),
 ]);
 

@@ -205,14 +205,18 @@ export async function getAdminPhotoSubmissions(filters?: { userId?: string; camp
 const unifiedSelection = "id, camp_id, course_id, user_id, student_display_name, version, visibility, has_recording, created_at, courses(day_number, italian_title), student_photo_submissions(student_submission_photos(id, storage_path, file_name, mime_type, size_bytes, position))";
 const COMMENT_QUERY_BATCH_SIZE = 50;
 
-export async function getCampUnifiedAssignments(campId: string, currentUserId: string) {
+export async function getCampUnifiedAssignments(campId: string, currentUserId: string, ids: string[]) {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
+  if (ids.length === 0) return { assignments: [] as CloudUnifiedAssignment[], error: false };
+  let query = supabase
     .from("student_assignment_submissions")
     .select(unifiedSelection)
     .eq("camp_id", campId)
     .or(`visibility.eq.public,user_id.eq.${currentUserId}`)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
+  query = query.in("id", ids);
+  const { data, error } = await query;
   if (error) return { assignments: [] as CloudUnifiedAssignment[], error: true };
   const rows = (data ?? []) as unknown as UnifiedAssignmentRow[];
   const identityLabels = await getVisibleIdentityLabels(rows.map((row) => row.user_id));
