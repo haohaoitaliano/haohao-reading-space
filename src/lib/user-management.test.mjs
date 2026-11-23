@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const [page, data, actions, progress, comments, workCard, interactions, messages, labelForm, workSection] = await Promise.all([
+const [page, data, actions, progress, comments, workCard, interactions, messages, messageList, labelForm, workSection] = await Promise.all([
   readFile(new URL("../app/teacher/submissions/page.tsx", import.meta.url), "utf8"),
   readFile(new URL("./user-management-data.ts", import.meta.url), "utf8"),
   readFile(new URL("../app/teacher/submissions/actions.ts", import.meta.url), "utf8"),
@@ -11,6 +11,7 @@ const [page, data, actions, progress, comments, workCard, interactions, messages
   readFile(new URL("../components/CloudSubmissionCard.tsx", import.meta.url), "utf8"),
   readFile(new URL("../components/SubmissionInteractions.tsx", import.meta.url), "utf8"),
   readFile(new URL("../app/messages/page.tsx", import.meta.url), "utf8"),
+  readFile(new URL("../components/StudentMessageList.tsx", import.meta.url), "utf8"),
   readFile(new URL("../app/teacher/submissions/IdentityLabelForm.tsx", import.meta.url), "utf8"),
   readFile(new URL("../app/teacher/submissions/WorkRecordsSection.tsx", import.meta.url), "utf8"),
 ]);
@@ -72,7 +73,7 @@ test("comments resolve current identity labels instead of historical author role
 
 test("student is an internal statistics value and is not shown beside names", () => {
   assert.match(labelForm, /无特殊标签（纳入学员统计）/);
-  for (const source of [workCard, interactions, messages]) {
+  for (const source of [workCard, interactions, `${messages}\n${messageList}`]) {
     assert.match(source, /identityLabel !== "student"/);
   }
 });
