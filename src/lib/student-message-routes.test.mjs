@@ -11,8 +11,10 @@ const circlePageUrl = new URL("../app/circle/page.tsx", import.meta.url);
 const interactionsUrl = new URL("../components/SubmissionInteractions.tsx", import.meta.url);
 const appFrameUrl = new URL("../components/AppFrame.tsx", import.meta.url);
 const unreadUiUrl = new URL("../components/StudentMessageUnread.tsx", import.meta.url);
+const messageListUrl = new URL("../components/StudentMessageList.tsx", import.meta.url);
+const messageApiUrl = new URL("../app/api/student/messages/route.ts", import.meta.url);
 
-const [dataSource, readRouteSource, messagesPageSource, progressPageSource, homePageSource, circlePageSource, interactionsSource, appFrameSource, unreadUiSource] = await Promise.all([
+const [dataSource, readRouteSource, messagesPageSource, progressPageSource, homePageSource, circlePageSource, interactionsSource, appFrameSource, unreadUiSource, messageListSource, messageApiSource] = await Promise.all([
   readFile(dataUrl, "utf8"),
   readFile(readRouteUrl, "utf8"),
   readFile(messagesPageUrl, "utf8"),
@@ -22,6 +24,8 @@ const [dataSource, readRouteSource, messagesPageSource, progressPageSource, home
   readFile(interactionsUrl, "utf8"),
   readFile(appFrameUrl, "utf8"),
   readFile(unreadUiUrl, "utf8"),
+  readFile(messageListUrl, "utf8"),
+  readFile(messageApiUrl, "utf8"),
 ]);
 
 test("message queries reuse the selected active camp and current authenticated user", () => {
@@ -32,12 +36,24 @@ test("message queries reuse the selected active camp and current authenticated u
 });
 
 test("messages are individually linked without a bulk-read action", () => {
-  assert.match(messagesPageSource, /submission=.*comment=/);
-  assert.match(messagesPageSource, /IDENTITY_LABEL_TEXT\[message\.identityLabel\]/);
-  assert.doesNotMatch(messagesPageSource, /助教老师/);
+  assert.match(messageListSource, /submission=.*comment=/);
+  assert.match(messageListSource, /IDENTITY_LABEL_TEXT\[message\.identityLabel\]/);
+  assert.doesNotMatch(messageListSource, /助教老师/);
   assert.match(messagesPageSource, /unreadCount/);
   assert.doesNotMatch(messagesPageSource, /全部标记|mark.*all/i);
   assert.match(unreadUiSource, /href="\/messages"/);
+});
+
+test("message list uses five-item stable cursor pages and keeps loaded messages on retry", () => {
+  assert.match(dataSource, /STUDENT_MESSAGE_PAGE_SIZE/);
+  assert.match(dataSource, /created_at\.lt\.\$\{cursor\.createdAt\}.*created_at\.eq\.\$\{cursor\.createdAt\}.*id\.lt\.\$\{cursor\.id\}/);
+  assert.match(dataSource, /\.order\("created_at", \{ ascending: false \}\)[\s\S]*\.order\("id", \{ ascending: false \}\)[\s\S]*\.limit\(candidateLimit\)/);
+  assert.match(messageApiSource, /decodeStudentMessageCursor/);
+  assert.match(messageListSource, /IntersectionObserver/);
+  assert.match(messageListSource, /inFlightRef\.current/);
+  assert.match(messageListSource, /new Set\(current\.map/);
+  assert.match(messageListSource, /setMessages\(\(current\)/);
+  assert.match(messageListSource, />重试</);
 });
 
 test("a message is marked read only after its comment loads and is focused", () => {
