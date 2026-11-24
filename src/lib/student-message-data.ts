@@ -166,13 +166,16 @@ export async function getStudentMessagePage(userId: string, cursor: StudentMessa
 
   const ownCommentResults = await Promise.all(chunks(allTargetIds).map((targetIds) => supabase
     .from("submission_comments")
-    .select("id")
+    .select(commentSelection)
     .eq("user_id", userId)
     .or(`submission_id.in.(${targetIds.join(",")}),assignment_submission_id.in.(${targetIds.join(",")})`)));
   if (ownCommentResults.some((result) => result.error)) {
     return { state: "database_error" as const, camp: campResult.camp, messages: [], nextCursor: null };
   }
-  const ownCommentIds = ownCommentResults.flatMap((result) => (result.data ?? []).map((row) => row.id as string));
+  const ownComments = ownCommentResults.flatMap((result) => (
+    (result.data ?? []) as unknown as StudentMessageCommentRow[]
+  ));
+  const ownCommentIds = ownComments.map((comment) => comment.id);
   const candidateLimit = STUDENT_MESSAGE_PAGE_SIZE + 1;
 
   const ownWorkQueries = chunks(ownTargetIds).map((targetIds) => {
@@ -220,7 +223,10 @@ export async function getStudentMessagePage(userId: string, cursor: StudentMessa
   }
   const identityLabels = await getVisibleIdentityLabels(candidates.map((comment) => comment.user_id));
   const messages = buildStudentMessages({
-    comments: candidates.map((comment) => ({ ...comment, identity_label: identityLabels.get(comment.user_id) })),
+    comments: [
+      ...candidates.map((comment) => ({ ...comment, identity_label: identityLabels.get(comment.user_id) })),
+      ...ownComments,
+    ],
     targets,
     readCommentIds: new Set((readResult.data ?? []).map((row) => row.comment_id as string)),
     currentUserId: userId,
