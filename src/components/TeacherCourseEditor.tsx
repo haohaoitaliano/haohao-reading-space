@@ -482,9 +482,6 @@ export function TeacherCourseEditor({
             <input onChange={(event) => updateField("unlockAtLocal", event.target.value || null)} type="datetime-local" value={course.unlockAtLocal ?? ""} />
           </label>
         )}
-        <label className="field">今日解锁说明
-          <textarea onChange={(event) => updateField("description", event.target.value)} rows={3} value={course.description} />
-        </label>
         <ReadingContentEditor
           blocks={course.readingBlocks}
           courseId={initialCourse.id}
