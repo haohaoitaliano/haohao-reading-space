@@ -54,6 +54,13 @@ test("message list uses five-item stable cursor pages and keeps loaded messages 
   assert.match(messageListSource, /new Set\(current\.map/);
   assert.match(messageListSource, /setMessages\(\(current\)/);
   assert.match(messageListSource, />重试</);
+  assert.match(messageListSource, /messages\.length === 0 && !error/);
+});
+
+test("message pages retain the student's parent comments when building replies", () => {
+  assert.match(dataSource, /const ownComments = ownCommentResults\.flatMap/);
+  assert.match(dataSource, /const ownCommentIds = ownComments\.map/);
+  assert.match(dataSource, /comments: \[[\s\S]*candidates\.map[\s\S]*\.\.\.ownComments/);
 });
 
 test("a message is marked read only after its comment loads and is focused", () => {
