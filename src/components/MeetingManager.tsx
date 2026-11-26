@@ -1,22 +1,25 @@
 "use client";
 
-import { CalendarDays, CalendarPlus, ExternalLink, Pencil, Save, Trash2, X } from "lucide-react";
+import { CalendarDays, CalendarPlus, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { deleteWeeklyMeeting, saveWeeklyMeeting } from "@/app/teacher/meeting-actions";
-import { MeetingNumber } from "@/components/MeetingNumber";
 import type { CloudCamp } from "@/lib/cloud-course-data";
 import { formatDateTimeLocalInZone, formatUnlockDateTime } from "@/lib/course-schedule";
-import { getMeetingStatus, getMeetingStatusLabel, splitMeetingDescription } from "@/lib/meeting-details";
+import { getMeetingStatus, getMeetingStatusLabel } from "@/lib/meeting-details";
 import type { WeeklyMeeting } from "@/lib/teacher-operations-data";
 
-function MeetingEditor({ camps, meeting, onCancel }: {
+function MeetingEditor({ camps, meeting, selectedCampId, onCancel, onSaved }: {
   camps: CloudCamp[];
   meeting?: WeeklyMeeting;
+  selectedCampId?: string;
   onCancel?: () => void;
+  onSaved?: (message: string) => void;
 }) {
   const router = useRouter();
-  const initialCamp = camps.find((camp) => camp.id === meeting?.campId) ?? camps[0];
+  const initialCamp = camps.find((camp) => camp.id === meeting?.campId)
+    ?? camps.find((camp) => camp.id === selectedCampId)
+    ?? camps[0];
   const [campId, setCampId] = useState(initialCamp?.id ?? "");
   const [title, setTitle] = useState(meeting?.title ?? "");
   const [scheduledAtLocal, setScheduledAtLocal] = useState(
@@ -33,7 +36,8 @@ function MeetingEditor({ camps, meeting, onCancel }: {
     setBusy(true); setMessage(""); setError("");
     const result = await saveWeeklyMeeting({ id: meeting?.id ?? null, campId, title, scheduledAtLocal, meetingUrl, meetingNumber, description });
     if (result.success) {
-      setMessage(result.message);
+      if (onSaved) onSaved(result.message);
+      else setMessage(result.message);
       if (!meeting) {
         setTitle("");
         setScheduledAtLocal("");
@@ -73,27 +77,25 @@ function MeetingEditor({ camps, meeting, onCancel }: {
   );
 }
 
-function ManagedMeetingCard({ camps, meeting, now }: {
+function ManagedMeetingCard({ camps, meeting, now, onSaved }: {
   camps: CloudCamp[];
   meeting: WeeklyMeeting;
   now: number;
+  onSaved: (message: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  if (editing) return <MeetingEditor camps={camps} meeting={meeting} onCancel={() => setEditing(false)} />;
+  if (editing) return <MeetingEditor camps={camps} meeting={meeting} onCancel={() => setEditing(false)} onSaved={(message) => {
+    setEditing(false);
+    onSaved(message);
+  }} />;
 
   const status = getMeetingStatus(meeting.scheduledAt, now);
   return <article className="item-card stack">
     <div className="row start">
-      <div><p className="kicker">Meeting · {meeting.campName}</p><h2>{meeting.title}</h2></div>
+      <div><h2>{meeting.title}</h2><p>{formatUnlockDateTime(meeting.scheduledAt, meeting.timezone)}（{meeting.timezone}）</p></div>
       <CalendarDays color="var(--sky)" />
     </div>
     <span className={`pill ${status === "upcoming" ? "sky" : "muted"}`}>{getMeetingStatusLabel(status)}</span>
-    <p>{formatUnlockDateTime(meeting.scheduledAt, meeting.timezone)}（{meeting.timezone}）</p>
-    {meeting.description ? <p className="meeting-description">{splitMeetingDescription(meeting.description).map((part, index) => part.type === "link"
-      ? <a href={part.value} key={`${part.value}-${index}`} rel="noreferrer" target="_blank">{part.value}</a>
-      : part.value)}</p> : null}
-    {meeting.meetingNumber ? <MeetingNumber value={meeting.meetingNumber} /> : null}
-    {meeting.meetingUrl ? <a className="button secondary full" href={meeting.meetingUrl} rel="noreferrer" target="_blank"><ExternalLink size={18} /> 加入会议</a> : null}
     <button className="button ghost full" onClick={() => setEditing(true)} type="button"><Pencil size={18} /> 编辑这场线上见面</button>
   </article>;
 }
@@ -103,8 +105,45 @@ export function MeetingManager({ camps, meetings, now }: {
   meetings: WeeklyMeeting[];
   now: number;
 }) {
+  const [selectedCampId, setSelectedCampId] = useState(camps[0]?.id ?? "");
+  const [creating, setCreating] = useState(false);
+  const [message, setMessage] = useState("");
+  const selectedMeetings = meetings
+    .filter((meeting) => meeting.campId === selectedCampId)
+    .sort((left, right) => new Date(right.scheduledAt).getTime() - new Date(left.scheduledAt).getTime());
+  const endedCount = selectedMeetings.filter((meeting) => getMeetingStatus(meeting.scheduledAt, now) === "ended").length;
+  const upcomingCount = selectedMeetings.length - endedCount;
+
+  function handleCampChange(campId: string) {
+    setSelectedCampId(campId);
+    setCreating(false);
+    setMessage("");
+  }
+
+  function handleSaved(savedMessage: string) {
+    setCreating(false);
+    setMessage(savedMessage);
+  }
+
   return <div className="stack">
-    <MeetingEditor camps={camps} />
-    {meetings.length ? meetings.map((meeting) => <ManagedMeetingCard camps={camps} key={meeting.id} meeting={meeting} now={now} />) : <p className="notice">还没有创建线上见面。</p>}
+    <label className="field">训练营
+      <select onChange={(event) => handleCampChange(event.target.value)} value={selectedCampId}>
+        {camps.map((camp) => <option key={camp.id} value={camp.id}>{camp.name}</option>)}
+      </select>
+    </label>
+    <section className="quiet-card stack">
+      <h2>已创建 {selectedMeetings.length} 次线上见面</h2>
+      <p className="muted-text">已结束 {endedCount} 次 · 未开始 {upcomingCount} 次</p>
+    </section>
+    {message ? <p className="success-notice" role="status">{message}</p> : null}
+    {creating
+      ? <MeetingEditor camps={camps} onCancel={() => setCreating(false)} onSaved={handleSaved} selectedCampId={selectedCampId} />
+      : <button className="button full" disabled={!selectedCampId} onClick={() => {
+        setMessage("");
+        setCreating(true);
+      }} type="button"><Plus size={18} /> 新建线上见面</button>}
+    {selectedMeetings.length
+      ? selectedMeetings.map((meeting) => <ManagedMeetingCard camps={camps} key={meeting.id} meeting={meeting} now={now} onSaved={handleSaved} />)
+      : <p className="notice">当前训练营还没有创建线上见面。</p>}
   </div>;
 }

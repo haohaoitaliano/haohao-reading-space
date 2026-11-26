@@ -177,7 +177,7 @@ export async function getAdminMeetingData() {
     supabase
       .from("weekly_meetings")
       .select("id, camp_id, title, scheduled_at, meeting_url, meeting_number, description, camps(name, timezone)")
-      .order("scheduled_at", { ascending: true }),
+      .order("scheduled_at", { ascending: false }),
   ]);
   return {
     camps,

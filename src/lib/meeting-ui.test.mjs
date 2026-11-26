@@ -26,8 +26,18 @@ test("student meeting page conditionally renders number, join link, and safe lin
   assert.match(styles, /\.meeting-description,[\s\S]*overflow-wrap:\s*anywhere;/);
 });
 
-test("meeting queries sort both admin and student lists from earliest to latest", async () => {
+test("admin meetings sort latest first while student meetings remain earliest first", async () => {
   const source = await readFile(new URL("./teacher-operations-data.ts", import.meta.url), "utf8");
-  const matches = source.match(/\.order\("scheduled_at", \{ ascending: true \}\)/g) ?? [];
-  assert.equal(matches.length, 2);
+  assert.equal((source.match(/\.order\("scheduled_at", \{ ascending: false \}\)/g) ?? []).length, 1);
+  assert.equal((source.match(/\.order\("scheduled_at", \{ ascending: true \}\)/g) ?? []).length, 1);
+});
+
+test("admin meetings filter and summarize the selected camp with a collapsed creator", async () => {
+  const editor = await readFile(new URL("../components/MeetingManager.tsx", import.meta.url), "utf8");
+  assert.match(editor, /meeting\.campId === selectedCampId/);
+  assert.match(editor, /已创建 \{selectedMeetings\.length\} 次线上见面/);
+  assert.match(editor, /已结束 \{endedCount\} 次 · 未开始 \{upcomingCount\} 次/);
+  assert.match(editor, /creating\s*\?/);
+  assert.match(editor, /selectedCampId=\{selectedCampId\}/);
+  assert.doesNotMatch(editor, /加入会议/);
 });
